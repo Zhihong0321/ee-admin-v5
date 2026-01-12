@@ -18,9 +18,10 @@ import {
   Calendar,
   DollarSign,
   FileText,
-  Loader2
+  Loader2,
+  RefreshCw
 } from "lucide-react";
-import { getSubmittedPayments, getVerifiedPayments, verifyPayment, getInvoiceDetailsByBubbleId } from "./actions";
+import { getSubmittedPayments, getVerifiedPayments, verifyPayment, getInvoiceDetailsByBubbleId, triggerPaymentSync } from "./actions";
 import { cn } from "@/lib/utils";
 import InvoiceViewer from "@/components/InvoiceViewer";
 
@@ -29,6 +30,7 @@ export default function PaymentsPage() {
   const [search, setSearch] = useState("");
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [viewingPayment, setViewingPayment] = useState<any | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   
@@ -57,6 +59,24 @@ export default function PaymentsPage() {
       console.error("Failed to fetch payments", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSync() {
+    setSyncing(true);
+    try {
+      const result = await triggerPaymentSync();
+      if (result.success) {
+        alert("Sync complete: New submissions imported and verified payments synchronized.");
+        fetchData();
+      } else {
+        alert("Sync failed: " + result.error);
+      }
+    } catch (error) {
+      console.error("Sync error", error);
+      alert("Sync error");
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -139,6 +159,17 @@ export default function PaymentsPage() {
           <p className="text-secondary-600">
             Verify agent submitted payments and view payment history.
           </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={handleSync}
+            disabled={syncing}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync Bubble'}
+          </button>
         </div>
       </div>
 

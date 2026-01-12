@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { users, agents } from "@/db/schema";
+import { users, agents, payments, submitted_payments } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 const BUBBLE_API_KEY = process.env.BUBBLE_API_KEY || 'b870d2b5ee6e6b39bcf99409c59c9e02';
@@ -84,6 +84,45 @@ export async function pushAgentUpdateToBubble(bubbleId: string, data: {
     return await response.json();
   } catch (error) {
     console.error("Error pushing Agent update to Bubble:", error);
+    throw error;
+  }
+}
+
+/**
+ * Pushes local Payment updates back to Bubble
+ */
+export async function pushPaymentUpdateToBubble(bubbleId: string, data: {
+  amount?: string | null;
+  payment_method?: string | null;
+  remark?: string | null;
+  payment_date?: Date | null;
+}) {
+  if (!bubbleId) return;
+
+  const bubbleData: any = {};
+  if (data.amount) bubbleData["Amount"] = parseFloat(data.amount);
+  if (data.payment_method) bubbleData["Payment Method"] = data.payment_method;
+  if (data.remark) bubbleData["Remark"] = data.remark;
+  if (data.payment_date) bubbleData["Payment Date"] = data.payment_date.toISOString();
+
+  if (Object.keys(bubbleData).length === 0) return;
+
+  try {
+    const response = await fetch(`${BUBBLE_BASE_URL}/payment/${bubbleId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(bubbleData)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Bubble Payment Patch Failed (${response.status}):`, errorText);
+      throw new Error(`Bubble Update Failed: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error pushing Payment update to Bubble:", error);
     throw error;
   }
 }
@@ -229,5 +268,106 @@ export async function syncSingleProfileFromBubble(bubbleId: string, type: 'user'
   } catch (error) {
     console.error(`Error syncing single ${type}:`, error);
     return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Syncs payments from Bubble
+ * Rule 1: submit_payment -> pull ONLY new
+ * Rule 2: payment -> bidirectional latest wins
+ */
+export async function syncPaymentsFromBubble() {
+  console.log("Starting Payment sync...");
+  try {
+    // 1. Sync submit_payment (PULL ONLY NEW)
+    const subRes = await fetch(`${BUBBLE_BASE_URL}/submit_payment?limit=100&sort_field=Created Date&descending=true`, { headers });
+    if (subRes.ok) {
+      const subData = await subRes.json();
+      const bubbleSubmissions = subData.response.results || [];
+      for (const bSub of bubbleSubmissions) {
+        const localSub = await db.query.submitted_payments.findFirst({
+          where: eq(submitted_payments.bubble_id, bSub._id)
+        });
+        if (!localSub) {
+          console.log(`New submitted_payment found: ${bSub._id}. Importing...`);
+          await db.insert(submitted_payments).values({
+            bubble_id: bSub._id,
+            amount: bSub.Amount?.toString(),
+            payment_date: bSub["Payment Date"] ? new Date(bSub["Payment Date"]) : null,
+            payment_method: bSub["Payment Method"],
+            remark: bSub.Remark,
+            linked_agent: bSub["Linked Agent"],
+            linked_customer: bSub["Linked Customer"],
+            linked_invoice: bSub["Linked Invoice"],
+            created_by: bSub["Created By"],
+            created_date: bSub["Created Date"] ? new Date(bSub["Created Date"]) : null,
+            modified_date: new Date(bSub["Modified Date"]),
+            status: bSub.Status || 'pending',
+            last_synced_at: new Date()
+          });
+        }
+      }
+    }
+
+    // 2. Sync payment (BIDIRECTIONAL LATEST WINS)
+    const payRes = await fetch(`${BUBBLE_BASE_URL}/payment?limit=100&sort_field=Modified Date&descending=true`, { headers });
+    if (payRes.ok) {
+      const payData = await payRes.json();
+      const bubblePayments = payData.response.results || [];
+      for (const bPay of bubblePayments) {
+        const localPay = await db.query.payments.findFirst({
+          where: eq(payments.bubble_id, bPay._id)
+        });
+
+        const bubbleModifiedAt = new Date(bPay["Modified Date"]);
+
+        if (!localPay) {
+          console.log(`New verified payment found: ${bPay._id}. Importing...`);
+          await db.insert(payments).values({
+            bubble_id: bPay._id,
+            amount: bPay.Amount?.toString(),
+            payment_date: bPay["Payment Date"] ? new Date(bPay["Payment Date"]) : null,
+            payment_method: bPay["Payment Method"],
+            remark: bPay.Remark,
+            linked_agent: bPay["Linked Agent"],
+            linked_customer: bPay["Linked Customer"],
+            linked_invoice: bPay["Linked Invoice"],
+            created_by: bPay["Created By"],
+            created_date: bPay["Created Date"] ? new Date(bPay["Created Date"]) : null,
+            modified_date: bubbleModifiedAt,
+            last_synced_at: new Date()
+          });
+        } else if (bubbleModifiedAt > (localPay.modified_date || new Date(0))) {
+          console.log(`Payment ${bPay._id} is newer in Bubble. Updating local...`);
+          await db.update(payments).set({
+            amount: bPay.Amount?.toString(),
+            payment_date: bPay["Payment Date"] ? new Date(bPay["Payment Date"]) : null,
+            payment_method: bPay["Payment Method"],
+            remark: bPay.Remark,
+            linked_agent: bPay["Linked Agent"],
+            linked_customer: bPay["Linked Customer"],
+            linked_invoice: bPay["Linked Invoice"],
+            modified_date: bubbleModifiedAt,
+            last_synced_at: new Date()
+          }).where(eq(payments.id, localPay.id));
+        } else if ((localPay.updated_at || new Date(0)) > bubbleModifiedAt) {
+          // ERP v2 is newer -> Push to Bubble
+          console.log(`Payment ${bPay._id} is newer in ERP v2. Pushing to Bubble...`);
+          await pushPaymentUpdateToBubble(bPay._id, {
+            amount: localPay.amount,
+            payment_method: localPay.payment_method,
+            remark: localPay.remark,
+            payment_date: localPay.payment_date
+          });
+          // Update last_synced_at
+          await db.update(payments).set({ last_synced_at: new Date() }).where(eq(payments.id, localPay.id));
+        }
+      }
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error in Payment sync:", error);
+    return { success: false, error: String(error) };
   }
 }

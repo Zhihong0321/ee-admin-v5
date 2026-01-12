@@ -4,6 +4,15 @@ import { db } from "@/lib/db";
 import { payments, submitted_payments, agents, customers, invoices_new, invoice_new_items, invoice_templates, users } from "@/db/schema";
 import { ilike, or, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { syncPaymentsFromBubble } from "@/lib/bubble";
+
+export async function triggerPaymentSync() {
+  const result = await syncPaymentsFromBubble();
+  if (result.success) {
+    revalidatePath("/payments");
+  }
+  return result;
+}
 
 export async function getSubmittedPayments(search?: string) {
   console.log(`Fetching submitted payments: search=${search}`);
