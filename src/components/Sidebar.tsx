@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
+import { logoutAction } from "@/app/auth-actions";
 
 const menuItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -85,13 +86,15 @@ export function Sidebar({ user }: SidebarProps) {
             </div>
           </div>
         )}
-        <button
-          onClick={() => window.location.href = 'https://auth.atap.solar/auth/logout'}
-          className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg text-red-600 hover:bg-red-50 transition-all duration-200 mt-2"
-        >
-          <LogOut className="mr-3 h-5 w-5" />
-          <span>Logout</span>
-        </button>
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg text-red-600 hover:bg-red-50 transition-all duration-200 mt-2"
+          >
+            <LogOut className="mr-3 h-5 w-5" />
+            <span>Logout</span>
+          </button>
+        </form>
       </div>
     </aside>
   );
