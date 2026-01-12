@@ -244,40 +244,38 @@ export const INVOICE_TEMPLATE_HTML = `
 
       document.title = \`Quotation \${invoiceData.invoice_number || ''}\`;
 
-      replaceText('{{INVOICE_NUMBER}}', invoiceData.invoice_number || 'N/A');
-      replaceText('{{COMPANY_NAME}}', template.company_name || 'Your Company');
-      replaceText('{{COMPANY_ADDRESS}}', template.company_address || '');
-      replaceText('{{COMPANY_PHONE}}', template.company_phone || '');
-      replaceText('{{COMPANY_EMAIL}}', template.company_email || '');
-      
-      const logoImg = document.getElementById('company-logo');
-      if (logoImg) {
-        logoImg.src = template.logo_url || '/logo.png';
-        logoImg.alt = template.company_name || 'Company Logo';
+      const replacements = {
+        '{{INVOICE_NUMBER}}': invoiceData.invoice_number || 'N/A',
+        '{{COMPANY_NAME}}': template.company_name || 'Atap Solar',
+        '{{COMPANY_ADDRESS}}': template.company_address || '',
+        '{{COMPANY_PHONE}}': template.company_phone || '',
+        '{{COMPANY_EMAIL}}': template.company_email || '',
+        '{{LOGO_URL}}': template.logo_url || '/logo-08.png',
+        '{{STATUS}}': invoiceData.status || 'Draft',
+        '{{INVOICE_DATE}}': invoiceData.invoice_date || '',
+        '{{DUE_DATE}}': invoiceData.due_date || '',
+        '{{CUSTOMER_NAME}}': invoiceData.customer_name_snapshot || 'Valued Customer',
+        '{{CUSTOMER_ADDRESS}}': invoiceData.customer_address_snapshot || '',
+        '{{CUSTOMER_PHONE}}': invoiceData.customer_phone_snapshot || '',
+        '{{CUSTOMER_EMAIL}}': invoiceData.customer_email_snapshot || '',
+        '{{SUBTOTAL}}': subtotal.toFixed(2),
+        '{{SST_RATE}}': sstRate,
+        '{{SST_AMOUNT}}': sstAmount.toFixed(2),
+        '{{DISCOUNT_AMOUNT}}': Math.abs(discountAmount).toFixed(2),
+        '{{VOUCHER_AMOUNT}}': Math.abs(voucherAmount).toFixed(2),
+        '{{TOTAL_AMOUNT}}': totalAmount.toFixed(2),
+        '{{BANK_NAME}}': template.bank_name || '',
+        '{{BANK_ACCOUNT_NO}}': template.bank_account_no || '',
+        '{{BANK_ACCOUNT_NAME}}': template.bank_account_name || '',
+        '{{TERMS}}': template.terms_and_conditions || '',
+        '{{CREATED_BY}}': invoiceData.created_by_user_name || 'System'
+      };
+
+      let html = document.body.innerHTML;
+      for (const [placeholder, value] of Object.entries(replacements)) {
+        html = html.replace(new RegExp(placeholder, 'g'), value || '');
       }
-
-      replaceText('{{STATUS}}', invoiceData.status || 'Draft');
-      replaceText('{{INVOICE_DATE}}', invoiceData.invoice_date || '');
-      replaceText('{{DUE_DATE}}', invoiceData.due_date || '');
-
-      replaceText('{{CUSTOMER_NAME}}', invoiceData.customer_name_snapshot || 'Valued Customer');
-      replaceText('{{CUSTOMER_ADDRESS}}', invoiceData.customer_address_snapshot || '');
-      replaceText('{{CUSTOMER_PHONE}}', invoiceData.customer_phone_snapshot || '');
-      replaceText('{{CUSTOMER_EMAIL}}', invoiceData.customer_email_snapshot || '');
-
-      replaceText('{{SUBTOTAL}}', subtotal.toFixed(2));
-      replaceText('{{SST_RATE}}', sstRate);
-      replaceText('{{SST_AMOUNT}}', sstAmount.toFixed(2));
-      replaceText('{{DISCOUNT_AMOUNT}}', Math.abs(discountAmount).toFixed(2));
-      replaceText('{{VOUCHER_AMOUNT}}', Math.abs(voucherAmount).toFixed(2));
-      replaceText('{{TOTAL_AMOUNT}}', totalAmount.toFixed(2));
-
-      replaceText('{{BANK_NAME}}', template.bank_name || '');
-      replaceText('{{BANK_ACCOUNT_NO}}', template.bank_account_no || '');
-      replaceText('{{BANK_ACCOUNT_NAME}}', template.bank_account_name || '');
-
-      replaceText('{{TERMS}}', template.terms_and_conditions || '');
-      replaceText('{{CREATED_BY}}', invoiceData.created_by_user_name || 'System');
+      document.body.innerHTML = html;
 
       toggleElement('discount-row', discountAmount != 0);
       toggleElement('voucher-row', voucherAmount != 0);
@@ -286,10 +284,6 @@ export const INVOICE_TEMPLATE_HTML = `
       toggleElement('created-by-section', !!invoiceData.created_by_user_name);
 
       renderItems(items);
-    }
-
-    function replaceText(placeholder, value) {
-      document.body.innerHTML = document.body.innerHTML.replace(new RegExp(placeholder, 'g'), value || '');
     }
 
     function toggleElement(id, show) {
