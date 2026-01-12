@@ -231,4 +231,3 @@ export async function syncSingleProfileFromBubble(bubbleId: string, type: 'user'
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
-

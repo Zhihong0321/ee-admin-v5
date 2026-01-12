@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, FileText, Loader2 } from "lucide-react";
-import { getInvoices, getInvoiceDetails } from "./actions";
+import { getInvoices, getInvoiceDetails, generateInvoicePdf } from "./actions";
 import InvoiceViewer from "@/components/InvoiceViewer";
 
 export default function InvoicesPage() {
