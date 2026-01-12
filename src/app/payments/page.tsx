@@ -19,11 +19,13 @@ import {
   DollarSign,
   FileText,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  ArrowLeft
 } from "lucide-react";
 import { getSubmittedPayments, getVerifiedPayments, verifyPayment, getInvoiceDetailsByBubbleId, triggerPaymentSync } from "./actions";
 import { cn } from "@/lib/utils";
 import InvoiceViewer from "@/components/InvoiceViewer";
+import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
 
 export default function PaymentsPage() {
   const [activeTab, setActiveTab] = useState<"pending" | "verified">("pending");
@@ -37,16 +39,31 @@ export default function PaymentsPage() {
   // Invoice state
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [loadingInvoice, setLoadingInvoice] = useState(false);
+  const [showInvoiceInline, setShowInvoiceInModal] = useState(false);
 
   // Magnifying glass state
   const [showMagnifier, setShowMagnifier] = useState(false);
   const [magnifierPos, setMagnifierPos] = useState({ x: 0, y: 0 });
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
+  const inlineInvoiceRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     fetchData();
   }, [activeTab]);
+
+  useEffect(() => {
+    if (inlineInvoiceRef.current && selectedInvoice && showInvoiceInline) {
+      const doc = inlineInvoiceRef.current.contentDocument || inlineInvoiceRef.current.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        const dataScript = `<script>window.invoiceData = ${JSON.stringify(selectedInvoice)};</script>`;
+        const htmlWithData = INVOICE_TEMPLATE_HTML.replace('</head>', `${dataScript}</head>`);
+        doc.write(htmlWithData);
+        doc.close();
+      }
+    }
+  }, [selectedInvoice, showInvoiceInline]);
 
   async function fetchData() {
     setLoading(true);
@@ -87,6 +104,7 @@ export default function PaymentsPage() {
 
   const handleViewClick = (payment: any) => {
     setViewingPayment(payment);
+    setShowInvoiceInModal(false);
     setIsViewModalOpen(true);
   };
 
@@ -108,6 +126,7 @@ export default function PaymentsPage() {
       const details = await getInvoiceDetailsByBubbleId(invoiceBubbleId);
       if (details) {
         setSelectedInvoice(details);
+        setShowInvoiceInModal(true);
       } else {
         alert("Invoice not found in the system.");
       }
@@ -133,8 +152,8 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Invoice Viewer Modal */}
-      {selectedInvoice && (
+      {/* Invoice Viewer Modal (only for standalone view if ever needed, but now we have inline) */}
+      {selectedInvoice && !isViewModalOpen && (
         <InvoiceViewer 
           invoiceData={selectedInvoice} 
           onClose={() => setSelectedInvoice(null)} 
@@ -455,13 +474,23 @@ export default function PaymentsPage() {
                 {viewingPayment.linked_invoice && (
                   <div className="space-y-4 pt-4 border-t border-secondary-200">
                     <h3 className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Linked Invoice</h3>
-                    <button
-                      onClick={() => handleViewInvoice(viewingPayment.linked_invoice)}
-                      className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2 text-sm"
-                    >
-                      <FileText className="h-4 w-4 text-primary-600" />
-                      View Linked Invoice
-                    </button>
+                    {showInvoiceInline ? (
+                      <button
+                        onClick={() => setShowInvoiceInModal(false)}
+                        className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2 text-sm"
+                      >
+                        <ArrowLeft className="h-4 w-4 text-primary-600" />
+                        Back to Receipt
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleViewInvoice(viewingPayment.linked_invoice)}
+                        className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2 text-sm"
+                      >
+                        <FileText className="h-4 w-4 text-primary-600" />
+                        View Linked Invoice
+                      </button>
+                    )}
                   </div>
                 )}
                 
@@ -479,9 +508,17 @@ export default function PaymentsPage() {
                 )}
               </div>
 
-              {/* Attachment Preview with Magnifier */}
+              {/* Attachment Preview or Invoice Viewer */}
               <div className="flex-1 bg-secondary-900 relative overflow-hidden flex items-center justify-center p-4">
-                {viewingPayment.attachment && viewingPayment.attachment.length > 0 ? (
+                {showInvoiceInline && selectedInvoice ? (
+                  <div className="w-full h-full bg-secondary-100 p-2 md:p-4 overflow-auto flex justify-center rounded-lg">
+                    <iframe 
+                      ref={inlineInvoiceRef}
+                      className="w-full max-w-[800px] bg-white shadow-lg min-h-[1000px] rounded-sm transform scale-[0.85] origin-top md:scale-100"
+                      title="Inline Invoice Preview"
+                    />
+                  </div>
+                ) : viewingPayment.attachment && viewingPayment.attachment.length > 0 ? (
                   <div 
                     className="relative cursor-none group h-full w-full flex items-center justify-center"
                     onMouseMove={handleMouseMove}
