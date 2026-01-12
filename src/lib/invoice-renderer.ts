@@ -15,7 +15,7 @@ export function getInvoiceHtml(invoiceData: any): string {
     '{{COMPANY_ADDRESS}}': template.company_address || '',
     '{{COMPANY_PHONE}}': template.company_phone || '',
     '{{COMPANY_EMAIL}}': template.company_email || '',
-    '{{LOGO_URL}}': template.logo_url || 'https://ee-admin-v5.vercel.app/logo-08.png', // Fallback to absolute URL if possible
+    '{{LOGO_URL}}': template.logo_url || 'https://admin.atap.solar/logo-08.png', // Fallback to absolute URL if possible
     '{{STATUS}}': invoiceData.status || 'Draft',
     '{{INVOICE_DATE}}': invoiceData.invoice_date || '',
     '{{DUE_DATE}}': invoiceData.due_date || '',

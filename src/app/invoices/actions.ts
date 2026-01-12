@@ -131,9 +131,11 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
 
       // For v1, we'll try to map it to the viewer structure
       return {
+        id: invoice.id,
         invoice_number: `INV-${invoice.invoice_id}`,
-        invoice_date: invoice.invoice_date?.toISOString().split('T')[0],
+        invoice_date: invoice.invoice_date instanceof Date ? invoice.invoice_date.toISOString().split('T')[0] : null,
         total_amount: invoice.amount,
+        subtotal: invoice.amount,
         customer_name_snapshot: invoice.linked_customer,
         items: [
           {
@@ -168,7 +170,7 @@ export async function generateInvoicePdf(id: number, version: "v1" | "v2") {
       },
       body: JSON.stringify({
         html,
-        baseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://ee-admin.atap.solar",
+        baseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://admin.atap.solar",
         options: {
           format: "A4",
           printBackground: true,

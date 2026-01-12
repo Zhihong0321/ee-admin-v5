@@ -99,7 +99,10 @@ export default function InvoicesPage() {
           {/* Version Toggle */}
           <div className="flex items-center bg-white border border-secondary-200 rounded-xl p-1 shadow-sm">
             <button
-              onClick={() => setVersion("v1")}
+              onClick={() => {
+                setVersion("v1");
+                setInvoices([]);
+              }}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                 version === "v1"
                   ? "bg-primary-600 text-white shadow-sm"
@@ -109,7 +112,10 @@ export default function InvoicesPage() {
               ERP v1
             </button>
             <button
-              onClick={() => setVersion("v2")}
+              onClick={() => {
+                setVersion("v2");
+                setInvoices([]);
+              }}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                 version === "v2"
                   ? "bg-primary-600 text-white shadow-sm"
@@ -207,67 +213,76 @@ export default function InvoicesPage() {
                   </td>
                 </tr>
               ) : (
-                invoices.map((inv) => (
-                  <tr key={inv.id}>
-                    <td>
-                      <div className="font-semibold text-secondary-900">
-                        {version === "v1" ? `INV-${inv.invoice_id}` : inv.invoice_number || `ID-${inv.id}`}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="font-medium text-secondary-700">
-                        {version === "v1" ? inv.linked_customer : inv.customer_name_snapshot || "N/A"}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="text-secondary-600">
-                        {inv.agent_name || (version === "v1" ? inv.dealercode : "N/A")}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="text-secondary-600">
-                        {inv.invoice_date
-                          ? new Date(inv.invoice_date).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })
-                          : "N/A"}
-                      </div>
-                    </td>
-                    <td className="text-right">
-                      <div className="font-bold text-secondary-900">
-                        MYR {parseFloat(version === "v1" ? inv.amount : inv.total_amount || 0).toLocaleString("en-US", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </div>
-                    </td>
-                    <td className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => handleDownloadPdf(inv.id)}
-                          disabled={downloadingId === inv.id}
-                          className="btn-ghost text-secondary-600 hover:text-secondary-900 p-2"
-                          title="Download PDF"
-                        >
-                          {downloadingId === inv.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Download className="h-4 w-4" />
-                          )}
-                        </button>
-                        <button 
-                          onClick={() => handleViewDetails(inv.id)}
-                          className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                invoices.map((inv) => {
+                  // Safety check: ensure we're rendering the correct version of data
+                  const isV1Data = 'invoice_id' in inv;
+                  const currentViewIsV1 = version === 'v1';
+                  
+                  // Skip if data doesn't match expected version structure (helps during state transitions)
+                  if (isV1Data !== currentViewIsV1) return null;
+
+                  return (
+                    <tr key={inv.id}>
+                      <td>
+                        <div className="font-semibold text-secondary-900">
+                          {version === "v1" ? `INV-${inv.invoice_id}` : inv.invoice_number || `ID-${inv.id}`}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="font-medium text-secondary-700">
+                          {version === "v1" ? inv.linked_customer : inv.customer_name_snapshot || "N/A"}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="text-secondary-600">
+                          {inv.agent_name || (version === "v1" ? inv.dealercode : "N/A")}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="text-secondary-600">
+                          {inv.invoice_date
+                            ? new Date(inv.invoice_date).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })
+                            : "N/A"}
+                        </div>
+                      </td>
+                      <td className="text-right">
+                        <div className="font-bold text-secondary-900">
+                          MYR {parseFloat(version === "v1" ? inv.amount : inv.total_amount || 0).toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </div>
+                      </td>
+                      <td className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => handleDownloadPdf(inv.id)}
+                            disabled={downloadingId === inv.id}
+                            className="btn-ghost text-secondary-600 hover:text-secondary-900 p-2"
+                            title="Download PDF"
+                          >
+                            {downloadingId === inv.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                          </button>
+                          <button 
+                            onClick={() => handleViewDetails(inv.id)}
+                            className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
+                          >
+                            <Eye className="h-4 w-4" />
+                            View
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
