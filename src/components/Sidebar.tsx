@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 
 const menuItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Invoices", href: "/invoices", icon: FileText },
+  { name: "Payments", href: "/payments", icon: CreditCard },
   { name: "Customers", href: "/customers", icon: Users },
   { name: "Users", href: "/users", icon: UserCircle },
   { name: "Manage Company", href: "/manage-company", icon: Building2 },

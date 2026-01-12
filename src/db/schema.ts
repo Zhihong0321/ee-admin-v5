@@ -61,15 +61,43 @@ export const invoices = pgTable('invoice', {
 // New Invoice Table
 export const invoices_new = pgTable('invoice_new', {
   id: serial('id').primaryKey(),
+  bubble_id: text('bubble_id'),
   invoice_number: text('invoice_number'),
   customer_id: integer('customer_id'),
-  agent_id: text('agent_id'), // This will link to agents.bubble_id or id
+  agent_id: text('agent_id'), 
   total_amount: numeric('total_amount'),
+  subtotal: numeric('subtotal'),
+  sst_rate: numeric('sst_rate'),
+  sst_amount: numeric('sst_amount'),
+  discount_amount: numeric('discount_amount'),
+  voucher_amount: numeric('voucher_amount'),
   invoice_date: text('invoice_date'),
+  due_date: text('due_date'),
   customer_name_snapshot: text('customer_name_snapshot'),
+  customer_address_snapshot: text('customer_address_snapshot'),
+  customer_phone_snapshot: text('customer_phone_snapshot'),
+  customer_email_snapshot: text('customer_email_snapshot'),
   agent_name_snapshot: text('agent_name_snapshot'),
   status: text('status'),
-  created_at: timestamp('created_at'),
+  created_at: timestamp('created_at', { withTimezone: true }),
+  updated_at: timestamp('updated_at', { withTimezone: true }),
+  template_id: text('template_id'),
+  share_token: text('share_token'),
+  created_by: text('created_by'),
+});
+
+// New Invoice Item Table
+export const invoice_new_items = pgTable('invoice_new_item', {
+  id: serial('id').primaryKey(),
+  bubble_id: text('bubble_id'),
+  invoice_id: text('invoice_id'), // This links to invoices_new.bubble_id
+  description: text('description'),
+  qty: numeric('qty'),
+  unit_price: numeric('unit_price'),
+  total_price: numeric('total_price'),
+  item_type: text('item_type'),
+  sort_order: integer('sort_order'),
+  created_at: timestamp('created_at', { withTimezone: true }),
 });
 
 // Customer Table
@@ -136,4 +164,63 @@ export const invoice_templates = pgTable('invoice_template', {
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   disclaimer: text('disclaimer'),
   apply_sst: boolean('apply_sst').default(false),
+});
+
+// Payment Table
+export const payments = pgTable('payment', {
+  id: serial('id').primaryKey(),
+  bubble_id: text('bubble_id'),
+  last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  modified_date: timestamp('modified_date', { withTimezone: true }),
+  amount: numeric('amount'),
+  created_date: timestamp('created_date', { withTimezone: true }),
+  payment_date: timestamp('payment_date', { withTimezone: true }),
+  payment_index: integer('payment_index'),
+  epp_month: integer('epp_month'),
+  bank_charges: integer('bank_charges'),
+  remark: text('remark'),
+  payment_method_v2: text('payment_method_v2'),
+  linked_invoice: text('linked_invoice'),
+  linked_customer: text('linked_customer'),
+  terminal: text('terminal'),
+  attachment: text('attachment').array(),
+  verified_by: text('verified_by'),
+  payment_method: text('payment_method'),
+  edit_history: text('edit_history'),
+  issuer_bank: text('issuer_bank'),
+  created_by: text('created_by'),
+  linked_agent: text('linked_agent'),
+  epp_type: text('epp_type'),
+});
+
+// Submitted Payment Table
+export const submitted_payments = pgTable('submitted_payment', {
+  id: serial('id').primaryKey(),
+  bubble_id: text('bubble_id'),
+  last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  created_date: timestamp('created_date', { withTimezone: true }),
+  modified_date: timestamp('modified_date', { withTimezone: true }),
+  payment_date: timestamp('payment_date', { withTimezone: true }),
+  payment_index: integer('payment_index'),
+  epp_month: integer('epp_month'),
+  bank_charges: integer('bank_charges'),
+  amount: numeric('amount'),
+  issuer_bank: text('issuer_bank'),
+  payment_method_v2: text('payment_method_v2'),
+  terminal: text('terminal'),
+  epp_type: text('epp_type'),
+  status: text('status'),
+  payment_method: text('payment_method'),
+  created_by: text('created_by'),
+  linked_agent: text('linked_agent'),
+  remark: text('remark'),
+  linked_invoice: text('linked_invoice'),
+  linked_customer: text('linked_customer'),
+  attachment: text('attachment').array(),
+  verified_by: text('verified_by'),
+  edit_history: text('edit_history'),
 });

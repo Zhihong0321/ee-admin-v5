@@ -1,20 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, FileText } from "lucide-react";
-import { getInvoices } from "./actions";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, FileText, Loader2 } from "lucide-react";
+import { getInvoices, getInvoiceDetails } from "./actions";
+import InvoiceViewer from "@/components/InvoiceViewer";
 
 export default function InvoicesPage() {
   const [version, setVersion] = useState<"v1" | "v2">("v2");
   const [search, setSearch] = useState("");
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
+// ... existing fetchData call ...
     fetchData();
   }, [version]);
 
   async function fetchData() {
+// ... existing fetchData ...
     setLoading(true);
     try {
       const data = await getInvoices(version, search);
@@ -26,13 +31,46 @@ export default function InvoicesPage() {
     }
   }
 
+  const handleViewDetails = async (id: number) => {
+    setLoadingDetails(true);
+    try {
+      const details = await getInvoiceDetails(id, version);
+      setSelectedInvoice(details);
+    } catch (error) {
+      console.error("Failed to fetch invoice details", error);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
   const handleSearch = (e: React.FormEvent) => {
+// ... existing handleSearch ...
     e.preventDefault();
     fetchData();
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* ... rest of the code ... */}
+      {/* Invoice Viewer Modal */}
+      {selectedInvoice && (
+        <InvoiceViewer 
+          invoiceData={selectedInvoice} 
+          onClose={() => setSelectedInvoice(null)} 
+        />
+      )}
+
+      {loadingDetails && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
+          <div className="bg-white p-6 rounded-xl shadow-xl flex flex-col items-center gap-4">
+            <Loader2 className="w-10 h-10 text-primary-600 animate-spin" />
+            <p className="font-medium text-secondary-900">Loading invoice details...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Header Section */}
+// ... rest of header section ...
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -191,7 +229,10 @@ export default function InvoicesPage() {
                       </div>
                     </td>
                     <td className="text-right">
-                      <button className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5 ml-auto">
+                      <button 
+                        onClick={() => handleViewDetails(inv.id)}
+                        className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5 ml-auto"
+                      >
                         <Eye className="h-4 w-4" />
                         View
                       </button>

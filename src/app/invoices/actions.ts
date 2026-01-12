@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, invoices_new, agents, users } from "@/db/schema";
+import { invoices, invoices_new, agents, users, invoice_new_items, invoice_templates } from "@/db/schema";
 import { ilike, or, sql, desc, eq } from "drizzle-orm";
 
 export async function getInvoices(version: "v1" | "v2", search?: string) {
@@ -76,6 +76,76 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
     }
   } catch (error) {
     console.error("Database error in getInvoices:", error);
+    throw error;
+  }
+}
+
+export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
+  console.log(`Fetching invoice details: id=${id}, version=${version}`);
+  try {
+    if (version === "v2") {
+      const invoice = await db.query.invoices_new.findFirst({
+        where: eq(invoices_new.id, id),
+      });
+
+      if (!invoice) return null;
+
+      const items = await db.query.invoice_new_items.findMany({
+        where: eq(invoice_new_items.invoice_id, invoice.bubble_id as string),
+        orderBy: [desc(invoice_new_items.sort_order)],
+      });
+
+      const template = await db.query.invoice_templates.findFirst({
+        where: invoice.template_id 
+          ? eq(invoice_templates.bubble_id, invoice.template_id)
+          : eq(invoice_templates.is_default, true),
+      });
+
+      // Get creator name
+      let created_by_user_name = "System";
+      if (invoice.created_by) {
+        const creator = await db.query.users.findFirst({
+          where: eq(users.bubble_id, invoice.created_by),
+        });
+        if (creator) {
+          created_by_user_name = creator.email || "User";
+        }
+      }
+
+      return {
+        ...invoice,
+        items,
+        template,
+        created_by_user_name
+      };
+    } else {
+      // v1 legacy - limited detail support for now
+      const invoice = await db.query.invoices.findFirst({
+        where: eq(invoices.id, id),
+      });
+      
+      if (!invoice) return null;
+
+      // For v1, we'll try to map it to the viewer structure
+      return {
+        invoice_number: `INV-${invoice.invoice_id}`,
+        invoice_date: invoice.invoice_date?.toISOString().split('T')[0],
+        total_amount: invoice.amount,
+        customer_name_snapshot: invoice.linked_customer,
+        items: [
+          {
+            description: "Legacy Invoice Item",
+            qty: 1,
+            total_price: invoice.amount,
+            item_type: "product"
+          }
+        ],
+        template: await db.query.invoice_templates.findFirst({ where: eq(invoice_templates.is_default, true) }),
+        created_by_user_name: "Legacy System"
+      };
+    }
+  } catch (error) {
+    console.error("Database error in getInvoiceDetails:", error);
     throw error;
   }
 }
