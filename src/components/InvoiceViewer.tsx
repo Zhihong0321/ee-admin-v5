@@ -16,7 +16,6 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
-// ... existing useEffect ...
     if (iframeRef.current && invoiceData) {
       const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
       if (doc) {
@@ -99,7 +98,6 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
         </div>
 
         {/* Content */}
-// ... rest of content ...
         <div className="flex-1 bg-secondary-100 p-4 md:p-8 overflow-auto flex justify-center">
           <iframe 
             ref={iframeRef}

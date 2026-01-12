@@ -16,16 +16,34 @@ export default function InvoicesPage() {
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   useEffect(() => {
-// ... existing useEffect ...
     fetchData();
   }, [version]);
 
   async function fetchData() {
-// ... existing fetchData ...
+    setLoading(true);
+    try {
+      const data = await getInvoices(version, search);
+      setInvoices(data);
+    } catch (error) {
+      console.error("Failed to fetch invoices:", error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const handleViewDetails = async (id: number) => {
-// ... existing handleViewDetails ...
+    setLoadingDetails(true);
+    try {
+      const details = await getInvoiceDetails(id, version);
+      if (details) {
+        setSelectedInvoice(details);
+      }
+    } catch (error) {
+      console.error("Failed to fetch invoice details:", error);
+      alert("Failed to load invoice details. Please try again.");
+    } finally {
+      setLoadingDetails(false);
+    }
   };
 
   const handleDownloadPdf = async (id: number) => {
@@ -44,14 +62,12 @@ export default function InvoicesPage() {
   };
 
   const handleSearch = (e: React.FormEvent) => {
-// ... existing handleSearch ...
     e.preventDefault();
     fetchData();
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* ... rest of the code ... */}
       {/* Invoice Viewer Modal */}
       {selectedInvoice && (
         <InvoiceViewer 
@@ -70,8 +86,6 @@ export default function InvoicesPage() {
         </div>
       )}
 
-      {/* Header Section */}
-// ... rest of header section ...
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
