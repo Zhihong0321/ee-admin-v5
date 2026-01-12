@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { payments, submitted_payments, agents, customers } from "@/db/schema";
+import { payments, submitted_payments, agents, customers, invoices_new, invoice_new_items, invoice_templates, users } from "@/db/schema";
 import { ilike, or, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -30,6 +30,7 @@ export async function getSubmittedPayments(search?: string) {
         agent_name: agents.name,
         customer_name: customers.name,
         created_at: submitted_payments.created_at,
+        linked_invoice: submitted_payments.linked_invoice,
       })
       .from(submitted_payments)
       .leftJoin(agents, eq(submitted_payments.linked_agent, agents.bubble_id))
@@ -69,6 +70,7 @@ export async function getVerifiedPayments(search?: string) {
         agent_name: agents.name,
         customer_name: customers.name,
         created_at: payments.created_at,
+        linked_invoice: payments.linked_invoice,
       })
       .from(payments)
       .leftJoin(agents, eq(payments.linked_agent, agents.bubble_id))
@@ -80,6 +82,48 @@ export async function getVerifiedPayments(search?: string) {
     return data;
   } catch (error) {
     console.error("Database error in getVerifiedPayments:", error);
+    throw error;
+  }
+}
+
+export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
+  console.log(`Fetching invoice details by bubble_id: ${bubbleId}`);
+  try {
+    const invoice = await db.query.invoices_new.findFirst({
+      where: eq(invoices_new.bubble_id, bubbleId),
+    });
+
+    if (!invoice) return null;
+
+    const items = await db.query.invoice_new_items.findMany({
+      where: eq(invoice_new_items.invoice_id, invoice.bubble_id as string),
+      orderBy: [desc(invoice_new_items.sort_order)],
+    });
+
+    const template = await db.query.invoice_templates.findFirst({
+      where: invoice.template_id 
+        ? eq(invoice_templates.bubble_id, invoice.template_id)
+        : eq(invoice_templates.is_default, true),
+    });
+
+    let created_by_user_name = "System";
+    if (invoice.created_by) {
+      const creator = await db.query.users.findFirst({
+        where: eq(users.bubble_id, invoice.created_by),
+      });
+      if (creator) {
+        created_by_user_name = creator.email || "User";
+      }
+    }
+
+    return {
+      ...invoice,
+      items,
+      template,
+      created_by_user_name
+    };
+  } catch (error) {
+    console.error("Database error in getInvoiceDetailsByBubbleId:", error);
     throw error;
   }
 }

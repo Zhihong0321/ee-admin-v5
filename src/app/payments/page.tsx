@@ -16,10 +16,13 @@ import {
   X,
   User,
   Calendar,
-  DollarSign
+  DollarSign,
+  FileText,
+  Loader2
 } from "lucide-react";
-import { getSubmittedPayments, getVerifiedPayments, verifyPayment } from "./actions";
+import { getSubmittedPayments, getVerifiedPayments, verifyPayment, getInvoiceDetailsByBubbleId } from "./actions";
 import { cn } from "@/lib/utils";
+import InvoiceViewer from "@/components/InvoiceViewer";
 
 export default function PaymentsPage() {
   const [activeTab, setActiveTab] = useState<"pending" | "verified">("pending");
@@ -29,6 +32,10 @@ export default function PaymentsPage() {
   const [viewingPayment, setViewingPayment] = useState<any | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   
+  // Invoice state
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [loadingInvoice, setLoadingInvoice] = useState(false);
+
   // Magnifying glass state
   const [showMagnifier, setShowMagnifier] = useState(false);
   const [magnifierPos, setMagnifierPos] = useState({ x: 0, y: 0 });
@@ -75,6 +82,23 @@ export default function PaymentsPage() {
     }
   };
 
+  const handleViewInvoice = async (invoiceBubbleId: string) => {
+    setLoadingInvoice(true);
+    try {
+      const details = await getInvoiceDetailsByBubbleId(invoiceBubbleId);
+      if (details) {
+        setSelectedInvoice(details);
+      } else {
+        alert("Invoice not found in the system.");
+      }
+    } catch (error) {
+      console.error("Failed to fetch invoice details", error);
+      alert("Failed to load invoice details.");
+    } finally {
+      setLoadingInvoice(false);
+    }
+  };
+
   // Magnifying glass logic
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!imgRef.current) return;
@@ -89,6 +113,24 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Invoice Viewer Modal */}
+      {selectedInvoice && (
+        <InvoiceViewer 
+          invoiceData={selectedInvoice} 
+          onClose={() => setSelectedInvoice(null)} 
+          version="v2"
+        />
+      )}
+
+      {loadingInvoice && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
+          <div className="bg-white p-6 rounded-xl shadow-xl flex flex-col items-center gap-4">
+            <Loader2 className="w-10 h-10 text-primary-600 animate-spin" />
+            <p className="font-medium text-secondary-900">Loading invoice details...</p>
+          </div>
+        </div>
+      )}
+
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -376,6 +418,19 @@ export default function PaymentsPage() {
                     <p className="text-sm text-secondary-600 italic bg-white p-3 rounded-lg border border-secondary-200">
                       "{viewingPayment.remark}"
                     </p>
+                  </div>
+                )}
+
+                {viewingPayment.linked_invoice && (
+                  <div className="space-y-4 pt-4 border-t border-secondary-200">
+                    <h3 className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Linked Invoice</h3>
+                    <button
+                      onClick={() => handleViewInvoice(viewingPayment.linked_invoice)}
+                      className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2 text-sm"
+                    >
+                      <FileText className="h-4 w-4 text-primary-600" />
+                      View Linked Invoice
+                    </button>
                   </div>
                 )}
                 
