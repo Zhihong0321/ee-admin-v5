@@ -7,6 +7,7 @@ export interface User {
   role: string;
   isAdmin: boolean;
   name: string;
+  tags?: string[];
 }
 
 export async function getUser(): Promise<User | null> {

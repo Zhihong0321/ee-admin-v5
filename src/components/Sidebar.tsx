@@ -24,6 +24,26 @@ interface SidebarProps {
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
 
+  const userTags = (user?.tags || []).map(t => t.toLowerCase());
+  const isOwner = user?.role === 'owner' || user?.isAdmin === true;
+
+  const filteredMenuItems = menuItems.filter(item => {
+    if (isOwner) return true;
+
+    switch (item.href) {
+      case '/invoices':
+        return userTags.includes('admin') || userTags.includes('finance');
+      case '/payments':
+        return userTags.includes('finance');
+      case '/users':
+      case '/customers':
+      case '/manage-company':
+        return userTags.includes('admin');
+      default:
+        return true; // Dashboard, Settings, etc.
+    }
+  });
+
   return (
     <aside className="fixed inset-y-0 left-0 w-64 bg-white border-r border-secondary-200 flex flex-col shadow-elevation-md z-50">
       {/* Logo Section */}
@@ -38,7 +58,7 @@ export function Sidebar({ user }: SidebarProps) {
       
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto scrollbar-hide">
-        {menuItems.map((item) => {
+        {filteredMenuItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
           return (

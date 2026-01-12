@@ -18,9 +18,37 @@ export async function middleware(request: NextRequest) {
   try {
     // 2. Verify Token
     const secret = new TextEncoder().encode(JWT_SECRET);
-    await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, secret);
     
-    // Token is valid
+    const user = payload as unknown as { 
+      role?: string; 
+      isAdmin?: boolean; 
+      tags?: string[] 
+    };
+
+    const path = request.nextUrl.pathname;
+    const userTags = user.tags || [];
+    const isOwner = user.role === 'owner' || user.isAdmin === true; // Owners usually have full access
+
+    // Helper to check if user has any of the required tags
+    const hasTag = (...required: string[]) => 
+      isOwner || userTags.some(tag => required.includes(tag.toLowerCase()));
+
+    // RBAC Rules
+    if (path.startsWith('/invoices') && !hasTag('admin', 'finance')) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+    if (path.startsWith('/payments') && !hasTag('finance')) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+    if (path.startsWith('/users') && !hasTag('admin')) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+    if (path.startsWith('/customers') && !hasTag('admin')) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+    
+    // Token is valid and authorized
     return NextResponse.next();
   } catch (err) {
     // Token invalid or expired
