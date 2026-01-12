@@ -115,7 +115,6 @@ export default function PaymentsPage() {
       console.error("Failed to fetch invoice details", error);
       alert("Failed to load invoice details.");
     } finally {
-      setSelectedInvoice(null);
       setLoadingInvoice(false);
     }
   };
