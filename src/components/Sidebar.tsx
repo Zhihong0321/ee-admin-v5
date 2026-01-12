@@ -85,10 +85,6 @@ export function Sidebar({ user }: SidebarProps) {
             </div>
           </div>
         )}
-        <div className="px-4 py-3 rounded-lg bg-gradient-to-r from-primary-50 to-accent-50 border border-primary-100">
-          <p className="text-xs font-semibold text-secondary-900 mb-1">Pro Plan</p>
-          <p className="text-xs text-secondary-600">Upgrade for more features</p>
-        </div>
         <button
           onClick={() => window.location.href = 'https://auth.atap.solar/auth/logout'}
           className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg text-red-600 hover:bg-red-50 transition-all duration-200 mt-2"
