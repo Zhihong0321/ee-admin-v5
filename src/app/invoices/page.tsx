@@ -13,33 +13,33 @@ export default function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+
   useEffect(() => {
-// ... existing fetchData call ...
+// ... existing useEffect ...
     fetchData();
   }, [version]);
 
   async function fetchData() {
 // ... existing fetchData ...
-    setLoading(true);
-    try {
-      const data = await getInvoices(version, search);
-      setInvoices(data);
-    } catch (error) {
-      console.error("Failed to fetch invoices", error);
-    } finally {
-      setLoading(false);
-    }
   }
 
   const handleViewDetails = async (id: number) => {
-    setLoadingDetails(true);
+// ... existing handleViewDetails ...
+  };
+
+  const handleDownloadPdf = async (id: number) => {
+    setDownloadingId(id);
     try {
-      const details = await getInvoiceDetails(id, version);
-      setSelectedInvoice(details);
+      const result = await generateInvoicePdf(id, version);
+      if (result?.downloadUrl) {
+        window.open(result.downloadUrl, "_blank");
+      }
     } catch (error) {
-      console.error("Failed to fetch invoice details", error);
+      console.error("Failed to download PDF:", error);
+      alert("Failed to generate PDF. Please try again.");
     } finally {
-      setLoadingDetails(false);
+      setDownloadingId(null);
     }
   };
 
@@ -57,6 +57,7 @@ export default function InvoicesPage() {
         <InvoiceViewer 
           invoiceData={selectedInvoice} 
           onClose={() => setSelectedInvoice(null)} 
+          version={version}
         />
       )}
 
@@ -229,13 +230,27 @@ export default function InvoicesPage() {
                       </div>
                     </td>
                     <td className="text-right">
-                      <button 
-                        onClick={() => handleViewDetails(inv.id)}
-                        className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5 ml-auto"
-                      >
-                        <Eye className="h-4 w-4" />
-                        View
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => handleDownloadPdf(inv.id)}
+                          disabled={downloadingId === inv.id}
+                          className="btn-ghost text-secondary-600 hover:text-secondary-900 p-2"
+                          title="Download PDF"
+                        >
+                          {downloadingId === inv.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                        </button>
+                        <button 
+                          onClick={() => handleViewDetails(inv.id)}
+                          className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

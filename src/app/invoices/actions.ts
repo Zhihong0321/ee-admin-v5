@@ -3,6 +3,9 @@
 import { db } from "@/lib/db";
 import { invoices, invoices_new, agents, users, invoice_new_items, invoice_templates } from "@/db/schema";
 import { ilike, or, sql, desc, eq } from "drizzle-orm";
+import { getInvoiceHtml } from "@/lib/invoice-renderer";
+
+const PDF_API_URL = "https://pdf-gen-production-6c81.up.railway.app";
 
 export async function getInvoices(version: "v1" | "v2", search?: string) {
   console.log(`Fetching invoices: version=${version}, search=${search}`);
@@ -146,6 +149,57 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
     }
   } catch (error) {
     console.error("Database error in getInvoiceDetails:", error);
+    throw error;
+  }
+}
+
+export async function generateInvoicePdf(id: number, version: "v1" | "v2") {
+  console.log(`Generating PDF for invoice: id=${id}, version=${version}`);
+  try {
+    const details = await getInvoiceDetails(id, version);
+    if (!details) throw new Error("Invoice not found");
+
+    const html = getInvoiceHtml(details);
+
+    const response = await fetch(`${PDF_API_URL}/api/generate-pdf`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        html,
+        baseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://ee-admin.atap.solar",
+        options: {
+          format: "A4",
+          printBackground: true,
+          margin: {
+            top: "0.5cm",
+            right: "0.5cm",
+            bottom: "0.5cm",
+            left: "0.5cm",
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`PDF API error: ${errorText}`);
+    }
+
+    const data = await response.json();
+    const pdfId = data.pdfId;
+
+    if (!pdfId) {
+      throw new Error("PDF ID not received from API");
+    }
+
+    return {
+      pdfId,
+      downloadUrl: `${PDF_API_URL}/api/download/${pdfId}`,
+    };
+  } catch (error) {
+    console.error("Failed to generate PDF:", error);
     throw error;
   }
 }
