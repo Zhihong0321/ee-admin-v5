@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { payments, submitted_payments, agents, customers, invoices_new, invoice_new_items, invoice_templates, users } from "@/db/schema";
+import { payments, submitted_payments, agents, customers, invoices, invoice_new_items, invoice_templates, users } from "@/db/schema";
 import { ilike, or, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncPaymentsFromBubble } from "@/lib/bubble";
@@ -98,8 +98,8 @@ export async function getVerifiedPayments(search?: string) {
 export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
   console.log(`Fetching invoice details by bubble_id: ${bubbleId}`);
   try {
-    const invoice = await db.query.invoices_new.findFirst({
-      where: eq(invoices_new.bubble_id, bubbleId),
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.bubble_id, bubbleId),
     });
 
     if (!invoice) return null;

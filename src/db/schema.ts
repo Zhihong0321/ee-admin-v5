@@ -45,44 +45,55 @@ export const agentsRelations = relations(agents, ({ many }) => ({
   users: many(users),
 }));
 
-// Legacy Invoice Table
+// Consolidated Invoice Table
 export const invoices = pgTable('invoice', {
   id: serial('id').primaryKey(),
-  invoice_id: integer('invoice_id'),
-  amount: numeric('amount'),
-  invoice_date: timestamp('invoice_date'),
-  linked_customer: text('linked_customer'),
-  linked_agent: text('linked_agent'), // This links to agents.bubble_id
-  dealercode: text('dealercode'),
-  approval_status: text('approval_status'),
-  created_at: timestamp('created_at'),
-});
-
-// New Invoice Table
-export const invoices_new = pgTable('invoice_new', {
-  id: serial('id').primaryKey(),
   bubble_id: text('bubble_id'),
+  invoice_id: integer('invoice_id'),
   invoice_number: text('invoice_number'),
   customer_id: integer('customer_id'),
-  agent_id: text('agent_id'), 
+  agent_id: text('agent_id'),
   total_amount: numeric('total_amount'),
   subtotal: numeric('subtotal'),
   sst_rate: numeric('sst_rate'),
   sst_amount: numeric('sst_amount'),
   discount_amount: numeric('discount_amount'),
   voucher_amount: numeric('voucher_amount'),
-  invoice_date: text('invoice_date'),
-  due_date: text('due_date'),
+  invoice_date: timestamp('invoice_date', { withTimezone: true }),
+  due_date: timestamp('due_date', { withTimezone: true }),
+  status: text('status'),
+  is_latest: boolean('is_latest').default(true),
+  share_token: text('share_token'),
+  
+  // Snapshots
   customer_name_snapshot: text('customer_name_snapshot'),
   customer_address_snapshot: text('customer_address_snapshot'),
   customer_phone_snapshot: text('customer_phone_snapshot'),
   customer_email_snapshot: text('customer_email_snapshot'),
   agent_name_snapshot: text('agent_name_snapshot'),
-  status: text('status'),
+  
+  // Legacy Columns (kept for backward compatibility)
+  amount: numeric('amount'),
+  linked_customer: text('linked_customer'),
+  linked_agent: text('linked_agent'), // This links to agents.bubble_id
+  dealercode: text('dealercode'),
+  approval_status: text('approval_status'),
+  case_status: text('case_status'),
+  
+  // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }),
   updated_at: timestamp('updated_at', { withTimezone: true }),
   template_id: text('template_id'),
-  share_token: text('share_token'),
+  created_by: text('created_by'),
+});
+
+// Snapshot Table
+export const invoice_snapshots = pgTable('invoice_snapshot', {
+  id: serial('id').primaryKey(),
+  invoice_id: integer('invoice_id'),
+  version: integer('version').notNull(),
+  snapshot_data: sql`jsonb`.notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }),
   created_by: text('created_by'),
 });
 
@@ -90,7 +101,7 @@ export const invoices_new = pgTable('invoice_new', {
 export const invoice_new_items = pgTable('invoice_new_item', {
   id: serial('id').primaryKey(),
   bubble_id: text('bubble_id'),
-  invoice_id: text('invoice_id'), // This links to invoices_new.bubble_id
+  invoice_id: text('invoice_id'), // This links to invoices.bubble_id
   description: text('description'),
   qty: numeric('qty'),
   unit_price: numeric('unit_price'),

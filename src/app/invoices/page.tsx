@@ -91,7 +91,7 @@ export default function InvoicesPage() {
         <div className="space-y-1">
           <h1 className="text-3xl font-bold text-secondary-900">Invoices</h1>
           <p className="text-secondary-600">
-            Manage and browse your {version === "v1" ? "legacy" : "new"} ERP invoices.
+            Manage and browse your {version === "v1" ? "legacy Bubble" : "modern consolidated"} invoices.
           </p>
         </div>
         
@@ -109,7 +109,7 @@ export default function InvoicesPage() {
                   : "text-secondary-600 hover:text-secondary-900 hover:bg-secondary-50"
               }`}
             >
-              ERP v1
+              Legacy
             </button>
             <button
               onClick={() => {
@@ -122,7 +122,7 @@ export default function InvoicesPage() {
                   : "text-secondary-600 hover:text-secondary-900 hover:bg-secondary-50"
               }`}
             >
-              ERP v2
+              Consolidated
             </button>
           </div>
           

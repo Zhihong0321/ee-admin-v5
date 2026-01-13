@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, invoices_new, agents, users, invoice_new_items, invoice_templates } from "@/db/schema";
-import { ilike, or, sql, desc, eq } from "drizzle-orm";
+import { invoices, agents, users, invoice_new_items, invoice_templates } from "@/db/schema";
+import { ilike, or, sql, desc, eq, and } from "drizzle-orm";
 import { getInvoiceHtml } from "@/lib/invoice-renderer";
 
 const PDF_API_URL = "https://pdf-gen-production-6c81.up.railway.app";
@@ -11,14 +11,18 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
   console.log(`Fetching invoices: version=${version}, search=${search}`);
   try {
     if (version === "v1") {
-      const filters = search 
-        ? or(
-            ilike(invoices.linked_customer, `%${search}%`),
-            ilike(agents.name, `%${search}%`),
-            ilike(invoices.dealercode, `%${search}%`),
-            sql`CAST(${invoices.invoice_id} AS TEXT) ILIKE ${`%${search}%`}`
-          )
-        : undefined;
+      const filters = [
+        sql`(${invoices.invoice_number} IS NULL OR ${invoices.invoice_number} = '')`
+      ];
+
+      if (search) {
+        filters.push(or(
+          ilike(invoices.linked_customer, `%${search}%`),
+          ilike(agents.name, `%${search}%`),
+          ilike(invoices.dealercode, `%${search}%`),
+          sql`CAST(${invoices.invoice_id} AS TEXT) ILIKE ${`%${search}%`}`
+        ) as any);
+      }
 
       const data = await db.select({
         id: invoices.id,
@@ -31,22 +35,14 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
       })
       .from(invoices)
       .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
-      .where(filters)
+      .where(and(...filters))
       .orderBy(desc(invoices.id))
       .limit(50);
       
       console.log(`Fetched ${data.length} v1 invoices`);
       return data;
     } else {
-      const filters = search
-        ? or(
-            ilike(invoices_new.customer_name_snapshot, `%${search}%`),
-            ilike(agents.name, `%${search}%`),
-            ilike(invoices_new.invoice_number, `%${search}%`)
-          )
-        : undefined;
-
-      // Use a more standard Drizzle join for a2
+      // v2 - Modern Invoices (Consolidated)
       const data = await db.execute(sql`
         SELECT 
           i.id, 
@@ -54,14 +50,12 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
           i.total_amount, 
           i.invoice_date, 
           i.customer_name_snapshot,
-          COALESCE(a1.name, a2.name) as agent_name
-        FROM invoice_new i
+          COALESCE(a1.name, i.agent_name_snapshot) as agent_name
+        FROM invoice i
         LEFT JOIN agent a1 ON i.agent_id = a1.bubble_id
-        LEFT JOIN "user" u ON CAST(u.id AS TEXT) = i.created_by
-        LEFT JOIN agent a2 ON u.linked_agent_profile = a2.bubble_id
-        WHERE i.customer_id IS NOT NULL
-        ${search ? sql`AND (i.customer_name_snapshot ILIKE ${`%${search}%`} OR i.invoice_number ILIKE ${`%${search}%`} OR a1.name ILIKE ${`%${search}%`} OR a2.name ILIKE ${`%${search}%`})` : sql``}
-        ORDER BY i.id DESC
+        WHERE i.is_latest = true
+        ${search ? sql`AND (i.customer_name_snapshot ILIKE ${`%${search}%`} OR i.invoice_number ILIKE ${`%${search}%`} OR a1.name ILIKE ${`%${search}%`} OR i.agent_name_snapshot ILIKE ${`%${search}%`})` : sql``}
+        ORDER BY i.created_at DESC
         LIMIT 50
       `);
       
@@ -86,13 +80,13 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
 export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
   console.log(`Fetching invoice details: id=${id}, version=${version}`);
   try {
-    if (version === "v2") {
-      const invoice = await db.query.invoices_new.findFirst({
-        where: eq(invoices_new.id, id),
-      });
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, id),
+    });
 
-      if (!invoice) return null;
+    if (!invoice) return null;
 
+    if (version === "v2" || invoice.invoice_number) {
       const items = await db.query.invoice_new_items.findMany({
         where: eq(invoice_new_items.invoice_id, invoice.bubble_id as string),
         orderBy: [desc(invoice_new_items.sort_order)],
@@ -123,12 +117,6 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
       };
     } else {
       // v1 legacy - limited detail support for now
-      const invoice = await db.query.invoices.findFirst({
-        where: eq(invoices.id, id),
-      });
-      
-      if (!invoice) return null;
-
       // For v1, we'll try to map it to the viewer structure
       return {
         id: invoice.id,
