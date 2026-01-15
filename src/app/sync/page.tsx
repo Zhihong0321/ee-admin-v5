@@ -67,7 +67,9 @@ export default function SyncPage() {
       }
     };
 
-    eventSource.onerror = () => {
+    eventSource.onerror = (error) => {
+      console.error('[SSE] Migration connection error:', error);
+      console.error('[SSE] Session ID:', migrationSessionId);
       eventSource.close();
     };
 
