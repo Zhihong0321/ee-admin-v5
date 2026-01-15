@@ -61,8 +61,16 @@ export async function syncTestSignatures(limit = 10) {
           .set({ customer_signature: localPath })
           .where(eq(sedaRegistration.id, record.id));
         
+        // Verify update by fetching it back
+        const updatedRecord = await db.select({ sig: sedaRegistration.customer_signature })
+          .from(sedaRegistration)
+          .where(eq(sedaRegistration.id, record.id))
+          .limit(1);
+
+        const webUrl = `/api/files/signatures/${filename}`;
+        
         results.success++;
-        results.details.push(`Synced: ${record.id} -> ${localPath}`);
+        results.details.push(`Record ${record.id} UPDATED! DB now contains: ${updatedRecord[0].sig}. View: ${webUrl}`);
       } else {
         results.failed++;
         results.details.push(`Failed: ${record.id}`);

@@ -190,11 +190,26 @@ export default function ManageCompanyPage() {
         )}
 
         {syncResults && (
-          <div className="mt-4 p-4 bg-black/20 rounded-lg border border-white/10 font-mono text-xs max-h-40 overflow-y-auto">
-            <p className="text-primary-400 font-bold mb-2 underline">Sync Results:</p>
-            {syncResults.results?.details.map((detail: string, i: number) => (
-              <p key={i} className="mb-1 opacity-80">{detail}</p>
-            ))}
+          <div className="mt-4 p-4 bg-black/20 rounded-lg border border-white/10 font-mono text-xs max-h-60 overflow-y-auto">
+            <p className="text-primary-400 font-bold mb-2 underline">Sync Results (DB Proof & View Links):</p>
+            {syncResults.results?.details.map((detail: string, i: number) => {
+              const parts = detail.split('View: ');
+              return (
+                <p key={i} className="mb-2 opacity-80 border-b border-white/5 pb-1">
+                  {parts[0]}
+                  {parts[1] && (
+                    <a 
+                      href={parts[1]} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-primary-400 hover:text-primary-300 underline font-bold"
+                    >
+                      [CLICK TO VIEW FILE]
+                    </a>
+                  )}
+                </p>
+              );
+            })}
           </div>
         )}
       </div>
