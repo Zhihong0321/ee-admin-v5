@@ -8,25 +8,30 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/migration/start
  * Start comprehensive file migration from Bubble URLs to local storage
+ * Body: { sessionId?: string, createdAfter?: string }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { sessionId } = body;
+    const { sessionId, createdAfter } = body;
+
+    console.log('[Migration API] Starting migration', createdAfter ? `with date filter: ${createdAfter}` : 'without date filter');
 
     // Create progress session if not provided
     const migrationSessionId = sessionId || `migration_${Date.now()}`;
     createProgressSession(migrationSessionId);
 
     // Start migration in background (don't await)
-    migrateAllBubbleFiles(migrationSessionId).catch((error) => {
+    migrateAllBubbleFiles(migrationSessionId, createdAfter).catch((error) => {
       console.error('Migration error:', error);
     });
 
     return NextResponse.json({
       success: true,
       sessionId: migrationSessionId,
-      message: 'File migration started',
+      message: createdAfter
+        ? `File migration started for records after ${createdAfter}`
+        : 'File migration started',
       progressUrl: `/api/migration/progress?sessionId=${migrationSessionId}`
     });
   } catch (error) {

@@ -31,6 +31,7 @@ export default function SyncPage() {
   const [migrationSessionId, setMigrationSessionId] = useState<string | null>(null);
   const [migrationProgress, setMigrationProgress] = useState<any>(null);
   const migrationEventSourceRef = useRef<EventSource | null>(null);
+  const [migrationDateFilter, setMigrationDateFilter] = useState<string>(''); // Date filter for migration
 
   const loadLogs = async () => {
     const latestLogs = await fetchSyncLogs();
@@ -211,7 +212,10 @@ export default function SyncPage() {
   const fetchMigrationStats = async () => {
     setIsLoadingStats(true);
     try {
-      const res = await fetch('/api/migration/stats');
+      const url = migrationDateFilter
+        ? `/api/migration/stats?createdAfter=${migrationDateFilter}`
+        : '/api/migration/stats';
+      const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
         setMigrationStats(data.stats);
@@ -225,17 +229,20 @@ export default function SyncPage() {
 
   // Start full migration
   const handleStartMigration = async () => {
-    if (!confirm(`Start comprehensive file migration?\n\nThis will download ${migrationStats?.totalFiles || 0} files from Bubble and update all database URLs.\n\nThe process will run in the background and you can track progress below.`)) {
+    const fileCount = migrationStats?.totalFiles || 0;
+    const dateFilterText = migrationDateFilter ? ` (created after ${migrationDateFilter})` : '';
+    if (!confirm(`Start file migration${dateFilterText}?\n\nThis will download ${fileCount} files from Bubble and update all database URLs.\n\nThe process will run in the background and you can track progress below.`)) {
       return;
     }
 
-    console.log('[Migration] Starting migration...');
+    console.log('[Migration] Starting migration...', migrationDateFilter ? `with date filter: ${migrationDateFilter}` : 'no date filter');
     setIsMigrating(true);
     setMigrationProgress(null);
     try {
       const res = await fetch('/api/migration/start', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ createdAfter: migrationDateFilter || undefined })
       });
       const data = await res.json();
 
@@ -282,7 +289,28 @@ export default function SyncPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Date Filter Input */}
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] uppercase font-bold text-green-300">From Date:</label>
+                <input
+                  type="date"
+                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={migrationDateFilter}
+                  onChange={(e) => setMigrationDateFilter(e.target.value)}
+                  disabled={isMigrating}
+                />
+                {migrationDateFilter && (
+                  <button
+                    onClick={() => setMigrationDateFilter('')}
+                    className="text-xs text-green-300 hover:text-white underline"
+                    disabled={isMigrating}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
               {migrationStats && (
                 <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-center">
                   <p className="text-[10px] uppercase font-bold text-green-300 tracking-wider">Files to Migrate</p>

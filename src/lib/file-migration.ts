@@ -5,7 +5,7 @@
 
 import { db } from "@/lib/db";
 import { sedaRegistration, users, payments, submitted_payments, invoice_templates, customers } from "@/db/schema";
-import { eq, or, and, isNotNull, notLike } from "drizzle-orm";
+import { eq, or, and, isNotNull, notLike, gte } from "drizzle-orm";
 import { downloadBubbleFile } from "@/lib/storage";
 import { updateProgress, deleteProgress } from "@/lib/progress-tracker";
 import path from "path";
@@ -39,6 +39,7 @@ interface FileFieldConfig {
   table: any;
   tableName: string;
   idField: string;
+  dateField: string; // Field to filter by creation date
   fields: FieldConfig[];
 }
 
@@ -58,6 +59,7 @@ const FILE_FIELDS_CONFIG: FileFieldConfig[] = [
     table: sedaRegistration,
     tableName: 'seda_registration',
     idField: 'id',
+    dateField: 'created_date',
     fields: [
       { fieldName: 'customer_signature', fieldType: 'single', subfolder: 'seda/signatures' },
       { fieldName: 'ic_copy_front', fieldType: 'single', subfolder: 'seda/ic_copies' },
@@ -81,6 +83,7 @@ const FILE_FIELDS_CONFIG: FileFieldConfig[] = [
     table: users,
     tableName: 'user',
     idField: 'id',
+    dateField: 'created_date',
     fields: [
       { fieldName: 'profile_picture', fieldType: 'single', subfolder: 'users/profiles' },
     ]
@@ -90,6 +93,7 @@ const FILE_FIELDS_CONFIG: FileFieldConfig[] = [
     table: payments,
     tableName: 'payment',
     idField: 'id',
+    dateField: 'created_date',
     fields: [
       { fieldName: 'attachment', fieldType: 'array', subfolder: 'payments/attachments' },
     ]
@@ -99,6 +103,7 @@ const FILE_FIELDS_CONFIG: FileFieldConfig[] = [
     table: submitted_payments,
     tableName: 'submitted_payment',
     idField: 'id',
+    dateField: 'created_date',
     fields: [
       { fieldName: 'attachment', fieldType: 'array', subfolder: 'payments/submitted' },
     ]
@@ -108,6 +113,7 @@ const FILE_FIELDS_CONFIG: FileFieldConfig[] = [
     table: invoice_templates,
     tableName: 'invoice_template',
     idField: 'id',
+    dateField: 'created_at',
     fields: [
       { fieldName: 'logo_url', fieldType: 'single', subfolder: 'templates/logos' },
     ]
@@ -170,8 +176,10 @@ function generateFilename(originalUrl: string, recordId: number, index: number =
 /**
  * Comprehensive file migration from Bubble URLs to local storage
  * Scans ALL tables and fields with file URLs, downloads files, and updates database
+ * @param sessionId - Optional progress tracking session ID
+ * @param createdAfter - Optional date filter to only migrate records created after this date (ISO string)
  */
-export async function migrateAllBubbleFiles(sessionId?: string): Promise<MigrationResult> {
+export async function migrateAllBubbleFiles(sessionId?: string, createdAfter?: string): Promise<MigrationResult> {
   const startTime = Date.now();
   const result: MigrationResult = {
     success: false,
@@ -188,6 +196,9 @@ export async function migrateAllBubbleFiles(sessionId?: string): Promise<Migrati
 
   try {
     console.log('🚀 Starting comprehensive file migration...');
+    if (createdAfter) {
+      console.log(`📅 Filter: Only files created after ${createdAfter}`);
+    }
 
     // Initialize progress tracking
     if (sessionId) {
@@ -199,7 +210,9 @@ export async function migrateAllBubbleFiles(sessionId?: string): Promise<Migrati
         currentFile: null,
         downloadSpeed: null,
         currentDownloadSpeed: 0,
-        details: ['🔍 Scanning database for external URLs...'],
+        details: createdAfter
+          ? [`🔍 Scanning for files created after ${createdAfter}...`]
+          : ['🔍 Scanning database for external URLs...'],
         categoriesTotal: [],
         categoriesCompleted: []
       });
@@ -231,18 +244,23 @@ export async function migrateAllBubbleFiles(sessionId?: string): Promise<Migrati
 
           if (fieldConfig.fieldType === 'single') {
             // Single field - get records where field is external URL
+            const whereConditions = [
+              isNotNull((config.table as any)[fieldConfig.fieldName]),
+              notLike((config.table as any)[fieldConfig.fieldName], '/storage/%')
+            ];
+
+            // Add date filter if specified
+            if (createdAfter) {
+              whereConditions.push(gte((config.table as any)[config.dateField], new Date(createdAfter)));
+            }
+
             records = await db
               .select({
                 id: (config.table as any)[config.idField],
                 url: (config.table as any)[fieldConfig.fieldName]
               })
               .from(config.table)
-              .where(
-                and(
-                  isNotNull((config.table as any)[fieldConfig.fieldName]),
-                  notLike((config.table as any)[fieldConfig.fieldName], '/storage/%')
-                )
-              );
+              .where(and(...whereConditions));
 
             // Add to migration list
             for (const record of records) {
@@ -261,13 +279,22 @@ export async function migrateAllBubbleFiles(sessionId?: string): Promise<Migrati
             }
           } else {
             // Array field - need to process in memory
+            const whereConditions = [
+              isNotNull((config.table as any)[fieldConfig.fieldName])
+            ];
+
+            // Add date filter if specified
+            if (createdAfter) {
+              whereConditions.push(gte((config.table as any)[config.dateField], new Date(createdAfter)));
+            }
+
             records = await db
               .select({
                 id: (config.table as any)[config.idField],
                 urls: (config.table as any)[fieldConfig.fieldName]
               })
               .from(config.table)
-              .where(isNotNull((config.table as any)[fieldConfig.fieldName]));
+              .where(and(...whereConditions));
 
             // Process each array
             for (const record of records) {
@@ -492,13 +519,16 @@ export async function migrateAllBubbleFiles(sessionId?: string): Promise<Migrati
 
 /**
  * Get migration statistics without running migration
+ * @param createdAfter - Optional date filter to only count records created after this date (ISO string)
  */
-export async function getMigrationStats() {
+export async function getMigrationStats(createdAfter?: string) {
   const stats = {
     totalFiles: 0,
     byTable: {} as Record<string, number>,
     byField: {} as Record<string, number>
   };
+
+  console.log('[Migration Stats] Scanning for files to migrate...', createdAfter ? `Filter: after ${createdAfter}` : 'No filter');
 
   for (const config of FILE_FIELDS_CONFIG) {
     let tableCount = 0;
@@ -508,21 +538,33 @@ export async function getMigrationStats() {
         let count = 0;
 
         if (fieldConfig.fieldType === 'single') {
+          const whereConditions = [
+            isNotNull((config.table as any)[fieldConfig.fieldName]),
+            notLike((config.table as any)[fieldConfig.fieldName], '/storage/%')
+          ];
+
+          if (createdAfter) {
+            whereConditions.push(gte((config.table as any)[config.dateField], new Date(createdAfter)));
+          }
+
           const records = await db
             .select({ id: (config.table as any)[config.idField] })
             .from(config.table)
-            .where(
-              and(
-                isNotNull((config.table as any)[fieldConfig.fieldName]),
-                notLike((config.table as any)[fieldConfig.fieldName], '/storage/%')
-              )
-            );
+            .where(and(...whereConditions));
           count = records.length;
         } else {
+          const whereConditions = [
+            isNotNull((config.table as any)[fieldConfig.fieldName])
+          ];
+
+          if (createdAfter) {
+            whereConditions.push(gte((config.table as any)[config.dateField], new Date(createdAfter)));
+          }
+
           const records = await db
             .select({ urls: (config.table as any)[fieldConfig.fieldName] })
             .from(config.table)
-            .where(isNotNull((config.table as any)[fieldConfig.fieldName]));
+            .where(and(...whereConditions));
 
           // Count external URLs in arrays
           for (const record of records) {
