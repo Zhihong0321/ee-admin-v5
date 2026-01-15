@@ -93,20 +93,65 @@ export async function deleteDemoInvoices() {
     revalidatePath("/sync");
     revalidatePath("/invoices");
 
-    return {
-      success: true,
-      updatedInvoices: demoInvoiceIds.length,
-      updatedSeda: sedaUpdatedCount,
-      message: `Successfully marked ${demoInvoiceIds.length} demo invoices and ${sedaUpdatedCount} associated SEDA registrations as deleted.`
-    };
+        return {
+
+          success: true,
+
+          updatedInvoices: demoInvoiceIds.length,
+
+          updatedSeda: sedaUpdatedCount,
+
+          message: `Successfully marked ${demoInvoiceIds.length} demo invoices and ${sedaUpdatedCount} associated SEDA registrations as deleted.`
+
+        };
+
+      } catch (error) {
+
+        logSyncActivity(`Delete Demo Invoices Job CRASHED: ${String(error)}`, 'ERROR');
+
+        return { success: false, error: String(error) };
+
+      }
+
+    }
+
+    
+
+export async function fixMissingInvoiceDates() {
+  logSyncActivity(`Starting 'Fix Missing Invoice Dates' job (via Full Resync)...`, 'INFO');
+
+  try {
+    // We cannot simply backfill from local created_at because it might be the sync time.
+    // The only safe way is to re-sync the invoices from Bubble with the corrected mapping.
+    // We'll trigger a full sync without file downloads to be faster.
+    
+    logSyncActivity(`Triggering full data sync to fetch correct Invoice Dates from Bubble...`, 'INFO');
+    
+    // Pass undefined for dates to sync ALL history. syncFiles=false for speed.
+    const result = await syncCompleteInvoicePackage(undefined, undefined, false);
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+
+    if (result.success) {
+      return {
+        success: true,
+        fixed: result.results?.syncedInvoices,
+        message: `Sync Complete. Processed ${result.results?.syncedInvoices} invoices. Invoice Dates should now be corrected.`
+      };
+    } else {
+       return { success: false, error: result.error };
+    }
 
   } catch (error) {
-    logSyncActivity(`Delete Demo Invoices Job CRASHED: ${String(error)}`, 'ERROR');
+    logSyncActivity(`Fix Invoice Dates Job CRASHED: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
 }
 
-export async function patchInvoiceCreators() {
+    
+
+    export async function patchInvoiceCreators() {
   logSyncActivity(`Starting 'Patch Invoice Creators' job...`, 'INFO');
   
   try {

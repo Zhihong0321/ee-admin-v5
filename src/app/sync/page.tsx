@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { 
   RefreshCw, Calendar, Clock, Database, FileText, 
-  UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2
+  UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates } from "./actions";
 import { useEffect } from "react";
 
 export default function SyncPage() {
@@ -15,6 +15,7 @@ export default function SyncPage() {
   const [isUpdatingPercentages, setIsUpdatingPercentages] = useState(false);
   const [isPatchingCreators, setIsPatchingCreators] = useState(false);
   const [isDeletingDemo, setIsDeletingDemo] = useState(false);
+  const [isFixingDates, setIsFixingDates] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
 
@@ -94,6 +95,22 @@ export default function SyncPage() {
     }
   };
 
+  const handleFixDates = async () => {
+    if (!confirm("This will perform a FULL DATA SYNC (without files) to re-fetch correct Invoice Dates from Bubble. This may take a few minutes. Continue?")) return;
+
+    setIsFixingDates(true);
+    setResults(null);
+    try {
+      const res = await fixMissingInvoiceDates();
+      setResults(res);
+      await loadLogs();
+    } catch (error) {
+      setResults({ success: false, error: String(error) });
+    } finally {
+      setIsFixingDates(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-20">
       {/* ... existing header ... */}
@@ -165,6 +182,15 @@ export default function SyncPage() {
              >
                {isPatchingCreators ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
                Patch Creator IDs (Fix NULLs)
+             </button>
+
+             <button 
+               onClick={handleFixDates}
+               disabled={isFixingDates}
+               className="w-full py-3 rounded-xl border border-secondary-200 bg-secondary-50 hover:bg-secondary-100 text-secondary-700 font-bold transition-all flex items-center justify-center gap-2"
+             >
+               {isFixingDates ? <Loader2 className="h-5 w-5 animate-spin" /> : <CalendarDays className="h-5 w-5" />}
+               Fix Missing Dates (Backfill)
              </button>
 
              <button 

@@ -217,6 +217,12 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       amount: b.Amount ? b.Amount.toString() : null,
       total_amount: b["Total Amount"] || b.total_amount || b.Amount || null,
       status: b.Status || b.status || 'draft',
+      
+      // Fix for missing dates:
+      invoice_date: b["Invoice Date"] ? new Date(b["Invoice Date"]) : (b["Created Date"] ? new Date(b["Created Date"]) : null),
+      created_at: b["Created Date"] ? new Date(b["Created Date"]) : new Date(), // Fallback to now if missing from Bubble
+      created_by: b["Created By"] || null,
+
       updated_at: new Date(b["Modified Date"]),
     }), results);
 
