@@ -33,6 +33,8 @@ export async function syncFilesByCategory(category: SyncCategory, limit = 50) {
         await syncSingleColumn(sedaRegistration, 'ic_copy_front', 'ic_copies', limit, results);
         await syncSingleColumn(sedaRegistration, 'ic_copy_back', 'ic_copies', limit, results);
         await syncSingleColumn(sedaRegistration, 'mykad_pdf', 'ic_copies', limit, results);
+        await syncSingleColumn(sedaRegistration, 'nem_cert', 'ic_copies', limit, results);
+        await syncSingleColumn(sedaRegistration, 'property_ownership_prove', 'ic_copies', limit, results);
         break;
 
       case 'bills':
@@ -49,6 +51,9 @@ export async function syncFilesByCategory(category: SyncCategory, limit = 50) {
       case 'roof_site_images':
         await syncArrayColumn(sedaRegistration, 'roof_images', 'roofs', limit, results);
         await syncArrayColumn(sedaRegistration, 'site_images', 'sites', limit, results);
+        await syncArrayColumn(sedaRegistration, 'drawing_pdf_system', 'drawings', limit, results);
+        await syncArrayColumn(sedaRegistration, 'drawing_system_actual', 'drawings', limit, results);
+        await syncArrayColumn(sedaRegistration, 'drawing_engineering_seda_pdf', 'drawings', limit, results);
         break;
 
       case 'payments':

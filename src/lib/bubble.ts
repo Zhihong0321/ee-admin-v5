@@ -130,17 +130,18 @@ export async function pushPaymentUpdateToBubble(bubbleId: string, data: {
 }
 
 /**
- * Complete Data & File Sync Engine with Pagination
+ * Complete Data & File Sync Engine with Pagination and Upsert logic
  */
 export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: string, triggerFileSync = false) {
   logSyncActivity(`Sync Engine: Starting sync (DateFrom: ${dateFrom || 'ALL'}, FileSync: ${triggerFileSync})`, 'INFO');
   
   const results = {
     syncedCustomers: 0, syncedInvoices: 0, syncedItems: 0,
-    syncedPayments: 0, syncedSedas: 0, syncedUsers: 0, syncedAgents: 0,
+    syncedPayments: 0, syncedSubmittedPayments: 0, syncedSedas: 0, syncedUsers: 0, syncedAgents: 0,
     errors: [] as string[]
   };
 
+  // Helper to build date constraints for Bubble API
   const getConstraints = (from?: string) => {
     if (!from) return '';
     const constraint = [{ key: "Modified Date", constraint_type: "greater than", value: new Date(from).toISOString() }];
@@ -187,6 +188,8 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
         if (typeName === 'Customer_Profile') results.syncedCustomers += records.length;
         if (typeName === 'seda_registration') results.syncedSedas += records.length;
         if (typeName === 'payment') results.syncedPayments += records.length;
+        if (typeName === 'submit_payment') results.syncedSubmittedPayments += records.length;
+        if (typeName === 'invoice_new_item') results.syncedItems += records.length;
 
       } catch (err) {
         logSyncActivity(`Sync Engine: ${typeName} batch error: ${String(err)}`, 'ERROR');
@@ -234,7 +237,15 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       updated_at: new Date(b["Modified Date"]),
     }));
 
-    // 5. Sync SEDA
+    // 5. Sync Invoice Items
+    await syncTable('invoice_new_item', invoice_new_items, invoice_new_items.bubble_id, (b) => ({
+      invoice_id: b.Invoice, description: b.Description, qty: b.Qty,
+      unit_price: b["Unit Price"], total_price: b["Total Price"],
+      item_type: b["Item Type"], sort_order: b["Sort Order"],
+      created_at: new Date(b["Created Date"])
+    }));
+
+    // 6. Sync SEDA
     await syncTable('seda_registration', sedaRegistration, sedaRegistration.bubble_id, (b) => ({
       reg_status: b["Reg Status"], state: b.State, city: b.City, agent: b.Agent,
       project_price: b["Project Price"], linked_customer: b["Linked Customer"],
@@ -244,7 +255,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
     }));
 
-    // 6. Sync Payments
+    // 7. Sync Payments
     await syncTable('payment', payments, payments.bubble_id, (b) => ({
       amount: b.Amount?.toString(),
       payment_date: b["Payment Date"] ? new Date(b["Payment Date"]) : null,
@@ -259,9 +270,25 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       last_synced_at: new Date()
     }));
 
+    // 8. Sync Submitted Payments
+    await syncTable('submit_payment', submitted_payments, submitted_payments.bubble_id, (b) => ({
+      amount: b.Amount?.toString(),
+      payment_date: b["Payment Date"] ? new Date(b["Payment Date"]) : null,
+      payment_method: b["Payment Method"],
+      remark: b.Remark,
+      linked_agent: b["Linked Agent"],
+      linked_customer: b["Linked Customer"],
+      linked_invoice: b["Linked Invoice"],
+      created_by: b["Created By"],
+      created_date: b["Created Date"] ? new Date(b["Created Date"]) : null,
+      modified_date: new Date(b["Modified Date"]),
+      status: b.Status || 'pending',
+      last_synced_at: new Date()
+    }));
+
     if (triggerFileSync) {
       logSyncActivity('Sync Engine: Auto-triggering file sync categories...', 'INFO');
-      const categories: any[] = ['signatures', 'ic_copies', 'bills', 'user_profiles'];
+      const categories: any[] = ['signatures', 'ic_copies', 'bills', 'user_profiles', 'roof_site_images', 'payments'];
       for (const cat of categories) {
         const fileRes = await syncFilesByCategory(cat, 100);
         logSyncActivity(`Sync Engine: File category ${cat} finished. Success: ${fileRes.results?.success}, Fail: ${fileRes.results?.failed}`, 'INFO');
