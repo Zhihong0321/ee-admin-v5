@@ -744,9 +744,3 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
     return { success: false, error: String(error) };
   }
 }
-
-/**
- * Complete Invoice Package Sync from Bubble with Date Range
- * Syncs: Customers + Invoices + Invoice Items + Payments + SEDA Registrations
- * @param dateFrom - Optional start date filter (ISO string, e.g., "2024-01-01")
- * @param dateTo - Optional end date filter (ISO string, e.g., "2024-12-31")
