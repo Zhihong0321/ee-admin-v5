@@ -1,18 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Building2, Plus, Edit2, Mail, Phone, MapPin, 
+import { Building2, Plus, Edit2, Mail, Phone, MapPin, 
   Globe, CreditCard, FileText, CheckCircle2, 
-  Settings2, AlertCircle, Trash2
+  Settings2, AlertCircle, Trash2, HardDrive, RefreshCw, Loader2
 } from "lucide-react";
 import { getTemplates, updateTemplate, createTemplate, setDefaultTemplate, deleteTemplate } from "./actions";
+import { testStorageHealth, syncTestSignatures } from "./storage-actions";
 
 export default function ManageCompanyPage() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Storage states
+  const [storageStatus, setStorageStatus] = useState<{status: string, message: string} | null>(null);
+  const [isCheckingStorage, setIsCheckingStorage] = useState(false);
+  const [isSyncingFiles, setIsSyncingFiles] = useState(false);
+  const [syncResults, setSyncResults] = useState<any>(null);
 
   useEffect(() => {
     fetchData();
@@ -29,6 +35,34 @@ export default function ManageCompanyPage() {
       setLoading(false);
     }
   }
+
+  const handleCheckStorage = async () => {
+    setIsCheckingStorage(true);
+    try {
+      const result = await testStorageHealth();
+      setStorageStatus(result);
+    } catch (error) {
+      setStorageStatus({ status: 'error', message: String(error) });
+    } finally {
+      setIsCheckingStorage(false);
+    }
+  };
+
+  const handleSyncFiles = async () => {
+    setIsSyncingFiles(true);
+    setSyncResults(null);
+    try {
+      const result = await syncTestSignatures(10);
+      setSyncResults(result);
+      if (result.success) {
+        alert(`Sync complete: ${result.results.success} files downloaded.`);
+      }
+    } catch (error) {
+      alert("Sync failed: " + String(error));
+    } finally {
+      setIsSyncingFiles(false);
+    }
+  };
 
   const handleEditClick = (template: any) => {
     setEditingTemplate({ ...template });
@@ -112,6 +146,57 @@ export default function ManageCompanyPage() {
           <Plus className="h-4 w-4" />
           Add Template
         </button>
+      </div>
+
+      {/* Storage & Sync Testing Section */}
+      <div className="card p-6 bg-gradient-to-r from-secondary-900 to-secondary-800 text-white">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md">
+              <HardDrive className="h-6 w-6 text-primary-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">Railway Attached Storage</h3>
+              <p className="text-secondary-300 text-sm">Test and verify file synchronization to /storage</p>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            <button 
+              onClick={handleCheckStorage}
+              disabled={isCheckingStorage}
+              className="btn-secondary bg-white/10 border-white/20 text-white hover:bg-white/20 flex items-center gap-2"
+            >
+              {isCheckingStorage ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Check Health
+            </button>
+            <button 
+              onClick={handleSyncFiles}
+              disabled={isSyncingFiles}
+              className="btn-primary bg-primary-500 hover:bg-primary-400 border-none flex items-center gap-2"
+            >
+              {isSyncingFiles ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Sync Test (10 files)
+            </button>
+          </div>
+        </div>
+
+        {storageStatus && (
+          <div className={`mt-4 p-3 rounded-lg flex items-center gap-3 text-sm ${storageStatus.status === 'healthy' ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'}`}>
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span className="font-medium">{storageStatus.status === 'healthy' ? 'Healthy:' : 'Error:'}</span>
+            <span>{storageStatus.message}</span>
+          </div>
+        )}
+
+        {syncResults && (
+          <div className="mt-4 p-4 bg-black/20 rounded-lg border border-white/10 font-mono text-xs max-h-40 overflow-y-auto">
+            <p className="text-primary-400 font-bold mb-2 underline">Sync Results:</p>
+            {syncResults.results?.details.map((detail: string, i: number) => (
+              <p key={i} className="mb-1 opacity-80">{detail}</p>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Templates List */}
