@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import {
   RefreshCw, Calendar, Clock, Database, FileText,
   UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
-  Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown
+  Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses } from "./actions";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
@@ -16,6 +16,7 @@ export default function SyncPage() {
   const [isPatchingCreators, setIsPatchingCreators] = useState(false);
   const [isDeletingDemo, setIsDeletingDemo] = useState(false);
   const [isFixingDates, setIsFixingDates] = useState(false);
+  const [isUpdatingStatuses, setIsUpdatingStatuses] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
 
@@ -205,6 +206,22 @@ export default function SyncPage() {
       setResults({ success: false, error: String(error) });
     } finally {
       setIsFixingDates(false);
+    }
+  };
+
+  const handleUpdateStatuses = async () => {
+    if (!confirm("This will update ALL invoice statuses based on:\n\n• No payment + no SEDA → 'draft'\n• Payment < 50% → 'DEPOSIT'\n• SEDA status = 'APPROVED' → 'SEDA APPROVED'\n• Payment 100% → 'FULLY PAID'\n\nContinue?")) return;
+
+    setIsUpdatingStatuses(true);
+    setResults(null);
+    try {
+      const res = await updateInvoiceStatuses();
+      setResults(res);
+      await loadLogs();
+    } catch (error) {
+      setResults({ success: false, error: String(error) });
+    } finally {
+      setIsUpdatingStatuses(false);
     }
   };
 
@@ -518,13 +535,22 @@ export default function SyncPage() {
                Fix Missing Dates (Backfill)
              </button>
 
-             <button 
+             <button
                onClick={handleDeleteDemo}
                disabled={isDeletingDemo}
                className="w-full py-3 rounded-xl border border-secondary-200 bg-secondary-50 hover:bg-secondary-100 text-secondary-700 font-bold transition-all flex items-center justify-center gap-2"
              >
                {isDeletingDemo ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
                Hide Demo Invoices (Mark Deleted)
+             </button>
+
+             <button
+               onClick={handleUpdateStatuses}
+               disabled={isUpdatingStatuses}
+               className="w-full py-3 rounded-xl border border-primary-200 bg-primary-50 hover:bg-primary-100 text-primary-700 font-bold transition-all flex items-center justify-center gap-2"
+             >
+               {isUpdatingStatuses ? <Loader2 className="h-5 w-5 animate-spin" /> : <Tag className="h-5 w-5" />}
+               Update Invoice Statuses
              </button>
           </div>
         </div>

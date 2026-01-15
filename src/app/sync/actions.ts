@@ -270,7 +270,7 @@ export async function startManualSyncWithProgress(dateFrom?: string, dateTo?: st
 
 export async function updateInvoicePaymentPercentages() {
   logSyncActivity(`Starting update of invoice payment percentages...`, 'INFO');
-  
+
   try {
     const allInvoices = await db.select({
       id: invoices.id,
@@ -317,7 +317,7 @@ export async function updateInvoicePaymentPercentages() {
       const percentage = (totalPaid / totalAmount) * 100;
 
       await db.execute(sql`
-        UPDATE invoice 
+        UPDATE invoice
         SET percent_of_total_amount = ${percentage}, updated_at = NOW()
         WHERE id = ${invoice.id}
       `);
@@ -338,6 +338,145 @@ export async function updateInvoicePaymentPercentages() {
     };
   } catch (error) {
     logSyncActivity(`Payment percentage update CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Update Invoice Statuses based on Payment and SEDA status
+ *
+ * Logic:
+ * 1. No payment AND no SEDA form → 'draft'
+ * 2. Payment percent < 50% → 'DEPOSIT'
+ * 3. SEDA form status = 'APPROVED' → 'SEDA APPROVED'
+ * 4. Payment is full (100%) → 'FULLY PAID'
+ */
+export async function updateInvoiceStatuses() {
+  logSyncActivity(`Starting 'Update Invoice Statuses' job...`, 'INFO');
+
+  try {
+    // Get all invoices that are not deleted
+    const allInvoices = await db.select({
+      id: invoices.id,
+      bubble_id: invoices.bubble_id,
+      total_amount: invoices.total_amount,
+      linked_payment: invoices.linked_payment,
+      linked_seda_registration: invoices.linked_seda_registration,
+      current_status: invoices.status,
+    })
+    .from(invoices)
+    .where(sql`${invoices.status} != 'deleted'`);
+
+    logSyncActivity(`Processing ${allInvoices.length} invoices...`, 'INFO');
+
+    let updatedCount = 0;
+    const statusChanges = {
+      draft: 0,
+      deposit: 0,
+      seda_approved: 0,
+      fully_paid: 0,
+      other: 0
+    };
+
+    for (const invoice of allInvoices) {
+      // Calculate total paid
+      let totalPaid = 0;
+      if (invoice.linked_payment && invoice.linked_payment.length > 0) {
+        for (const paymentBubbleId of invoice.linked_payment) {
+          const payment = await db.query.payments.findFirst({
+            where: eq(payments.bubble_id, paymentBubbleId),
+          });
+
+          const submittedPayment = await db.query.submitted_payments.findFirst({
+            where: eq(submitted_payments.bubble_id, paymentBubbleId),
+          });
+
+          if (payment && payment.amount) {
+            totalPaid += parseFloat(payment.amount || '0');
+          } else if (submittedPayment && submittedPayment.amount) {
+            totalPaid += parseFloat(submittedPayment.amount || '0');
+          }
+        }
+      }
+
+      // Get SEDA registration status
+      let sedaStatus = null;
+      if (invoice.linked_seda_registration) {
+        const seda = await db.query.sedaRegistration.findFirst({
+          where: eq(sedaRegistration.bubble_id, invoice.linked_seda_registration),
+        });
+        sedaStatus = seda?.reg_status;
+      }
+
+      // Determine new status based on business logic
+      let newStatus = invoice.current_status;
+      const totalAmount = parseFloat(invoice.total_amount || '0');
+      const paymentPercent = totalAmount > 0 ? (totalPaid / totalAmount) * 100 : 0;
+
+      // Priority 1: SEDA APPROVED (if SEDA is approved)
+      if (sedaStatus && (sedaStatus.toUpperCase() === 'APPROVED' || sedaStatus.toUpperCase() === 'Approved')) {
+        newStatus = 'SEDA APPROVED';
+      }
+      // Priority 2: FULLY PAID (100% payment)
+      else if (paymentPercent >= 99.9) {
+        newStatus = 'FULLY PAID';
+      }
+      // Priority 3: DEPOSIT (< 50% payment)
+      else if (paymentPercent > 0 && paymentPercent < 50) {
+        newStatus = 'DEPOSIT';
+      }
+      // Priority 4: DRAFT (no payment and no SEDA)
+      else if (paymentPercent === 0 && !sedaStatus) {
+        newStatus = 'draft';
+      }
+
+      // Update if status changed
+      if (newStatus !== invoice.current_status) {
+        await db.update(invoices)
+          .set({ status: newStatus, updated_at: new Date() })
+          .where(eq(invoices.id, invoice.id));
+
+        updatedCount++;
+        logSyncActivity(`Invoice ${invoice.bubble_id}: '${invoice.current_status}' → '${newStatus}' (${paymentPercent.toFixed(1)}% paid, SEDA: ${sedaStatus || 'none'})`, 'INFO');
+
+        // Track counts
+        switch (newStatus) {
+          case 'draft':
+            statusChanges.draft++;
+            break;
+          case 'DEPOSIT':
+            statusChanges.deposit++;
+            break;
+          case 'SEDA APPROVED':
+            statusChanges.seda_approved++;
+            break;
+          case 'FULLY PAID':
+            statusChanges.fully_paid++;
+            break;
+          default:
+            statusChanges.other++;
+        }
+      }
+    }
+
+    logSyncActivity(`Invoice status update complete: ${updatedCount} updated`, 'INFO');
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+
+    return {
+      success: true,
+      updated: updatedCount,
+      processed: allInvoices.length,
+      changes: statusChanges,
+      message: `Updated ${updatedCount} invoice statuses.\n
+      • Draft: ${statusChanges.draft}
+      • Deposit: ${statusChanges.deposit}
+      • SEDA Approved: ${statusChanges.seda_approved}
+      • Fully Paid: ${statusChanges.fully_paid}`
+    };
+  } catch (error) {
+    logSyncActivity(`Invoice Status Update CRASHED: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
 }
