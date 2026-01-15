@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { 
-  RefreshCw, Calendar, Clock, Database, FileText, 
-  UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays
+import { useState, useEffect, useRef } from "react";
+import {
+  RefreshCw, Calendar, Clock, Database, FileText,
+  UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
+  Download, File, XCircle, Circle
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates } from "./actions";
-import { useEffect } from "react";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress } from "./actions";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
@@ -19,6 +19,11 @@ export default function SyncPage() {
   const [results, setResults] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
 
+  // Progress tracking state
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<any>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
   const loadLogs = async () => {
     const latestLogs = await fetchSyncLogs();
     setLogs(latestLogs);
@@ -30,19 +35,51 @@ export default function SyncPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // SSE connection for progress updates
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const eventSource = new EventSource(`/api/sync/files-progress?sessionId=${sessionId}`);
+    eventSourceRef.current = eventSource;
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      setProgress(data);
+
+      if (data.status === 'completed' || data.status === 'error') {
+        setIsSyncing(false);
+        eventSource.close();
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE error:', error);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [sessionId]);
+
   const handleSync = async (type: 'manual' | 'auto') => {
     setIsSyncing(true);
     setResults(null);
+    setProgress(null);
+
     try {
-      const res = type === 'manual' 
-        ? await runManualSync(dateFrom, undefined, syncFiles)
-        : await runIncrementalSync();
-       
-      setResults(res);
-      await loadLogs();
+      if (type === 'manual') {
+        const syncRes = await startManualSyncWithProgress(dateFrom, undefined, syncFiles);
+        if (syncRes.success && syncRes.sessionId) {
+          setSessionId(syncRes.sessionId);
+        }
+      } else {
+        const res = await runIncrementalSync();
+        setResults(res);
+        await loadLogs();
+      }
     } catch (error) {
       setResults({ success: false, error: String(error) });
-    } finally {
       setIsSyncing(false);
     }
   };
@@ -246,6 +283,142 @@ export default function SyncPage() {
           </div>
         </div>
       </div>
+
+      {/* File Sync Progress Section */}
+      {progress && progress.category && (
+        <div className="mt-8 border-t-2 pt-8 border-blue-100 animate-slide-up">
+          <div className="flex items-center gap-3 mb-6">
+            <Download className="h-6 w-6 text-blue-500 animate-pulse" />
+            <h2 className="text-xl font-bold text-secondary-900">
+              File Sync Progress
+            </h2>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-secondary-200 p-6 space-y-6">
+            {/* Overall Progress */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-secondary-700">
+                  {progress.category ? progress.category.charAt(0).toUpperCase() + progress.category.slice(1).replace('_', ' ') : 'Processing...'}
+                </span>
+                <span className="font-bold text-blue-600">
+                  {progress.completedFiles} / {progress.totalFiles} files
+                </span>
+              </div>
+
+              <div className="h-3 bg-secondary-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300 ease-out"
+                  style={{
+                    width: `${progress.totalFiles > 0 ? (progress.completedFiles / progress.totalFiles) * 100 : 0}%`
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Current File Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-secondary-50 rounded-xl space-y-1">
+                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Current File</p>
+                <div className="flex items-center gap-2">
+                  <File className="h-4 w-4 text-blue-500" />
+                  <p className="text-sm font-medium text-secondary-900 truncate">
+                    {progress.currentFile || 'Waiting...'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-secondary-50 rounded-xl space-y-1">
+                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Download Speed</p>
+                <div className="flex items-center gap-2">
+                  <Download className="h-4 w-4 text-green-500" />
+                  <p className="text-sm font-bold text-green-600">
+                    {progress.downloadSpeed || 'Calculating...'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-secondary-100">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-green-600">{progress.completedFiles}</p>
+                <p className="text-xs text-secondary-500 font-semibold">Completed</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-red-600">{progress.failedFiles}</p>
+                <p className="text-xs text-secondary-500 font-semibold">Failed</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-secondary-900">
+                  {progress.totalFiles - progress.completedFiles - progress.failedFiles}
+                </p>
+                <p className="text-xs text-secondary-500 font-semibold">Remaining</p>
+              </div>
+            </div>
+
+            {/* Categories Progress */}
+            {progress.categoriesTotal && progress.categoriesTotal.length > 0 && (
+              <div className="pt-4 border-t border-secondary-100">
+                <p className="text-xs font-bold text-secondary-400 uppercase mb-3">Categories</p>
+                <div className="flex flex-wrap gap-2">
+                  {progress.categoriesTotal.map((cat: string) => {
+                    const isCompleted = progress.categoriesCompleted?.includes(cat);
+                    const isCurrent = progress.category === cat;
+                    return (
+                      <span
+                        key={cat}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                          isCompleted
+                            ? 'bg-green-100 text-green-700'
+                            : isCurrent
+                            ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500'
+                            : 'bg-secondary-100 text-secondary-500'
+                        }`}
+                      >
+                        {isCompleted ? '✓' : isCurrent ? '↓' : '○'} {cat.replace('_', ' ')}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Activity */}
+            {progress.details && progress.details.length > 0 && (
+              <div className="pt-4 border-t border-secondary-100">
+                <p className="text-xs font-bold text-secondary-400 uppercase mb-3">Recent Activity</p>
+                <div className="bg-secondary-950 rounded-lg p-4 h-32 overflow-y-auto space-y-1.5">
+                  {progress.details.slice(-10).reverse().map((detail: string, idx: number) => (
+                    <p key={idx} className="text-xs font-mono text-secondary-300 flex items-center gap-2">
+                      {detail.startsWith('✓') ? (
+                        <CheckCircle2 className="h-3 w-3 text-green-400 flex-shrink-0" />
+                      ) : (
+                        <XCircle className="h-3 w-3 text-red-400 flex-shrink-0" />
+                      )}
+                      <span className={detail.startsWith('✓') ? 'text-green-400' : 'text-red-400'}>{detail}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {progress.status === 'completed' && (
+              <div className="flex items-center justify-center gap-2 p-4 bg-green-50 rounded-xl border border-green-200">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <p className="font-bold text-green-700">File sync completed successfully!</p>
+              </div>
+            )}
+
+            {progress.status === 'error' && (
+              <div className="flex items-center justify-center gap-2 p-4 bg-red-50 rounded-xl border border-red-200">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <p className="font-bold text-red-700">File sync encountered an error</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Results Section */}
       {results && (

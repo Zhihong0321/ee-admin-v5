@@ -6,13 +6,15 @@ import { syncCompleteInvoicePackage } from "@/lib/bubble";
 import { revalidatePath } from "next/cache";
 import { logSyncActivity, getLatestLogs } from "@/lib/logger";
 import { eq, sql, and, or, isNull, isNotNull, inArray } from "drizzle-orm";
+import { createProgressSession } from "@/lib/progress-tracker";
+import { randomUUID } from "crypto";
 
-export async function runManualSync(dateFrom?: string, dateTo?: string, syncFiles = false) {
+export async function runManualSync(dateFrom?: string, dateTo?: string, syncFiles = false, sessionId?: string) {
   logSyncActivity(`Manual Sync Triggered: ${dateFrom || 'All'} to ${dateTo || 'All'}, syncFiles: ${syncFiles}`, 'INFO');
-  
+
   try {
-    const result = await syncCompleteInvoicePackage(dateFrom, dateTo, syncFiles);
-    
+    const result = await syncCompleteInvoicePackage(dateFrom, dateTo, syncFiles, sessionId);
+
     if (result.success) {
       logSyncActivity(`Manual Sync SUCCESS: ${result.results?.syncedInvoices} invoices, ${result.results?.syncedCustomers} customers`, 'INFO');
     } else {
@@ -22,7 +24,7 @@ export async function runManualSync(dateFrom?: string, dateTo?: string, syncFile
     revalidatePath("/sync");
     revalidatePath("/invoices");
     revalidatePath("/customers");
-    
+
     return result;
   } catch (error) {
     logSyncActivity(`Manual Sync CRASHED: ${String(error)}`, 'ERROR');
@@ -248,6 +250,22 @@ export async function runIncrementalSync() {
 
 export async function fetchSyncLogs() {
   return getLatestLogs(100);
+}
+
+/**
+ * Start a manual sync with progress tracking
+ * Returns a sessionId that can be used to track progress via SSE
+ */
+export async function startManualSyncWithProgress(dateFrom?: string, dateTo?: string, syncFiles = false) {
+  const sessionId = randomUUID();
+  createProgressSession(sessionId);
+
+  // Run sync in background
+  runManualSync(dateFrom, dateTo, syncFiles, sessionId).catch((error) => {
+    logSyncActivity(`Background Sync Error: ${String(error)}`, 'ERROR');
+  });
+
+  return { success: true, sessionId };
 }
 
 export async function updateInvoicePaymentPercentages() {

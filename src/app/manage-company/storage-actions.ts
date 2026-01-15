@@ -4,7 +4,28 @@ import { db } from "@/lib/db";
 import { sedaRegistration, users, payments, submitted_payments } from "@/db/schema";
 import { eq, isNotNull, and, notLike, or, sql } from "drizzle-orm";
 import { downloadBubbleFile, checkStorageHealth } from "@/lib/storage";
+import { createProgressSession, updateProgress, deleteProgress } from "@/lib/progress-tracker";
 import path from "path";
+import fs from "fs";
+
+// Helper function to format bytes
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+// Helper function to get file size
+async function getFileSize(filePath: string): Promise<number> {
+  try {
+    const stats = fs.statSync(filePath);
+    return stats.size;
+  } catch (error) {
+    return 0;
+  }
+}
 
 export async function testStorageHealth() {
   return await checkStorageHealth();
@@ -12,7 +33,7 @@ export async function testStorageHealth() {
 
 export type SyncCategory = 'signatures' | 'ic_copies' | 'bills' | 'roof_site_images' | 'payments' | 'user_profiles';
 
-export async function syncFilesByCategory(category: SyncCategory, limit: number = 50) {
+export async function syncFilesByCategory(category: SyncCategory, limit: number = 50, sessionId?: string) {
   try {
     const results = { success: 0, failed: 0, details: [] as string[] };
     let filesToProcess: any[] = [];
@@ -20,6 +41,11 @@ export async function syncFilesByCategory(category: SyncCategory, limit: number 
     let idField = "";
     let urlField = "";
     let updateTable: any = null;
+
+    // Initialize progress tracking if sessionId provided
+    if (sessionId) {
+      updateProgress(sessionId, { category, status: 'running' });
+    }
 
     // Define query based on category
     switch (category) {
@@ -156,46 +182,109 @@ export async function syncFilesByCategory(category: SyncCategory, limit: number 
     }
 
     if (filesToProcess.length === 0) {
+        if (sessionId) {
+          updateProgress(sessionId, { status: 'completed', details: ["No files found to process for this category."] });
+        }
         return { success: true, results: { success: 0, failed: 0, details: ["No files found to process for this category."] } };
     }
 
-    for (const record of filesToProcess) {
+    // Update progress with total files
+    if (sessionId) {
+        updateProgress(sessionId, {
+            totalFiles: filesToProcess.length,
+            completedFiles: 0,
+            failedFiles: 0
+        });
+    }
+
+    for (let i = 0; i < filesToProcess.length; i++) {
+        const record = filesToProcess[i];
         if (!record.url) continue;
 
+        const filename = path.basename(record.url).split('?')[0];
+        const startTime = Date.now();
+
         try {
+            // Update progress: current file
+            if (sessionId) {
+                updateProgress(sessionId, {
+                    currentFile: filename,
+                    downloadedBytes: null,
+                    currentFileSize: null
+                });
+            }
+
             // 1. Download and Save
-            const filename = path.basename(record.url).split('?')[0]; // simple filename extraction
-            
             const savedPath = await downloadBubbleFile(record.url, tableName, filename);
-            
+
             if (savedPath) {
+                // Calculate download speed
+                const endTime = Date.now();
+                const duration = (endTime - startTime) / 1000; // seconds
+                const fileSize = await getFileSize(savedPath);
+                const speed = duration > 0 ? fileSize / duration : 0;
+                const speedText = formatBytes(speed) + '/s';
+
                 // 2. Update Database
-                // /storage/filename.ext
-                // savedPath is absolute path? check downloadBubbleFile return
-                // downloadBubbleFile returns: return `/api/files/${filename}`; (public url)
-                
                 await db.update(updateTable)
                     .set({ [urlField]: savedPath })
                     .where(eq(updateTable[idField], record.id));
 
                 results.success++;
-                results.details.push(`Migrated [${record.id}]: ${record.url} -> ${savedPath} View: ${savedPath}`);
+                results.details.push(`Migrated [${record.id}]: ${record.url} -> ${savedPath}`);
+
+                // Update progress: completed
+                if (sessionId) {
+                    updateProgress(sessionId, {
+                        completedFiles: results.success,
+                        downloadSpeed: speedText,
+                        currentDownloadSpeed: speed,
+                        details: [`✓ ${filename} (${formatBytes(fileSize)})`]
+                    });
+                }
             } else {
                 results.failed++;
                 results.details.push(`Failed Download [${record.id}]: ${record.url}`);
+
+                if (sessionId) {
+                    updateProgress(sessionId, {
+                        failedFiles: results.failed,
+                        details: [`✗ ${filename} - Failed to download`]
+                    });
+                }
             }
 
         } catch (err) {
             console.error(`Error processing ${record.id}:`, err);
             results.failed++;
             results.details.push(`Error [${record.id}]: ${String(err)}`);
+
+            if (sessionId) {
+                updateProgress(sessionId, {
+                    failedFiles: results.failed,
+                    details: [`✗ ${filename} - ${String(err)}`]
+                });
+            }
         }
+    }
+
+    // Mark category as completed
+    if (sessionId) {
+        updateProgress(sessionId, {
+            status: 'completed',
+            currentFile: null,
+            downloadSpeed: null,
+            currentDownloadSpeed: 0
+        });
     }
 
     return { success: true, results };
 
   } catch (error) {
     console.error("Sync category error:", error);
+    if (sessionId) {
+      updateProgress(sessionId, { status: 'error', details: [`Error: ${String(error)}`] });
+    }
     return { success: false, error: String(error) };
   }
 }

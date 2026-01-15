@@ -3,6 +3,7 @@ import { users, agents, payments, submitted_payments, customers, invoices, invoi
 import { eq, sql } from "drizzle-orm";
 import { syncFilesByCategory } from "@/app/manage-company/storage-actions";
 import { logSyncActivity } from "./logger";
+import { createProgressSession, updateProgress, deleteProgress, getProgress } from "./progress-tracker";
 
 const BUBBLE_API_KEY = process.env.BUBBLE_API_KEY || 'b870d2b5ee6e6b39bcf99409c59c9e02';
 const BUBBLE_BASE_URL = 'https://eternalgy.bubbleapps.io/api/1.1/obj';
@@ -171,15 +172,23 @@ async function syncTable(typeName: string, table: any, conflictCol: any, mapFn: 
 /**
  * Complete Data & File Sync Engine with Pagination and Upsert logic
  */
-export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: string, triggerFileSync = false) {
+export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: string, triggerFileSync = false, sessionId?: string) {
   logSyncActivity(`Sync Engine: Starting sync (DateFrom: ${dateFrom || 'ALL'}, FileSync: ${triggerFileSync})`, 'INFO');
-  
+
   const results = {
     syncedCustomers: 0, syncedInvoices: 0, syncedItems: 0,
     syncedPayments: 0, syncedSubmittedPayments: 0, syncedSedas: 0, syncedUsers: 0, syncedAgents: 0,
     syncedTemplates: 0,
     errors: [] as string[]
   };
+
+  // Initialize progress session if provided
+  if (sessionId) {
+    updateProgress(sessionId, {
+      status: 'idle',
+      categoriesTotal: triggerFileSync ? ['signatures', 'ic_copies', 'bills', 'user_profiles', 'roof_site_images', 'payments'] : []
+    });
+  }
 
   try {
     // 1. Sync Agents
@@ -291,9 +300,33 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
     if (triggerFileSync) {
       logSyncActivity('Sync Engine: Auto-triggering file sync categories...', 'INFO');
       const categories: any[] = ['signatures', 'ic_copies', 'bills', 'user_profiles', 'roof_site_images', 'payments'];
+
+      if (sessionId) {
+        updateProgress(sessionId, {
+          categoriesTotal: categories,
+          categoriesCompleted: [],
+          status: 'running'
+        });
+      }
+
       for (const cat of categories) {
-        const fileRes = await syncFilesByCategory(cat, 100);
+        logSyncActivity(`Sync Engine: Starting file category ${cat}...`, 'INFO');
+
+        const fileRes = await syncFilesByCategory(cat, 100, sessionId);
+
+        if (sessionId) {
+          const currentProgress = getProgress(sessionId);
+          const completed = currentProgress?.categoriesCompleted || [];
+          updateProgress(sessionId, {
+            categoriesCompleted: [...completed, cat]
+          });
+        }
+
         logSyncActivity(`Sync Engine: File category ${cat} finished. Success: ${fileRes.results?.success}, Fail: ${fileRes.results?.failed}`, 'INFO');
+      }
+
+      if (sessionId) {
+        updateProgress(sessionId, { status: 'completed' });
       }
     }
 
