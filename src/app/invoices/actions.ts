@@ -52,7 +52,8 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
           i.total_amount, 
           i.invoice_date, 
           i.customer_name_snapshot,
-          COALESCE(a1.name, i.agent_name_snapshot) as agent_name
+          COALESCE(a1.name, i.agent_name_snapshot) as agent_name,
+          i.percent_of_total_amount
         FROM invoice i
         LEFT JOIN agent a1 ON i.agent_id = a1.bubble_id
         WHERE i.is_latest = true

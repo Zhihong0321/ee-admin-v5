@@ -3,15 +3,16 @@
 import { useState } from "react";
 import { 
   RefreshCw, Calendar, Clock, Database, FileText, 
-  UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight
+  UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages } from "./actions";
 import { useEffect } from "react";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [syncFiles, setSyncFiles] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isUpdatingPercentages, setIsUpdatingPercentages] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
 
@@ -33,13 +34,29 @@ export default function SyncPage() {
       const res = type === 'manual' 
         ? await runManualSync(dateFrom, undefined, syncFiles)
         : await runIncrementalSync();
-      
+       
       setResults(res);
       await loadLogs();
     } catch (error) {
       setResults({ success: false, error: String(error) });
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleUpdatePercentages = async () => {
+    if (!confirm("This will calculate and update payment percentages for all invoices based on linked payments. Continue?")) return;
+    
+    setIsUpdatingPercentages(true);
+    setResults(null);
+    try {
+      const res = await updateInvoicePaymentPercentages();
+      setResults(res);
+      await loadLogs();
+    } catch (error) {
+      setResults({ success: false, error: String(error) });
+    } finally {
+      setIsUpdatingPercentages(false);
     }
   };
 
@@ -89,14 +106,23 @@ export default function SyncPage() {
               </div>
             </label>
 
-            <button 
-              onClick={() => handleSync('manual')}
-              disabled={isSyncing}
-              className="btn-primary w-full py-4 flex items-center justify-center gap-3 shadow-elevation-md"
-            >
-              {isSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
-              Execute Manual Sync
-            </button>
+             <button 
+               onClick={() => handleSync('manual')}
+               disabled={isSyncing}
+               className="btn-primary w-full py-4 flex items-center justify-center gap-3 shadow-elevation-md"
+             >
+               {isSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
+               Execute Manual Sync
+             </button>
+
+             <button 
+               onClick={handleUpdatePercentages}
+               disabled={isUpdatingPercentages}
+               className="w-full py-3 rounded-xl border border-secondary-200 bg-secondary-50 hover:bg-secondary-100 text-secondary-700 font-bold transition-all flex items-center justify-center gap-2"
+             >
+               {isUpdatingPercentages ? <Loader2 className="h-5 w-5 animate-spin" /> : <Percent className="h-5 w-5" />}
+               Update Payment Percentages
+             </button>
           </div>
         </div>
 

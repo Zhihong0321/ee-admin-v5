@@ -235,16 +235,17 @@ export default function InvoicesPage() {
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="table">
-            <thead>
-              <tr>
-                <th>Invoice No.</th>
-                <th>Customer</th>
-                <th>Agent</th>
-                <th>Date</th>
-                <th className="text-right">Amount</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
+             <thead>
+                 <tr>
+                   <th>Invoice No.</th>
+                   <th>Customer</th>
+                   <th>Agent</th>
+                   <th>Date</th>
+                   <th className="text-right">Amount</th>
+                   {version === "v2" ? <th className="text-right">% Paid</th> : null}
+                   <th className="text-right">Actions</th>
+                 </tr>
+             </thead>
             <tbody>
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
@@ -254,22 +255,22 @@ export default function InvoicesPage() {
                     </td>
                   </tr>
                 ))
-              ) : invoices.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="p-4 bg-secondary-100 rounded-full">
-                        <FileText className="h-8 w-8 text-secondary-400" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-secondary-900 mb-1">No invoices found</p>
-                        <p className="text-sm text-secondary-600">
-                          {search ? "Try adjusting your search criteria" : "Get started by creating your first invoice"}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
+               ) : invoices.length === 0 ? (
+                 <tr>
+                   <td colSpan={version === "v1" ? 6 : 7} className="px-6 py-16 text-center">
+                     <div className="flex flex-col items-center gap-3">
+                       <div className="p-4 bg-secondary-100 rounded-full">
+                         <FileText className="h-8 w-8 text-secondary-400" />
+                       </div>
+                       <div>
+                         <p className="font-medium text-secondary-900 mb-1">No invoices found</p>
+                         <p className="text-sm text-secondary-600">
+                           {search ? "Try adjusting your search criteria" : "Get started by creating your first invoice"}
+                         </p>
+                       </div>
+                     </div>
+                   </td>
+                 </tr>
               ) : (
                 invoices.map((inv) => {
                   // Safety check: ensure we're rendering the correct version of data
@@ -315,6 +316,13 @@ export default function InvoicesPage() {
                           })}
                         </div>
                       </td>
+                      {version === "v2" ? (
+                        <td className="text-right">
+                          <div className={`font-semibold ${inv.percent_of_total_amount ? (parseFloat(inv.percent_of_total_amount) >= 100 ? 'text-green-600' : parseFloat(inv.percent_of_total_amount) > 0 ? 'text-amber-600' : 'text-secondary-400') : 'text-secondary-400'}`}>
+                            {inv.percent_of_total_amount ? `${parseFloat(inv.percent_of_total_amount).toFixed(1)}%` : '0%'}
+                          </div>
+                        </td>
+                      ) : null}
                       <td className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button 
