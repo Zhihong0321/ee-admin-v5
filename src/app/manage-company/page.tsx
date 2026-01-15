@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Building2, Plus, Edit2, Mail, Phone, MapPin, 
-  Globe, CreditCard, FileText, CheckCircle2, 
-  Settings2, AlertCircle, Trash2, HardDrive, RefreshCw, Loader2
+import { useState, useEffect, useCallback } from "react";
+import { Building2, Plus, Edit2, Mail, Phone, MapPin,
+  Globe, CreditCard, FileText, CheckCircle2,
+  Settings2, AlertCircle, Trash2, HardDrive, RefreshCw, Loader2,
+  Download, Database, FolderOpen, Zap, Activity, FileDown
 } from "lucide-react";
 import { getTemplates, updateTemplate, createTemplate, setDefaultTemplate, deleteTemplate } from "./actions";
 import { testStorageHealth, syncFilesByCategory, SyncCategory } from "./storage-actions";
@@ -13,15 +14,100 @@ export default function ManageCompanyPage() {
   const [loading, setLoading] = useState(true);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   // Storage states
   const [storageStatus, setStorageStatus] = useState<{status: string, message: string} | null>(null);
   const [isCheckingStorage, setIsCheckingStorage] = useState(false);
   const [activeCategory, setActiveCategory] = useState<SyncCategory | null>(null);
   const [syncProgress, setSyncProgress] = useState<Record<string, {success: number, failed: number}>>({});
 
+  // Full migration states
+  const [migrationStats, setMigrationStats] = useState<any>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationSessionId, setMigrationSessionId] = useState<string | null>(null);
+  const [migrationProgress, setMigrationProgress] = useState<any>(null);
+
   useEffect(() => {
     fetchData();
+    fetchMigrationStats();
+  }, []);
+
+  // Fetch migration statistics
+  const fetchMigrationStats = async () => {
+    setIsLoadingStats(true);
+    try {
+      const res = await fetch('/api/migration/stats');
+      const data = await res.json();
+      if (data.success) {
+        setMigrationStats(data.stats);
+      }
+    } catch (error) {
+      console.error('Failed to fetch migration stats:', error);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
+
+  // Start full migration
+  const handleStartMigration = async () => {
+    if (!confirm(`Start comprehensive file migration?\n\nThis will download ${migrationStats?.totalFiles || 0} files from Bubble and update all database URLs.\n\nThe process will run in the background and you can track progress here.`)) {
+      return;
+    }
+
+    setIsMigrating(true);
+    try {
+      const res = await fetch('/api/migration/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setMigrationSessionId(data.sessionId);
+        // Start SSE progress tracking
+        startProgressTracking(data.sessionId);
+      } else {
+        alert('Failed to start migration: ' + data.error);
+        setIsMigrating(false);
+      }
+    } catch (error) {
+      console.error('Failed to start migration:', error);
+      alert('Failed to start migration');
+      setIsMigrating(false);
+    }
+  };
+
+  // SSE progress tracking
+  const startProgressTracking = useCallback((sessionId: string) => {
+    const eventSource = new EventSource(`/api/migration/progress/stream?sessionId=${sessionId}`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'initial' || data.type === 'progress') {
+          setMigrationProgress(data.progress);
+        } else if (data.type === 'completed') {
+          setMigrationProgress(data.progress);
+          setIsMigrating(false);
+          eventSource.close();
+          fetchMigrationStats(); // Refresh stats
+        } else if (data.type === 'error') {
+          setIsMigrating(false);
+          eventSource.close();
+        }
+      } catch (error) {
+        console.error('Failed to parse SSE data:', error);
+      }
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+      setIsMigrating(false);
+    };
+
+    return () => eventSource.close();
   }, []);
 
   async function fetchData() {
@@ -160,6 +246,150 @@ export default function ManageCompanyPage() {
           <Plus className="h-4 w-4" />
           Add Template
         </button>
+      </div>
+
+      {/* Comprehensive File Migration Section */}
+      <div className="card overflow-hidden bg-gradient-to-br from-primary-900 via-primary-800 to-primary-900 text-white shadow-elevation-lg">
+        <div className="p-6 border-b border-white/10">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-green-500/20 rounded-xl backdrop-blur-md border border-green-500/30">
+                <Download className="h-6 w-6 text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Bubble Decommission: File Migration</h3>
+                <p className="text-primary-200 text-sm">Migrate ALL files from Bubble to Railway storage before shutdown</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {migrationStats && (
+                <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-center">
+                  <p className="text-[10px] uppercase font-bold text-primary-300 tracking-wider">Files to Migrate</p>
+                  <p className="text-2xl font-bold text-white">{migrationStats.totalFiles}</p>
+                </div>
+              )}
+
+              {!isMigrating && (
+                <button
+                  onClick={handleStartMigration}
+                  disabled={!migrationStats || migrationStats.totalFiles === 0 || isLoadingStats}
+                  className="btn-primary bg-green-600 hover:bg-green-500 border-none flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FileDown className="h-4 w-4" />
+                  {isLoadingStats ? 'Scanning...' : 'Start Full Migration'}
+                </button>
+              )}
+
+              <button
+                onClick={fetchMigrationStats}
+                disabled={isLoadingStats}
+                className="btn-secondary bg-white/5 border-white/10 text-white hover:bg-white/10 flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoadingStats ? 'animate-spin' : ''}`} />
+                Refresh Stats
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Migration Progress */}
+        {isMigrating && migrationProgress && (
+          <div className="p-6 bg-black/20 border-b border-white/5">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Progress Bar */}
+              <div className="lg:col-span-2 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-white">Overall Progress</p>
+                  <p className="text-sm font-bold text-green-400">
+                    {migrationProgress.totalFiles > 0
+                      ? Math.round((migrationProgress.completedFiles / migrationProgress.totalFiles) * 100)
+                      : 0}%
+                  </p>
+                </div>
+                <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-300"
+                    style={{
+                      width: `${migrationProgress.totalFiles > 0
+                        ? (migrationProgress.completedFiles / migrationProgress.totalFiles) * 100
+                        : 0}%`
+                    }}
+                  />
+                </div>
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-green-400 font-semibold">
+                    ✓ {migrationProgress.completedFiles} migrated
+                  </span>
+                  <span className={migrationProgress.failedFiles > 0 ? 'text-red-400' : 'text-primary-300'}>
+                    ✗ {migrationProgress.failedFiles} failed
+                  </span>
+                  <span className="text-primary-300">
+                    → {migrationProgress.totalFiles - migrationProgress.completedFiles - migrationProgress.failedFiles} remaining
+                  </span>
+                </div>
+              </div>
+
+              {/* Current File */}
+              <div className="lg:col-span-2 space-y-2">
+                <p className="text-[10px] uppercase font-bold text-primary-300 tracking-wider flex items-center gap-2">
+                  <Activity className="h-3 w-3" />
+                  Currently Downloading
+                </p>
+                {migrationProgress.currentFile ? (
+                  <>
+                    <p className="text-sm font-medium text-white truncate">{migrationProgress.currentFile}</p>
+                    {migrationProgress.downloadSpeed && (
+                      <div className="flex items-center gap-2 text-xs text-green-400">
+                        <Zap className="h-3 w-3" />
+                        <span className="font-semibold">{migrationProgress.downloadSpeed}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-primary-300">Initializing...</p>
+                )}
+              </div>
+            </div>
+
+            {/* Recent Details */}
+            {migrationProgress.details && migrationProgress.details.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-white/5">
+                <div className="flex flex-wrap gap-2">
+                  {migrationProgress.details.slice(-4).map((detail: string, idx: number) => (
+                    <span
+                      key={idx}
+                      className="text-[10px] px-2 py-1 bg-white/5 rounded border border-white/10 text-primary-200"
+                    >
+                      {detail}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Breakdown by Table */}
+        {migrationStats && (
+          <div className="p-6">
+            <p className="text-[10px] uppercase font-bold text-primary-300 tracking-wider mb-4 flex items-center gap-2">
+              <Database className="h-3 w-3" />
+              Files by Table
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {Object.entries(migrationStats.byTable).map(([table, count]: [string, any]) => (
+                <div
+                  key={table}
+                  className="p-3 bg-white/5 rounded-lg border border-white/5 hover:border-green-500/30 transition-all"
+                >
+                  <p className="text-[10px] uppercase font-bold text-primary-300 truncate">{table}</p>
+                  <p className="text-xl font-bold text-white">{count}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Storage & Sync Testing Section */}

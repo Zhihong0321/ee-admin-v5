@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   RefreshCw, Calendar, Clock, Database, FileText,
   UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
-  Download, File, XCircle, Circle
+  Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown
 } from "lucide-react";
 import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress } from "./actions";
 
@@ -24,6 +24,14 @@ export default function SyncPage() {
   const [progress, setProgress] = useState<any>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  // Migration state
+  const [migrationStats, setMigrationStats] = useState<any>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationSessionId, setMigrationSessionId] = useState<string | null>(null);
+  const [migrationProgress, setMigrationProgress] = useState<any>(null);
+  const migrationEventSourceRef = useRef<EventSource | null>(null);
+
   const loadLogs = async () => {
     const latestLogs = await fetchSyncLogs();
     setLogs(latestLogs);
@@ -31,9 +39,42 @@ export default function SyncPage() {
 
   useEffect(() => {
     loadLogs();
+    fetchMigrationStats(); // Load migration stats on page load
     const interval = setInterval(loadLogs, 10000); // Refresh every 10s
     return () => clearInterval(interval);
   }, []);
+
+  // Migration SSE connection
+  useEffect(() => {
+    if (!migrationSessionId) return;
+
+    const eventSource = new EventSource(`/api/migration/progress/stream?sessionId=${migrationSessionId}`);
+    migrationEventSourceRef.current = eventSource;
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === 'initial' || data.type === 'progress') {
+        setMigrationProgress(data.progress);
+      } else if (data.type === 'completed') {
+        setMigrationProgress(data.progress);
+        setIsMigrating(false);
+        eventSource.close();
+        fetchMigrationStats(); // Refresh stats
+      } else if (data.type === 'error') {
+        setIsMigrating(false);
+        eventSource.close();
+      }
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [migrationSessionId]);
 
   // SSE connection for progress updates
   useEffect(() => {
@@ -148,6 +189,50 @@ export default function SyncPage() {
     }
   };
 
+  // Fetch migration statistics
+  const fetchMigrationStats = async () => {
+    setIsLoadingStats(true);
+    try {
+      const res = await fetch('/api/migration/stats');
+      const data = await res.json();
+      if (data.success) {
+        setMigrationStats(data.stats);
+      }
+    } catch (error) {
+      console.error('Failed to fetch migration stats:', error);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
+
+  // Start full migration
+  const handleStartMigration = async () => {
+    if (!confirm(`Start comprehensive file migration?\n\nThis will download ${migrationStats?.totalFiles || 0} files from Bubble and update all database URLs.\n\nThe process will run in the background and you can track progress below.`)) {
+      return;
+    }
+
+    setIsMigrating(true);
+    setMigrationProgress(null);
+    try {
+      const res = await fetch('/api/migration/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setMigrationSessionId(data.sessionId);
+      } else {
+        alert('Failed to start migration: ' + data.error);
+        setIsMigrating(false);
+      }
+    } catch (error) {
+      console.error('Failed to start migration:', error);
+      alert('Failed to start migration');
+      setIsMigrating(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-20">
       {/* ... existing header ... */}
@@ -159,6 +244,159 @@ export default function SyncPage() {
         <p className="text-secondary-500">
           Synchronize data and files from Bubble ERP v1 to Postgres ERP v2.
         </p>
+      </div>
+
+      {/* Bubble Decommission: File Migration Section */}
+      <div className="card overflow-hidden bg-gradient-to-br from-green-900 via-green-800 to-green-900 text-white shadow-elevation-lg">
+        <div className="p-6 border-b border-white/10">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-red-500/20 rounded-xl backdrop-blur-md border border-red-500/30">
+                <FolderOpen className="h-6 w-6 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Bubble Decommission: File Migration</h3>
+                <p className="text-green-200 text-sm">Migrate ALL files from Bubble to Railway storage before shutdown</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {migrationStats && (
+                <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-center">
+                  <p className="text-[10px] uppercase font-bold text-green-300 tracking-wider">Files to Migrate</p>
+                  <p className="text-2xl font-bold text-white">{migrationStats.totalFiles}</p>
+                </div>
+              )}
+
+              {!isMigrating && (
+                <button
+                  onClick={handleStartMigration}
+                  disabled={!migrationStats || migrationStats.totalFiles === 0 || isLoadingStats}
+                  className="btn-primary bg-red-600 hover:bg-red-500 border-none flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FileDown className="h-4 w-4" />
+                  {isLoadingStats ? 'Scanning...' : 'Start Full Migration'}
+                </button>
+              )}
+
+              <button
+                onClick={fetchMigrationStats}
+                disabled={isLoadingStats}
+                className="btn-secondary bg-white/5 border-white/10 text-white hover:bg-white/10 flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoadingStats ? 'animate-spin' : ''}`} />
+                Scan
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Migration Progress */}
+        {isMigrating && migrationProgress && (
+          <div className="p-6 bg-black/20 border-b border-white/5">
+            <div className="space-y-4">
+              {/* Progress Bar */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-white flex items-center gap-2">
+                    <Activity className="h-4 w-4" />
+                    Overall Progress
+                  </p>
+                  <p className="text-sm font-bold text-green-400">
+                    {migrationProgress.totalFiles > 0
+                      ? Math.round((migrationProgress.completedFiles / migrationProgress.totalFiles) * 100)
+                      : 0}%
+                  </p>
+                </div>
+                <div className="h-4 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-300"
+                    style={{
+                      width: `${migrationProgress.totalFiles > 0
+                        ? (migrationProgress.completedFiles / migrationProgress.totalFiles) * 100
+                        : 0}%`
+                    }}
+                  />
+                </div>
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-green-400 font-semibold">
+                    ✓ {migrationProgress.completedFiles} migrated
+                  </span>
+                  <span className={migrationProgress.failedFiles > 0 ? 'text-red-400' : 'text-green-300'}>
+                    ✗ {migrationProgress.failedFiles} failed
+                  </span>
+                  <span className="text-green-300">
+                    → {migrationProgress.totalFiles - migrationProgress.completedFiles - migrationProgress.failedFiles} remaining
+                  </span>
+                </div>
+              </div>
+
+              {/* Current File & Speed */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-white/5 rounded-xl space-y-2">
+                  <p className="text-[10px] uppercase font-bold text-green-300 tracking-wider flex items-center gap-2">
+                    <File className="h-3 w-3" />
+                    Currently Downloading
+                  </p>
+                  {migrationProgress.currentFile ? (
+                    <>
+                      <p className="text-sm font-medium text-white truncate">{migrationProgress.currentFile}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-green-200">Initializing...</p>
+                  )}
+                </div>
+
+                <div className="p-4 bg-white/5 rounded-xl space-y-2">
+                  <p className="text-[10px] uppercase font-bold text-green-300 tracking-wider flex items-center gap-2">
+                    <Zap className="h-3 w-3" />
+                    Download Speed
+                  </p>
+                  {migrationProgress.downloadSpeed ? (
+                    <p className="text-lg font-bold text-green-400">{migrationProgress.downloadSpeed}</p>
+                  ) : (
+                    <p className="text-sm text-green-200">Calculating...</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Recent Activity */}
+              {migrationProgress.details && migrationProgress.details.length > 0 && (
+                <div className="pt-4 border-t border-white/5">
+                  <p className="text-[10px] uppercase font-bold text-green-300 tracking-wider mb-3">Recent Activity</p>
+                  <div className="bg-black/30 rounded-lg p-3 h-24 overflow-y-auto space-y-1">
+                    {migrationProgress.details.slice(-8).map((detail: string, idx: number) => (
+                      <p key={idx} className="text-xs font-mono text-green-100 truncate">
+                        {detail}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Breakdown by Table */}
+        {migrationStats && !isMigrating && (
+          <div className="p-6">
+            <p className="text-[10px] uppercase font-bold text-green-300 tracking-wider mb-4 flex items-center gap-2">
+              <Database className="h-3 w-3" />
+              Files by Table (Click "Scan" to refresh)
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {Object.entries(migrationStats.byTable).map(([table, count]: [string, any]) => (
+                <div
+                  key={table}
+                  className="p-3 bg-white/5 rounded-lg border border-white/5 hover:border-green-500/30 transition-all"
+                >
+                  <p className="text-[10px] uppercase font-bold text-green-300 truncate">{table}</p>
+                  <p className="text-xl font-bold text-white">{count}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
