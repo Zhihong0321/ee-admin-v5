@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { users, agents, payments, submitted_payments, customers, invoices, invoice_new_items, sedaRegistration } from "@/db/schema";
+import { users, agents, payments, submitted_payments, customers, invoices, invoice_new_items, sedaRegistration, invoice_templates } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { syncFilesByCategory } from "@/app/manage-company/storage-actions";
 import { logSyncActivity } from "./logger";
@@ -129,6 +129,45 @@ export async function pushPaymentUpdateToBubble(bubbleId: string, data: {
   }
 }
 
+// Shared Sync Helper
+async function syncTable(typeName: string, table: any, conflictCol: any, mapFn: (b: any) => any, results: any) {
+  let cursor = 0;
+  let remaining = 1;
+  logSyncActivity(`Sync Engine: Syncing ${typeName}...`, 'INFO');
+
+  while (remaining > 0) {
+    try {
+      const res = await fetch(`${BUBBLE_BASE_URL}/${typeName}?limit=100&cursor=${cursor}`, { headers });
+      if (!res.ok) {
+        logSyncActivity(`Sync Engine: ${typeName} fetch failed: ${res.status}`, 'ERROR');
+        break;
+      }
+      const data = await res.json();
+      const records = data.response.results || [];
+      remaining = data.response.remaining || 0;
+      cursor += records.length;
+
+      if (records.length === 0) break;
+
+      for (const b of records) {
+        try {
+          const vals = mapFn(b);
+          await db.insert(table).values({ bubble_id: b._id, ...vals })
+            .onConflictDoUpdate({
+              target: conflictCol,
+              set: vals
+            });
+        } catch (err) {
+          results.errors.push(`${typeName} ${b._id}: ${err}`);
+        }
+      }
+    } catch (err) {
+      logSyncActivity(`Sync Engine: ${typeName} batch error: ${String(err)}`, 'ERROR');
+      break;
+    }
+  }
+}
+
 /**
  * Complete Data & File Sync Engine with Pagination and Upsert logic
  */
@@ -142,71 +181,13 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
     errors: [] as string[]
   };
 
-  // Helper to build date constraints for Bubble API
-  const getConstraints = (from?: string) => {
-    if (!from) return '';
-    const constraint = [{ key: "Modified Date", constraint_type: "greater than", value: new Date(from).toISOString() }];
-    return `&constraints=${JSON.stringify(constraint)}`;
-  };
-
-  const dateConstraints = getConstraints(dateFrom);
-
-  const syncTable = async (typeName: string, table: any, conflictCol: any, mapFn: (b: any) => any) => {
-    let cursor = 0;
-    let remaining = 1;
-    logSyncActivity(`Sync Engine: Syncing ${typeName}...`, 'INFO');
-
-    while (remaining > 0) {
-      try {
-        const res = await fetch(`${BUBBLE_BASE_URL}/${typeName}?limit=100&cursor=${cursor}${dateConstraints}`, { headers });
-        if (!res.ok) {
-          logSyncActivity(`Sync Engine: ${typeName} fetch failed: ${res.status}`, 'ERROR');
-          break;
-        }
-        const data = await res.json();
-        const records = data.response.results || [];
-        remaining = data.response.remaining || 0;
-        cursor += records.length;
-
-        if (records.length === 0) break;
-
-        for (const b of records) {
-          try {
-            const vals = mapFn(b);
-            await db.insert(table).values({ bubble_id: b._id, ...vals })
-              .onConflictDoUpdate({
-                target: conflictCol,
-                set: vals
-              });
-          } catch (err) {
-            results.errors.push(`${typeName} ${b._id}: ${err}`);
-          }
-        }
-        
-        if (typeName === 'invoice') results.syncedInvoices += records.length;
-        if (typeName === 'agent') results.syncedAgents += records.length;
-        if (typeName === 'user') results.syncedUsers += records.length;
-        if (typeName === 'Customer_Profile') results.syncedCustomers += records.length;
-        if (typeName === 'seda_registration') results.syncedSedas += records.length;
-        if (typeName === 'payment') results.syncedPayments += records.length;
-        if (typeName === 'submit_payment') results.syncedSubmittedPayments += records.length;
-        if (typeName === 'invoice_new_item') results.syncedItems += records.length;
-        if (typeName === 'invoice_template') results.syncedTemplates += records.length;
-
-      } catch (err) {
-        logSyncActivity(`Sync Engine: ${typeName} batch error: ${String(err)}`, 'ERROR');
-        break;
-      }
-    }
-  };
-
   try {
     // 1. Sync Agents
     await syncTable('agent', agents, agents.bubble_id, (b) => ({
       name: b.Name, email: b.email, contact: b.Contact, agent_type: b["Agent Type"],
       address: b.Address, bankin_account: b.bankin_account, banker: b.banker,
       updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
-    }));
+    }), results);
 
     // 2. Sync Users
     await syncTable('user', users, users.bubble_id, (b) => ({
@@ -214,7 +195,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       agent_code: b.agent_code, dealership: b.Dealership, profile_picture: b["Profile Picture"],
       user_signed_up: b.user_signed_up, access_level: b["Access Level"] || [],
       updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
-    }));
+    }), results);
 
     // 3. Sync Customers
     await syncTable('Customer_Profile', customers, customers.customer_id, (b) => ({
@@ -223,7 +204,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       city: b.City || b.city || null, state: b.State || b.state || null,
       postcode: b.Postcode || b.postcode || null, ic_number: b["IC Number"] || b.ic_number || b["IC No"] || null,
       updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
-    }));
+    }), results);
 
     // 4. Sync Invoices
     await syncTable('invoice', invoices, invoices.bubble_id, (b) => ({
@@ -237,7 +218,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       total_amount: b["Total Amount"] || b.total_amount || b.Amount || null,
       status: b.Status || b.status || 'draft',
       updated_at: new Date(b["Modified Date"]),
-    }));
+    }), results);
 
     // 5. Sync Invoice Items
     await syncTable('invoice_new_item', invoice_new_items, invoice_new_items.bubble_id, (b) => ({
@@ -245,7 +226,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       unit_price: b["Unit Price"], total_price: b["Total Price"],
       item_type: b["Item Type"], sort_order: b["Sort Order"],
       created_at: new Date(b["Created Date"])
-    }));
+    }), results);
 
     // 6. Sync SEDA
     await syncTable('seda_registration', sedaRegistration, sedaRegistration.bubble_id, (b) => ({
@@ -255,7 +236,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       ic_copy_back: b["IC Copy Back"], tnb_bill_1: b["TNB Bill 1"],
       tnb_bill_2: b["TNB Bill 2"], tnb_bill_3: b["TNB Bill 3"],
       updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
-    }));
+    }), results);
 
     // 7. Sync Invoice Templates
     await syncTable('invoice_template', invoice_templates, invoice_templates.bubble_id, (b) => ({
@@ -268,7 +249,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       is_default: b["Is Default"], disclaimer: b["Disclaimer"],
       apply_sst: b["Apply SST"],
       updated_at: new Date(b["Modified Date"])
-    }));
+    }), results);
 
     // 8. Sync Payments
     await syncTable('payment', payments, payments.bubble_id, (b) => ({
@@ -283,9 +264,9 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       created_date: b["Created Date"] ? new Date(b["Created Date"]) : null,
       modified_date: new Date(b["Modified Date"]),
       last_synced_at: new Date()
-    }));
+    }), results);
 
-    // 8. Sync Submitted Payments
+    // 9. Sync Submitted Payments
     await syncTable('submit_payment', submitted_payments, submitted_payments.bubble_id, (b) => ({
       amount: b.Amount?.toString(),
       payment_date: b["Payment Date"] ? new Date(b["Payment Date"]) : null,
@@ -299,7 +280,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       modified_date: new Date(b["Modified Date"]),
       status: b.Status || 'pending',
       last_synced_at: new Date()
-    }));
+    }), results);
 
     if (triggerFileSync) {
       logSyncActivity('Sync Engine: Auto-triggering file sync categories...', 'INFO');
@@ -316,4 +297,118 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
     logSyncActivity(`Sync Engine Error: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
+}
+
+/**
+ * Sync Payments Only
+ */
+export async function syncPaymentsFromBubble() {
+  const results = { syncedPayments: 0, syncedSubmittedPayments: 0, errors: [] as string[] };
+  try {
+     // Sync Payments
+     await syncTable('payment', payments, payments.bubble_id, (b) => ({
+        amount: b.Amount?.toString(),
+        payment_date: b["Payment Date"] ? new Date(b["Payment Date"]) : null,
+        payment_method: b["Payment Method"],
+        remark: b.Remark,
+        linked_agent: b["Linked Agent"],
+        linked_customer: b["Linked Customer"],
+        linked_invoice: b["Linked Invoice"],
+        created_by: b["Created By"],
+        created_date: b["Created Date"] ? new Date(b["Created Date"]) : null,
+        modified_date: new Date(b["Modified Date"]),
+        last_synced_at: new Date()
+      }), results);
+  
+      // Sync Submitted Payments
+      await syncTable('submit_payment', submitted_payments, submitted_payments.bubble_id, (b) => ({
+        amount: b.Amount?.toString(),
+        payment_date: b["Payment Date"] ? new Date(b["Payment Date"]) : null,
+        payment_method: b["Payment Method"],
+        remark: b.Remark,
+        linked_agent: b["Linked Agent"],
+        linked_customer: b["Linked Customer"],
+        linked_invoice: b["Linked Invoice"],
+        created_by: b["Created By"],
+        created_date: b["Created Date"] ? new Date(b["Created Date"]) : null,
+        modified_date: new Date(b["Modified Date"]),
+        status: b.Status || 'pending',
+        last_synced_at: new Date()
+      }), results);
+      
+      return { success: true, results };
+  } catch (error) {
+    console.error("Sync Payments Error:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Sync Profiles Only (User + Agent)
+ */
+export async function syncProfilesFromBubble() {
+    const results = { syncedUsers: 0, syncedAgents: 0, errors: [] as string[] };
+    try {
+        // Sync Agents
+        await syncTable('agent', agents, agents.bubble_id, (b) => ({
+            name: b.Name, email: b.email, contact: b.Contact, agent_type: b["Agent Type"],
+            address: b.Address, bankin_account: b.bankin_account, banker: b.banker,
+            updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
+        }), results);
+  
+        // Sync Users
+        await syncTable('user', users, users.bubble_id, (b) => ({
+            email: b.authentication?.email?.email, linked_agent_profile: b["Linked Agent Profile"],
+            agent_code: b.agent_code, dealership: b.Dealership, profile_picture: b["Profile Picture"],
+            user_signed_up: b.user_signed_up, access_level: b["Access Level"] || [],
+            updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
+        }), results);
+
+        return { success: true, results };
+    } catch (error) {
+        console.error("Sync Profiles Error:", error);
+        return { success: false, error: String(error) };
+    }
+}
+
+/**
+ * Sync Single Profile (User or Agent) by ID
+ */
+export async function syncSingleProfileFromBubble(bubbleId: string, type: 'user' | 'agent') {
+    try {
+        const typeName = type === 'user' ? 'user' : 'agent';
+        const res = await fetch(`${BUBBLE_BASE_URL}/${typeName}/${bubbleId}`, { headers });
+        
+        if (!res.ok) {
+            throw new Error(`Failed to fetch ${type} from Bubble: ${res.statusText}`);
+        }
+        
+        const data = await res.json();
+        const b = data.response; // Single object
+        
+        if (type === 'user') {
+            const vals = {
+                email: b.authentication?.email?.email, linked_agent_profile: b["Linked Agent Profile"],
+                agent_code: b.agent_code, dealership: b.Dealership, profile_picture: b["Profile Picture"],
+                user_signed_up: b.user_signed_up, access_level: b["Access Level"] || [],
+                updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
+            };
+            
+            await db.insert(users).values({ bubble_id: b._id, ...vals })
+                .onConflictDoUpdate({ target: users.bubble_id, set: vals });
+        } else {
+             const vals = {
+                name: b.Name, email: b.email, contact: b.Contact, agent_type: b["Agent Type"],
+                address: b.Address, bankin_account: b.bankin_account, banker: b.banker,
+                updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
+            };
+             await db.insert(agents).values({ bubble_id: b._id, ...vals })
+                .onConflictDoUpdate({ target: agents.bubble_id, set: vals });
+        }
+        
+        return { success: true };
+    } catch (error) {
+        console.error(`Sync Single ${type} Error:`, error);
+        return { success: false, error: String(error) };
+    }
 }

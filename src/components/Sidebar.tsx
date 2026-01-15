@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 import { logoutAction } from "@/app/auth-actions";

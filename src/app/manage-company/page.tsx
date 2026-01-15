@@ -9,7 +9,10 @@ import { getTemplates, updateTemplate, createTemplate, setDefaultTemplate, delet
 import { testStorageHealth, syncFilesByCategory, SyncCategory } from "./storage-actions";
 
 export default function ManageCompanyPage() {
-  // ... existing code ...
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
   // Storage states
   const [storageStatus, setStorageStatus] = useState<{status: string, message: string} | null>(null);
@@ -17,7 +20,33 @@ export default function ManageCompanyPage() {
   const [activeCategory, setActiveCategory] = useState<SyncCategory | null>(null);
   const [syncProgress, setSyncProgress] = useState<Record<string, {success: number, failed: number}>>({});
 
-  // ... (keep fetchData etc) ...
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    setLoading(true);
+    try {
+      const data = await getTemplates();
+      setTemplates(data);
+    } catch (error) {
+      console.error("Failed to fetch templates", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleCheckStorage = async () => {
+    setIsCheckingStorage(true);
+    try {
+      const result = await testStorageHealth();
+      setStorageStatus(result);
+    } catch (error) {
+      setStorageStatus({ status: 'error', message: String(error) });
+    } finally {
+      setIsCheckingStorage(false);
+    }
+  };
 
   const handleSyncCategory = async (category: SyncCategory) => {
     setActiveCategory(category);
@@ -48,6 +77,8 @@ export default function ManageCompanyPage() {
     { id: 'payments', label: 'Payment Receipts' },
     { id: 'user_profiles', label: 'Profile Pictures' },
   ];
+
+  const handleEditClick = (template: any) => {
     setEditingTemplate({ ...template });
     setIsModalOpen(true);
   };
