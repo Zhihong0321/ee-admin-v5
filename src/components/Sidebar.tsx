@@ -14,6 +14,7 @@ const menuItems = [
   { name: "Customers", href: "/customers", icon: Users },
   { name: "Users", href: "/users", icon: UserCircle },
   { name: "Manage Company", href: "/manage-company", icon: Building2 },
+  { name: "Sync Center", href: "/sync", icon: RefreshCw },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -38,6 +39,7 @@ export function Sidebar({ user }: SidebarProps) {
       case '/users':
       case '/customers':
       case '/manage-company':
+      case '/sync':
         return userTags.includes('admin');
       default:
         return true; // Dashboard, Settings, etc.
