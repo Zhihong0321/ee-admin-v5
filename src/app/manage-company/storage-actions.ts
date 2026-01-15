@@ -1,8 +1,6 @@
-"use server";
-
 import { db } from "@/lib/db";
-import { sedaRegistration } from "@/db/schema";
-import { eq, isNotNull, and, notLike } from "drizzle-orm";
+import { sedaRegistration, users, payments, submitted_payments } from "@/db/schema";
+import { eq, isNotNull, and, notLike, or, sql } from "drizzle-orm";
 import { downloadBubbleFile, checkStorageHealth } from "@/lib/storage";
 import path from "path";
 
@@ -10,76 +8,139 @@ export async function testStorageHealth() {
   return await checkStorageHealth();
 }
 
+export type SyncCategory = 'signatures' | 'ic_copies' | 'bills' | 'roof_site_images' | 'user_profiles' | 'payments';
+
 /**
- * Test function to sync up to 10 customer signatures from SEDA registrations
+ * Main sync engine for all Bubble files
  */
-export async function syncTestSignatures(limit = 10) {
-  console.log(`Starting test sync of ${limit} signatures...`);
+export async function syncFilesByCategory(category: SyncCategory, limit = 50) {
+  console.log(`Starting sync for category: ${category} (limit: ${limit})`);
   
+  const results = {
+    success: 0,
+    failed: 0,
+    remaining: 0,
+    details: [] as string[]
+  };
+
   try {
-    // Find SEDA registrations that have a signature URL but haven't been downloaded yet
-    // (Assuming downloaded ones start with /storage)
-    const records = await db.select({
-      id: sedaRegistration.id,
-      bubble_id: sedaRegistration.bubble_id,
-      customer_signature: sedaRegistration.customer_signature
-    })
-    .from(sedaRegistration)
-    .where(
-      and(
-        isNotNull(sedaRegistration.customer_signature),
-        notLike(sedaRegistration.customer_signature, '/storage/%')
-      )
-    )
-    .limit(limit);
+    switch (category) {
+      case 'signatures':
+        await syncSingleColumn(sedaRegistration, 'customer_signature', 'signatures', limit, results);
+        break;
+      
+      case 'ic_copies':
+        await syncSingleColumn(sedaRegistration, 'ic_copy_front', 'ic_copies', limit, results);
+        await syncSingleColumn(sedaRegistration, 'ic_copy_back', 'ic_copies', limit, results);
+        await syncSingleColumn(sedaRegistration, 'mykad_pdf', 'ic_copies', limit, results);
+        break;
 
-    console.log(`Found ${records.length} records to sync.`);
-    
-    const results = {
-      total: records.length,
-      success: 0,
-      failed: 0,
-      details: [] as string[]
-    };
+      case 'bills':
+        await syncSingleColumn(sedaRegistration, 'tnb_bill_1', 'bills', limit, results);
+        await syncSingleColumn(sedaRegistration, 'tnb_bill_2', 'bills', limit, results);
+        await syncSingleColumn(sedaRegistration, 'tnb_bill_3', 'bills', limit, results);
+        await syncSingleColumn(sedaRegistration, 'tnb_meter', 'bills', limit, results);
+        break;
 
-    for (const record of records) {
-      if (!record.customer_signature) continue;
+      case 'user_profiles':
+        await syncSingleColumn(users, 'profile_picture', 'profiles', limit, results);
+        break;
 
-      // Create a unique filename
-      const extension = path.extname(record.customer_signature.split('?')[0]) || '.png';
-      const filename = `${record.bubble_id}${extension}`;
+      case 'roof_site_images':
+        await syncArrayColumn(sedaRegistration, 'roof_images', 'roofs', limit, results);
+        await syncArrayColumn(sedaRegistration, 'site_images', 'sites', limit, results);
+        break;
 
-      const localPath = await downloadBubbleFile(
-        record.customer_signature,
-        'signatures',
-        filename
-      );
-
-      if (localPath) {
-        // Update database with new local path
-        await db.update(sedaRegistration)
-          .set({ customer_signature: localPath })
-          .where(eq(sedaRegistration.id, record.id));
-        
-        // Verify update by fetching it back
-        const updatedRecord = await db.select({ sig: sedaRegistration.customer_signature })
-          .from(sedaRegistration)
-          .where(eq(sedaRegistration.id, record.id))
-          .limit(1);
-
-        const webUrl = `/api/files/signatures/${filename}`;
-        
-        results.success++;
-        results.details.push(`Record ${record.id} UPDATED! DB now contains: ${updatedRecord[0].sig}. View: ${webUrl}`);
-      } else {
-        results.failed++;
-        results.details.push(`Failed: ${record.id}`);
-      }
+      case 'payments':
+        await syncArrayColumn(payments, 'attachment', 'payments', limit, results);
+        await syncArrayColumn(submitted_payments, 'attachment', 'payments', limit, results);
+        break;
     }
 
     return { success: true, results };
   } catch (error) {
-    console.error("Sync test failed:", error);
+    console.error(`Sync failed for ${category}:`, error);
     return { success: false, error: String(error) };
   }
 }
+
+/**
+ * Logic for columns with a single URL
+ */
+async function syncSingleColumn(table: any, column: string, folder: string, limit: number, results: any) {
+  const records = await db.select({
+    id: table.id,
+    bubble_id: table.bubble_id,
+    url: table[column]
+  })
+  .from(table)
+  .where(
+    and(
+      isNotNull(table[column]),
+      notLike(table[column], '/storage/%'),
+      or(
+        sql`${table[column]} LIKE '//%'`,
+        sql`${table[column]} LIKE 'http%'`
+      )
+    )
+  )
+  .limit(limit);
+
+  for (const record of records) {
+    const ext = path.extname(record.url.split('?')[0]) || '.png';
+    const filename = `${record.bubble_id}_${column}${ext}`;
+    const localPath = await downloadBubbleFile(record.url, folder, filename);
+
+    if (localPath) {
+      await db.update(table).set({ [column]: localPath }).where(eq(table.id, record.id));
+      results.success++;
+    } else {
+      results.failed++;
+    }
+  }
+}
+
+/**
+ * Logic for columns with an ARRAY of URLs
+ */
+async function syncArrayColumn(table: any, column: string, folder: string, limit: number, results: any) {
+  const records = await db.select({
+    id: table.id,
+    bubble_id: table.bubble_id,
+    urls: table[column]
+  })
+  .from(table)
+  .where(isNotNull(table[column]))
+  .limit(limit);
+
+  for (const record of records) {
+    const urls = record.urls as string[];
+    const newPaths: string[] = [];
+    let recordChanged = false;
+
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      if (url && (url.startsWith('//') || url.startsWith('http'))) {
+        const ext = path.extname(url.split('?')[0]) || '.png';
+        const filename = `${record.bubble_id}_${column}_${i}${ext}`;
+        const localPath = await downloadBubbleFile(url, folder, filename);
+        
+        if (localPath) {
+          newPaths.push(localPath);
+          recordChanged = true;
+          results.success++;
+        } else {
+          newPaths.push(url); // Keep original if failed
+          results.failed++;
+        }
+      } else {
+        newPaths.push(url);
+      }
+    }
+
+    if (recordChanged) {
+      await db.update(table).set({ [column]: newPaths }).where(eq(table.id, record.id));
+    }
+  }
+}
+

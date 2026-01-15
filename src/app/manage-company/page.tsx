@@ -6,65 +6,48 @@ import { Building2, Plus, Edit2, Mail, Phone, MapPin,
   Settings2, AlertCircle, Trash2, HardDrive, RefreshCw, Loader2
 } from "lucide-react";
 import { getTemplates, updateTemplate, createTemplate, setDefaultTemplate, deleteTemplate } from "./actions";
-import { testStorageHealth, syncTestSignatures } from "./storage-actions";
+import { testStorageHealth, syncFilesByCategory, SyncCategory } from "./storage-actions";
 
 export default function ManageCompanyPage() {
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // ... existing code ...
   
   // Storage states
   const [storageStatus, setStorageStatus] = useState<{status: string, message: string} | null>(null);
   const [isCheckingStorage, setIsCheckingStorage] = useState(false);
-  const [isSyncingFiles, setIsSyncingFiles] = useState(false);
-  const [syncResults, setSyncResults] = useState<any>(null);
+  const [activeCategory, setActiveCategory] = useState<SyncCategory | null>(null);
+  const [syncProgress, setSyncProgress] = useState<Record<string, {success: number, failed: number}>>({});
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // ... (keep fetchData etc) ...
 
-  async function fetchData() {
-    setLoading(true);
+  const handleSyncCategory = async (category: SyncCategory) => {
+    setActiveCategory(category);
     try {
-      const data = await getTemplates();
-      setTemplates(data);
-    } catch (error) {
-      console.error("Failed to fetch templates", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const handleCheckStorage = async () => {
-    setIsCheckingStorage(true);
-    try {
-      const result = await testStorageHealth();
-      setStorageStatus(result);
-    } catch (error) {
-      setStorageStatus({ status: 'error', message: String(error) });
-    } finally {
-      setIsCheckingStorage(false);
-    }
-  };
-
-  const handleSyncFiles = async () => {
-    setIsSyncingFiles(true);
-    setSyncResults(null);
-    try {
-      const result = await syncTestSignatures(10);
-      setSyncResults(result);
+      // Small batches of 50 to avoid timeouts
+      const result = await syncFilesByCategory(category, 50);
       if (result.success && result.results) {
-        alert(`Sync complete: ${result.results.success} files downloaded.`);
+        setSyncProgress(prev => ({
+          ...prev,
+          [category]: {
+            success: (prev[category]?.success || 0) + result.results!.success,
+            failed: (prev[category]?.failed || 0) + result.results!.failed,
+          }
+        }));
       }
     } catch (error) {
-      alert("Sync failed: " + String(error));
+      console.error(error);
     } finally {
-      setIsSyncingFiles(false);
+      setActiveCategory(null);
     }
   };
 
-  const handleEditClick = (template: any) => {
+  const categories: {id: SyncCategory, label: string}[] = [
+    { id: 'signatures', label: 'Signatures' },
+    { id: 'ic_copies', label: 'IC Copies & MyKad' },
+    { id: 'bills', label: 'TNB Bills & Meters' },
+    { id: 'roof_site_images', label: 'Roof & Site Photos' },
+    { id: 'payments', label: 'Payment Receipts' },
+    { id: 'user_profiles', label: 'Profile Pictures' },
+  ];
     setEditingTemplate({ ...template });
     setIsModalOpen(true);
   };
@@ -149,69 +132,78 @@ export default function ManageCompanyPage() {
       </div>
 
       {/* Storage & Sync Testing Section */}
-      <div className="card p-6 bg-gradient-to-r from-secondary-900 to-secondary-800 text-white">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md">
-              <HardDrive className="h-6 w-6 text-primary-400" />
+      <div className="card overflow-hidden bg-gradient-to-br from-secondary-900 via-secondary-800 to-secondary-900 text-white shadow-elevation-lg">
+        <div className="p-6 border-b border-white/10">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-primary-500/20 rounded-xl backdrop-blur-md border border-primary-500/30">
+                <HardDrive className="h-6 w-6 text-primary-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold">Bubble File Migration Engine</h3>
+                <p className="text-secondary-300 text-sm">Download and host files locally on Railway Storage (/storage)</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-bold">Railway Attached Storage</h3>
-              <p className="text-secondary-300 text-sm">Test and verify file synchronization to /storage</p>
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-3">
+            
             <button 
               onClick={handleCheckStorage}
               disabled={isCheckingStorage}
-              className="btn-secondary bg-white/10 border-white/20 text-white hover:bg-white/20 flex items-center gap-2"
+              className="btn-secondary bg-white/5 border-white/10 text-white hover:bg-white/10 flex items-center gap-2"
             >
               {isCheckingStorage ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              Check Health
-            </button>
-            <button 
-              onClick={handleSyncFiles}
-              disabled={isSyncingFiles}
-              className="btn-primary bg-primary-500 hover:bg-primary-400 border-none flex items-center gap-2"
-            >
-              {isSyncingFiles ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Sync Test (10 files)
+              Verify Storage Health
             </button>
           </div>
+
+          {storageStatus && (
+            <div className={`mt-4 p-3 rounded-lg flex items-center gap-3 text-sm ${storageStatus.status === 'healthy' ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'}`}>
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span className="font-medium">{storageStatus.status === 'healthy' ? 'System Ready:' : 'Critical Error:'}</span>
+              <span>{storageStatus.message}</span>
+            </div>
+          )}
         </div>
 
-        {storageStatus && (
-          <div className={`mt-4 p-3 rounded-lg flex items-center gap-3 text-sm ${storageStatus.status === 'healthy' ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'}`}>
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span className="font-medium">{storageStatus.status === 'healthy' ? 'Healthy:' : 'Error:'}</span>
-            <span>{storageStatus.message}</span>
-          </div>
-        )}
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {categories.map((cat) => (
+            <div key={cat.id} className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col justify-between group hover:border-primary-500/30 transition-all duration-300">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <p className="font-bold text-secondary-100">{cat.label}</p>
+                  <div className="flex gap-3 mt-1">
+                    <span className="text-[10px] uppercase font-bold text-green-400 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                      Done: {syncProgress[cat.id]?.success || 0}
+                    </span>
+                    <span className="text-[10px] uppercase font-bold text-red-400">
+                      Fail: {syncProgress[cat.id]?.failed || 0}
+                    </span>
+                  </div>
+                </div>
+                <div className={`p-2 rounded-lg transition-colors ${activeCategory === cat.id ? 'bg-primary-500 animate-spin' : 'bg-white/5 group-hover:bg-primary-500/20'}`}>
+                  <RefreshCw className={`h-4 w-4 ${activeCategory === cat.id ? 'text-white' : 'text-secondary-400'}`} />
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => handleSyncCategory(cat.id)}
+                disabled={activeCategory !== null}
+                className="btn-primary w-full py-2 text-xs bg-primary-600 hover:bg-primary-500 border-none disabled:opacity-30 disabled:grayscale transition-all"
+              >
+                {activeCategory === cat.id ? 'Processing Batch...' : `Sync Batch (50)`}
+              </button>
+            </div>
+          ))}
+        </div>
 
-        {syncResults && (
-          <div className="mt-4 p-4 bg-black/20 rounded-lg border border-white/10 font-mono text-xs max-h-60 overflow-y-auto">
-            <p className="text-primary-400 font-bold mb-2 underline">Sync Results (DB Proof & View Links):</p>
-            {syncResults.results?.details.map((detail: string, i: number) => {
-              const parts = detail.split('View: ');
-              return (
-                <p key={i} className="mb-2 opacity-80 border-b border-white/5 pb-1">
-                  {parts[0]}
-                  {parts[1] && (
-                    <a 
-                      href={parts[1]} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="text-primary-400 hover:text-primary-300 underline font-bold"
-                    >
-                      [CLICK TO VIEW FILE]
-                    </a>
-                  )}
-                </p>
-              );
-            })}
+        <div className="px-6 py-4 bg-black/20 border-t border-white/5 flex items-center justify-between">
+          <p className="text-[10px] text-secondary-400 uppercase font-bold tracking-widest">Resumable Engine: Click again to process next batch</p>
+          <div className="flex gap-2">
+             <div className="h-1.5 w-24 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-primary-500" style={{ width: `${Math.min(Object.values(syncProgress).reduce((a,b) => a+b.success, 0) / 100, 100)}%` }}></div>
+             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Templates List */}
