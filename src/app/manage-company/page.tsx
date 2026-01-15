@@ -54,7 +54,7 @@ export default function ManageCompanyPage() {
     try {
       const result = await syncTestSignatures(10);
       setSyncResults(result);
-      if (result.success) {
+      if (result.success && result.results) {
         alert(`Sync complete: ${result.results.success} files downloaded.`);
       }
     } catch (error) {
