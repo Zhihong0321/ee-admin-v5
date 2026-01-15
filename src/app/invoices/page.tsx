@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, FileText, Loader2 } from "lucide-react";
-import { getInvoices, getInvoiceDetails, generateInvoicePdf } from "./actions";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, FileText, Loader2, RefreshCw, Database } from "lucide-react";
+import { getInvoices, getInvoiceDetails, generateInvoicePdf, triggerInvoiceSync, backfillInvoiceNames } from "./actions";
 import InvoiceViewer from "@/components/InvoiceViewer";
 
 export default function InvoicesPage() {
@@ -12,6 +12,8 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
 
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
@@ -66,6 +68,44 @@ export default function InvoicesPage() {
     fetchData();
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await triggerInvoiceSync();
+      if (result.success) {
+        alert("Sync complete: Customers and invoices synchronized from Bubble.");
+        fetchData();
+      } else {
+        alert("Sync failed: " + result.error);
+      }
+    } catch (error) {
+      console.error("Sync error", error);
+      alert("Sync error");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleBackfill = async () => {
+    if (!confirm("This will update customer and agent names for existing invoices. Continue?")) return;
+
+    setBackfilling(true);
+    try {
+      const result = await backfillInvoiceNames();
+      if (result.success) {
+        alert(`Backfill complete:\n- Updated: ${result.updated} invoices\n- Missing customer refs: ${result.missingCustomers}\n- Missing agent refs: ${result.missingAgents}`);
+        fetchData();
+      } else {
+        alert("Backfill failed: " + result.error);
+      }
+    } catch (error) {
+      console.error("Backfill error", error);
+      alert("Backfill error");
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Invoice Viewer Modal */}
@@ -96,6 +136,24 @@ export default function InvoicesPage() {
         </div>
         
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync Bubble'}
+          </button>
+          <button
+            onClick={handleBackfill}
+            disabled={backfilling}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+            title="Update customer/agent names for existing invoices"
+          >
+            <Database className={`h-4 w-4 ${backfilling ? 'animate-pulse' : ''}`} />
+            {backfilling ? 'Backfilling...' : 'Backfill Names'}
+          </button>
+
           {/* Version Toggle */}
           <div className="flex items-center bg-white border border-secondary-200 rounded-xl p-1 shadow-sm">
             <button

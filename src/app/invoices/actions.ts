@@ -1,9 +1,11 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, agents, users, invoice_new_items, invoice_templates } from "@/db/schema";
+import { invoices, agents, users, invoice_new_items, invoice_templates, customers } from "@/db/schema";
 import { ilike, or, sql, desc, eq, and } from "drizzle-orm";
 import { getInvoiceHtml } from "@/lib/invoice-renderer";
+import { revalidatePath } from "next/cache";
+import { syncCompleteInvoicePackage } from "@/lib/bubble";
 
 const PDF_API_URL = "https://pdf-gen-production-6c81.up.railway.app";
 
@@ -191,5 +193,122 @@ export async function generateInvoicePdf(id: number, version: "v1" | "v2") {
   } catch (error) {
     console.error("Failed to generate PDF:", error);
     throw error;
+  }
+}
+
+/**
+ * Backfills customer_name_snapshot and agent_name_snapshot for existing invoices
+ * IMPORTANT: This ONLY works for invoices with ERP V2 format linked_customer (cust_xxxx)
+ * Old invoices with Bubble format UIDs (123192380482982x123892138901238) won't match
+ * because customers table only has ERP V2 format UIDs.
+ * For old invoices, re-sync from Bubble will fix customer names.
+ */
+export async function backfillInvoiceNames() {
+  console.log("Starting backfill of invoice names...");
+
+  try {
+    const allInvoices = await db.select({
+      id: invoices.id,
+      bubble_id: invoices.bubble_id,
+      invoice_number: invoices.invoice_number,
+      linked_customer: invoices.linked_customer,
+      linked_agent: invoices.linked_agent,
+      customer_name_snapshot: invoices.customer_name_snapshot,
+      agent_name_snapshot: invoices.agent_name_snapshot
+    }).from(invoices);
+
+    console.log(`Found ${allInvoices.length} invoices to check`);
+
+    let updatedCount = 0;
+    let customerMissingCount = 0;
+    let customerFormatMismatchCount = 0;
+    let agentMissingCount = 0;
+
+    for (const invoice of allInvoices) {
+      const updates: any = {};
+
+      if (!invoice.customer_name_snapshot || invoice.customer_name_snapshot.trim() === '') {
+        if (invoice.linked_customer) {
+          if (invoice.linked_customer.startsWith('cust_')) {
+            const customer = await db.query.customers.findFirst({
+              where: eq(customers.customer_id, invoice.linked_customer)
+            });
+
+            if (customer && customer.name) {
+              updates.customer_name_snapshot = customer.name;
+              console.log(`Invoice ${invoice.invoice_number || invoice.id}: Found customer "${customer.name}"`);
+            } else {
+              customerMissingCount++;
+            }
+          } else {
+            customerFormatMismatchCount++;
+            console.log(`Invoice ${invoice.invoice_number || invoice.id}: Bubble format customer_id, skipping`);
+          }
+        } else {
+          customerMissingCount++;
+        }
+      }
+
+      if (!invoice.agent_name_snapshot || invoice.agent_name_snapshot.trim() === '') {
+        if (invoice.linked_agent) {
+          const agent = await db.query.agents.findFirst({
+            where: eq(agents.bubble_id, invoice.linked_agent)
+          });
+
+          if (agent && agent.name) {
+            updates.agent_name_snapshot = agent.name;
+            console.log(`Invoice ${invoice.invoice_number || invoice.id}: Found agent "${agent.name}"`);
+          } else {
+            agentMissingCount++;
+          }
+        } else {
+          agentMissingCount++;
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await db.update(invoices)
+          .set(updates)
+          .where(eq(invoices.id, invoice.id));
+        updatedCount++;
+      }
+    }
+
+    console.log("Backfill complete:", {
+      updated: updatedCount,
+      missingCustomers: customerMissingCount,
+      formatMismatchBubble: customerFormatMismatchCount,
+      missingAgents: agentMissingCount
+    });
+
+    revalidatePath("/invoices");
+    return {
+      success: true,
+      updated: updatedCount,
+      missingCustomers: customerMissingCount,
+      formatMismatchBubble: customerFormatMismatchCount,
+      missingAgents: agentMissingCount,
+      message: `${updatedCount} invoices updated. ${customerFormatMismatchCount} invoices have Bubble format UIDs and need re-sync from Bubble.`
+    };
+  } catch (error) {
+    console.error("Error during backfill:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function triggerInvoiceSync(dateFrom?: string, dateTo?: string) {
+  console.log(`Triggering invoice sync from Bubble... Date range: ${dateFrom || 'All'} to ${dateTo || 'All'}`);
+  try {
+    const result = await syncCompleteInvoicePackage(dateFrom, dateTo);
+    if (!result.success) {
+      console.error("Invoice sync failed:", result.error);
+      return { success: false, error: result.error };
+    }
+
+    revalidatePath("/invoices");
+    return { success: true, results: result.results };
+  } catch (error) {
+    console.error("Error triggering invoice sync:", error);
+    return { success: false, error: String(error) };
   }
 }

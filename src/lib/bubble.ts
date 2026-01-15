@@ -371,3 +371,382 @@ export async function syncPaymentsFromBubble() {
     return { success: false, error: String(error) };
   }
 }
+
+/**
+ * Complete Invoice Package Sync from Bubble with Date Range
+ * Syncs: Customers + Invoices + Invoice Items + Payments + SEDA Registrations
+ * @param dateFrom - Optional start date filter (ISO string, e.g., "2024-01-01")
+ * @param dateTo - Optional end date filter (ISO string, e.g., "2024-12-31")
+ */
+export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: string) {
+  console.log("\n=== COMPLETE INVOICE PACKAGE SYNC ===");
+  console.log(`Date range: ${dateFrom || 'All'} to ${dateTo || 'All'}`);
+
+  const results = {
+    syncedCustomers: 0,
+    syncedInvoices: 0,
+    syncedItems: 0,
+    syncedPayments: 0,
+    syncedSedas: 0,
+    errors: [] as string[]
+  };
+
+  try {
+    // ========== PHASE 1: Customers ==========
+    console.log("\n--- Syncing Customers (from Customer_Profile) ---");
+    const customerRes = await fetch(`${BUBBLE_BASE_URL}/Customer_Profile?limit=100&sort_field=Modified Date&descending=true`, { headers });
+    if (!customerRes.ok) {
+      throw new Error(`Customer fetch failed: ${customerRes.status}`);
+    }
+
+    const custData = await customerRes.json();
+    const bubbleCustomers = custData.response.results || [];
+
+    for (const bCust of bubbleCustomers) {
+      try {
+        const modifiedDate = new Date(bCust["Modified Date"]);
+
+        const localCust = await db.query.customers.findFirst({
+          where: eq(customers.customer_id, bCust._id)
+        });
+
+        const customerValues = {
+          customer_id: bCust._id,
+          name: bCust.Name || bCust.name || "",
+          email: bCust.Email || bCust.email || null,
+          phone: bCust.Contact || bCust.Whatsapp || bCust.phone || null,
+          address: bCust.Address || bCust.address || null,
+          city: bCust.City || bCust.city || null,
+          state: bCust.State || bCust.state || null,
+          postcode: bCust.Postcode || bCust.postcode || null,
+          ic_number: bCust["IC Number"] || bCust.ic_number || bCust["IC No"] || null,
+          linked_seda_registration: bCust["Linked SEDA Registration"] || null,
+          linked_old_customer: bCust["Linked Old Customer"] || null,
+          notes: bCust.Notes || bCust.notes || null,
+          updated_at: modifiedDate,
+          last_synced_at: new Date()
+        };
+
+        if (!localCust) {
+          await db.insert(customers).values({
+            ...customerValues,
+            created_at: new Date(bCust["Created Date"]),
+          });
+          results.syncedCustomers++;
+        } else {
+          // Update always if it exists (even if placeholder)
+          await db.update(customers).set(customerValues).where(eq(customers.id, localCust.id));
+          results.syncedCustomers++;
+        }
+      } catch (err) {
+        results.errors.push(`Customer ${bCust._id}: ${err}`);
+      }
+    }
+
+    // ========== PHASE 2: Invoices + Items ==========
+    console.log("\n--- Syncing Invoices ---");
+    const invoiceRes = await fetch(`${BUBBLE_BASE_URL}/invoice?limit=100&sort_field=Modified Date&descending=true`, { headers });
+    if (!invoiceRes.ok) {
+      throw new Error(`Invoice fetch failed: ${invoiceRes.status}`);
+    }
+
+    const invData = await invoiceRes.json();
+    const bubbleInvoices = invData.response.results || [];
+    const paymentIdsToSync = new Set<string>();
+    const sedaIdsToSync = new Set<string>();
+
+    for (const bInv of bubbleInvoices) {
+      try {
+        const modifiedDate = new Date(bInv["Modified Date"]);
+
+        const linkedPayment = bInv["Linked Payment"] || bInv.linked_payment || null;
+        const paymentArray = linkedPayment ? (Array.isArray(linkedPayment) ? linkedPayment : [linkedPayment]) : null;
+        const linkedSeda = bInv["Linked SEDA Registration"] || bInv.linked_seda_registration || null;
+
+        if (paymentArray) paymentArray.forEach(p => { if (p) paymentIdsToSync.add(p); });
+        if (linkedSeda) sedaIdsToSync.add(linkedSeda);
+
+        const localInv = await db.query.invoices.findFirst({
+          where: eq(invoices.bubble_id, bInv._id)
+        });
+
+        const linkedCustomer = bInv["Linked Customer"] || bInv.linked_customer || null;
+        const linkedAgent = bInv["Linked Agent"] || bInv.linked_agent || null;
+
+        let customerName = bInv["Customer Name"] || bInv.customer_name ||
+                          bInv.Customer_Name ||
+                          bInv["Linked Customer Name"] ||
+                          null;
+
+        let agentName = bInv["Agent Name"] || bInv.agent_name || null;
+
+        if (linkedAgent) {
+          const localAgent = await db.query.agents.findFirst({
+            where: eq(agents.bubble_id, linkedAgent)
+          });
+          if (localAgent) agentName = localAgent.name;
+        }
+
+        if (!localInv) {
+          await db.insert(invoices).values({
+            bubble_id: bInv._id,
+            invoice_id: bInv["Invoice ID"] || bInv.invoice_id || null,
+            invoice_number: bInv["Invoice Number"] || bInv.invoice_number || null,
+            linked_customer: linkedCustomer,
+            linked_agent: linkedAgent,
+            linked_payment: paymentArray,
+            linked_seda_registration: linkedSeda,
+            customer_name_snapshot: customerName,
+            agent_name_snapshot: agentName,
+            amount: bInv.Amount ? bInv.Amount.toString() : null,
+            total_amount: bInv["Total Amount"] || bInv.total_amount || bInv.Amount || null,
+            subtotal: bInv.Subtotal || bInv.subtotal || null,
+            sst_rate: bInv["SST Rate"] || bInv.sst_rate || null,
+            sst_amount: bInv["SST Amount"] || bInv.sst_amount || null,
+            discount_amount: bInv["Discount Amount"] || bInv.discount_amount || null,
+            voucher_amount: bInv["Voucher Amount"] || bInv.voucher_amount || null,
+            invoice_date: bInv["Invoice Date"] ? new Date(bInv["Invoice Date"]) : null,
+            due_date: bInv["Due Date"] ? new Date(bInv["Due Date"]) : null,
+            status: bInv.Status || bInv.status || 'draft',
+            is_latest: bInv["Is Latest"] !== undefined ? bInv["Is Latest"] : true,
+            share_token: bInv["Share Token"] || bInv.share_token || null,
+            dealercode: bInv.Dealercode || bInv.dealercode || null,
+            approval_status: bInv["Approval Status"] || bInv.approval_status || null,
+            case_status: bInv["Case Status"] || bInv.case_status || null,
+            template_id: bInv["Template ID"] || bInv.template_id || null,
+            created_by: bInv["Created By"] || bInv.created_by || null,
+            created_at: new Date(bInv["Created Date"]),
+            updated_at: modifiedDate
+          });
+          results.syncedInvoices++;
+        } else if (modifiedDate > (localInv.updated_at || new Date(0))) {
+          await db.update(invoices).set({
+            linked_customer: linkedCustomer,
+            linked_agent: linkedAgent,
+            linked_payment: paymentArray,
+            linked_seda_registration: linkedSeda,
+            customer_name_snapshot: customerName,
+            agent_name_snapshot: agentName,
+            amount: bInv.Amount ? bInv.Amount.toString() : null,
+            total_amount: bInv["Total Amount"] || bInv.total_amount || bInv.Amount || null,
+            subtotal: bInv.Subtotal || bInv.subtotal || null,
+            sst_rate: bInv["SST Rate"] || bInv.sst_rate || null,
+            sst_amount: bInv["SST Amount"] || bInv.sst_amount || null,
+            discount_amount: bInv["Discount Amount"] || bInv.discount_amount || null,
+            voucher_amount: bInv["Voucher Amount"] || bInv.voucher_amount || null,
+            invoice_date: bInv["Invoice Date"] ? new Date(bInv["Invoice Date"]) : null,
+            due_date: bInv["Due Date"] ? new Date(bInv["Due Date"]) : null,
+            status: bInv.Status || bInv.status || 'draft',
+            is_latest: bInv["Is Latest"] !== undefined ? bInv["Is Latest"] : true,
+            share_token: bInv["Share Token"] || bInv.share_token || null,
+            dealercode: bInv.Dealercode || bInv.dealercode || null,
+            approval_status: bInv["Approval Status"] || bInv.approval_status || null,
+            case_status: bInv["Case Status"] || bInv.case_status || null,
+            template_id: bInv["Template ID"] || bInv.template_id || null,
+            created_by: bInv["Created By"] || bInv.created_by || null,
+            updated_at: modifiedDate
+          }).where(eq(invoices.id, localInv.id));
+        }
+      } catch (err) {
+        results.errors.push(`Invoice ${bInv._id}: ${err}`);
+      }
+    }
+
+    // Sync Invoice Items
+    const itemsRes = await fetch(`${BUBBLE_BASE_URL}/invoice_new_item?limit=200&sort_field=Modified Date&descending=true`, { headers });
+    if (itemsRes.ok) {
+      const itemsData = await itemsRes.json();
+      const bubbleItems = itemsData.response.results || [];
+
+      for (const bItem of bubbleItems) {
+        try {
+          const localItem = await db.query.invoice_new_items.findFirst({
+            where: eq(invoice_new_items.bubble_id, bItem._id)
+          });
+
+          if (!localItem) {
+            await db.insert(invoice_new_items).values({
+              bubble_id: bItem._id,
+              invoice_id: bItem["Invoice"] || bItem.invoice || null,
+              description: bItem.Description || bItem.description || "",
+              qty: bItem.Qty || bItem.qty || 1,
+              unit_price: bItem["Unit Price"] || bItem.unit_price || 0,
+              total_price: bItem["Total Price"] || bItem.total_price || 0,
+              item_type: bItem["Item Type"] || bItem.item_type || "product",
+              sort_order: bItem["Sort Order"] || bItem.sort_order || 0,
+              created_at: new Date(bItem["Created Date"] || Date.now())
+            });
+            results.syncedItems++;
+          }
+        } catch (err) {
+          results.errors.push(`Invoice Item ${bItem._id}: ${err}`);
+        }
+      }
+    }
+
+    // ========== PHASE 3: Sync Linked Payments ==========
+    console.log("\n--- Syncing Linked Payments ---");
+    console.log(`Found ${paymentIdsToSync.size} unique payment IDs to sync`);
+
+    for (const paymentId of paymentIdsToSync) {
+      try {
+        const payRes = await fetch(`${BUBBLE_BASE_URL}/payment/${paymentId}`, { headers });
+        if (payRes.ok) {
+          const payData = await payRes.json();
+          const bPay = payData.response;
+          if (bPay) {
+            const modifiedDate = new Date(bPay["Modified Date"]);
+            const localPay = await db.query.payments.findFirst({
+              where: eq(payments.bubble_id, bPay._id)
+            });
+
+            if (!localPay) {
+              await db.insert(payments).values({
+                bubble_id: bPay._id,
+                amount: bPay.Amount?.toString(),
+                payment_date: bPay["Payment Date"] ? new Date(bPay["Payment Date"]) : null,
+                payment_method: bPay["Payment Method"],
+                remark: bPay.Remark,
+                linked_agent: bPay["Linked Agent"],
+                linked_customer: bPay["Linked Customer"],
+                linked_invoice: bPay["Linked Invoice"],
+                created_by: bPay["Created By"],
+                created_date: bPay["Created Date"] ? new Date(bPay["Created Date"]) : null,
+                modified_date: modifiedDate,
+                last_synced_at: new Date()
+              });
+              results.syncedPayments++;
+            } else if (modifiedDate > (localPay.modified_date || new Date(0))) {
+              await db.update(payments).set({
+                amount: bPay.Amount?.toString(),
+                payment_date: bPay["Payment Date"] ? new Date(bPay["Payment Date"]) : null,
+                payment_method: bPay["Payment Method"],
+                remark: bPay.Remark,
+                linked_agent: bPay["Linked Agent"],
+                linked_customer: bPay["Linked Customer"],
+                linked_invoice: bPay["Linked Invoice"],
+                modified_date: modifiedDate,
+                last_synced_at: new Date()
+              }).where(eq(payments.id, localPay.id));
+            }
+          }
+        }
+      } catch (err) {
+        results.errors.push(`Payment ${paymentId}: ${err}`);
+      }
+    }
+
+    // ========== PHASE 4: Sync Linked SEDA Registrations ==========
+    console.log("\n--- Syncing Linked SEDA Registrations ---");
+    console.log(`Found ${sedaIdsToSync.size} unique SEDA registration IDs to sync`);
+
+    for (const sedaId of sedaIdsToSync) {
+      try {
+        const sedaRes = await fetch(`${BUBBLE_BASE_URL}/seda_registration/${sedaId}`, { headers });
+        if (sedaRes.ok) {
+          const sedaData = await sedaRes.json();
+          const bSeda = sedaData.response;
+          if (bSeda) {
+            const modifiedDate = new Date(bSeda["Modified Date"]);
+            const localSeda = await db.query.sedaRegistration.findFirst({
+              where: eq(sedaRegistration.bubble_id, bSeda._id)
+            });
+
+            if (!localSeda) {
+              await db.insert(sedaRegistration).values({
+                bubble_id: bSeda._id,
+                reg_status: bSeda["Reg Status"] || null,
+                state: bSeda.State || null,
+                agent: bSeda.Agent || null,
+                project_price: bSeda["Project Price"] || null,
+                city: bSeda.City || null,
+                installation_address: bSeda["Installation Address"] || null,
+                linked_customer: bSeda["Linked Customer"] || null,
+                linked_invoice: [bSeda["Linked Invoice"]] || null,
+                customer_signature: bSeda["Customer Signature"] || null,
+                email: bSeda.Email || null,
+                ic_copy_back: bSeda["IC Copy Back"] || null,
+                ic_copy_front: bSeda["IC Copy Front"] || null,
+                tnb_bill_3: bSeda["TNB Bill 3"] || null,
+                tnb_bill_1: bSeda["TNB Bill 1"] || null,
+                tnb_meter: bSeda["TNB Meter"] || null,
+                e_contact_no: bSeda["E Contact No"] || null,
+                tnb_bill_2: bSeda["TNB Bill 2"] || null,
+                drawing_pdf_system: bSeda["Drawing PDF System"] || null,
+                e_contact_name: bSeda["E Contact Name"] || null,
+                seda_status: bSeda["SEDA Status"] || null,
+                nem_application_no: bSeda["NEM Application No"] || null,
+                e_contact_relationship: bSeda["E Contact Relationship"] || null,
+                ic_no: bSeda["IC No"] || null,
+                request_drawing_date: bSeda["Request Drawing Date"] ? new Date(bSeda["Request Drawing Date"]) : null,
+                phase_type: bSeda["Phase Type"] || null,
+                special_remark: bSeda["Special Remark"] || null,
+                tnb_account_no: bSeda["TNB Account No"] || null,
+                nem_cert: bSeda["NEM Cert"] || null,
+                property_ownership_prove: bSeda["Property Ownership Prove"] || null,
+                inverter_serial_no: bSeda["Inverter Serial No"] || null,
+                tnb_meter_install_date: bSeda["TNB Meter Install Date"] ? new Date(bSeda["TNB Meter Install Date"]) : null,
+                tnb_meter_status: bSeda["TNB Meter Status"] || null,
+                first_completion_date: bSeda["First Completion Date"] ? new Date(bSeda["First Completion Date"]) : null,
+                e_contact_mykad: bSeda["E Contact MyKad"] || null,
+                mykad_pdf: bSeda["MyKad PDF"] || null,
+                nem_type: bSeda["NEM Type"] || null,
+                e_email: bSeda["E Email"] || null,
+                redex_remark: bSeda["Redex Remark"] || null,
+                site_images: bSeda["Site Images"] || null,
+                company_registration_no: bSeda["Company Registration No"] || null,
+                drawing_system_actual: bSeda["Drawing System Actual"] || null,
+                created_by: bSeda["Created By"] || null,
+                created_date: bSeda["Created Date"] ? new Date(bSeda["Created Date"]) : null,
+                created_at: new Date(bSeda["Created Date"]),
+                modified_date: modifiedDate,
+                updated_at: modifiedDate,
+                last_synced_at: new Date()
+              });
+              results.syncedSedas++;
+            } else if (modifiedDate > (localSeda.updated_at || new Date(0))) {
+              await db.update(sedaRegistration).set({
+                reg_status: bSeda["Reg Status"] || localSeda.reg_status,
+                state: bSeda.State || localSeda.state,
+                modified_date: modifiedDate,
+                updated_at: modifiedDate,
+                last_synced_at: new Date()
+              }).where(eq(sedaRegistration.id, localSeda.id));
+            }
+          }
+        }
+      } catch (err) {
+        results.errors.push(`SEDA ${sedaId}: ${err}`);
+      }
+    }
+
+    // ========== SUMMARY ==========
+    console.log("\n=== SYNC COMPLETE ===");
+    console.table([
+      { Phase: "Customers", Synced: results.syncedCustomers, Updated: 0, Failed: 0 },
+      { Phase: "Invoices", Synced: results.syncedInvoices, Updated: 0, Failed: 0 },
+      { Phase: "Invoice Items", Synced: results.syncedItems, Updated: 0, Failed: 0 },
+      { Phase: "Payments", Synced: results.syncedPayments, Updated: 0, Failed: 0 },
+      { Phase: "SEDA Registrations", Synced: results.syncedSedas, Updated: 0, Failed: 0 },
+    ]);
+
+    if (results.errors.length > 0) {
+      console.log("\n=== ERRORS ===");
+      results.errors.slice(0, 10).forEach(err => console.log(err));
+      if (results.errors.length > 10) {
+        console.log(`... and ${results.errors.length - 10} more errors`);
+      }
+    }
+
+    return { success: true, results };
+  } catch (error) {
+    console.error("Error in Complete Invoice Package Sync:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Complete Invoice Package Sync from Bubble with Date Range
+ * Syncs: Customers + Invoices + Invoice Items + Payments + SEDA Registrations
+ * @param dateFrom - Optional start date filter (ISO string, e.g., "2024-01-01")
+ * @param dateTo - Optional end date filter (ISO string, e.g., "2024-12-31")

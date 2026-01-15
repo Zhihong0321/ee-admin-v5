@@ -1,5 +1,6 @@
 import { pgTable, serial, text, integer, timestamp, numeric, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 // Agent Table
 export const agents = pgTable('agent', {
@@ -71,11 +72,15 @@ export const invoices = pgTable('invoice', {
   customer_phone_snapshot: text('customer_phone_snapshot'),
   customer_email_snapshot: text('customer_email_snapshot'),
   agent_name_snapshot: text('agent_name_snapshot'),
-  
-  // Legacy Columns (kept for backward compatibility)
-  amount: numeric('amount'),
+
+  // Linked records
   linked_customer: text('linked_customer'),
   linked_agent: text('linked_agent'), // This links to agents.bubble_id
+  linked_payment: text('linked_payment').array(), // ARRAY of payment bubble_ids
+  linked_seda_registration: text('linked_seda_registration'), // Links to SEDA registration
+
+  // Legacy Columns (kept for backward compatibility)
+  amount: numeric('amount'),
   dealercode: text('dealercode'),
   approval_status: text('approval_status'),
   case_status: text('case_status'),
@@ -92,7 +97,7 @@ export const invoice_snapshots = pgTable('invoice_snapshot', {
   id: serial('id').primaryKey(),
   invoice_id: integer('invoice_id'),
   version: integer('version').notNull(),
-  snapshot_data: sql`jsonb`.notNull(),
+  snapshot_data: text('snapshot_data'),
   created_at: timestamp('created_at', { withTimezone: true }),
   created_by: text('created_by'),
 });
@@ -151,6 +156,78 @@ export const customer_history = pgTable('customer_history', {
   changed_by: text('changed_by'),
   changed_at: timestamp('changed_at').defaultNow(),
   change_operation: text('change_operation'), // 'UPDATE' or 'DELETE'
+});
+
+// SEDA Registration Table
+export const sedaRegistration = pgTable('seda_registration', {
+  id: serial('id').primaryKey(),
+  bubble_id: text('bubble_id'),
+  last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
+  created_at: timestamp('created_at', { withTimezone: true }),
+  updated_at: timestamp('updated_at', { withTimezone: true }),
+  reg_status: text('reg_status'),
+  created_by: text('created_by'),
+  drawing_system_submitted: text('drawing_system_submitted'),
+  modified_date: timestamp('modified_date', { withTimezone: true }),
+  state: text('state'),
+  redex_status: text('redex_status'),
+  roof_images: text('roof_images').array(),
+  sunpeak_hours: numeric('sunpeak_hours'),
+  system_size_in_form_kwp: integer('system_size_in_form_kwp'),
+  created_date: timestamp('created_date', { withTimezone: true }),
+  agent: text('agent'),
+  project_price: numeric('project_price'),
+  system_size: integer('system_size'),
+  city: text('city'),
+  linked_customer: text('linked_customer'),
+  inverter_kwac: integer('inverter_kwac'),
+  slug: text('slug'),
+  estimated_monthly_saving: numeric('estimated_monthly_saving'),
+  average_tnb: integer('average_tnb'),
+  price_category: text('price_category'),
+  g_electric_folder_link: text('g_electric_folder_link'),
+  g_roof_folder_link: text('g_roof_folder_link'),
+  installation_address: text('installation_address'),
+  linked_invoice: text('linked_invoice').array(),
+  customer_signature: text('customer_signature'),
+  email: text('email'),
+  ic_copy_back: text('ic_copy_back'),
+  ic_copy_front: text('ic_copy_front'),
+  tnb_bill_3: text('tnb_bill_3'),
+  tnb_bill_1: text('tnb_bill_1'),
+  tnb_meter: text('tnb_meter'),
+  e_contact_no: text('e_contact_no'),
+  tnb_bill_2: text('tnb_bill_2'),
+  drawing_pdf_system: text('drawing_pdf_system').array(),
+  e_contact_name: text('e_contact_name'),
+  seda_status: text('seda_status'),
+  version: integer('version'),
+  nem_application_no: text('nem_application_no'),
+  e_contact_relationship: text('e_contact_relationship'),
+  ic_no: text('ic_no'),
+  request_drawing_date: timestamp('request_drawing_date', { withTimezone: true }),
+  phase_type: text('phase_type'),
+  special_remark: text('special_remark'),
+  tnb_account_no: text('tnb_account_no'),
+  nem_cert: text('nem_cert'),
+  property_ownership_prove: text('property_ownership_prove'),
+  inverter_serial_no: text('inverter_serial_no'),
+  tnb_meter_install_date: timestamp('tnb_meter_install_date', { withTimezone: true }),
+  tnb_meter_status: text('tnb_meter_status'),
+  first_completion_date: timestamp('first_completion_date', { withTimezone: true }),
+  e_contact_mykad: text('e_contact_mykad'),
+  mykad_pdf: text('mykad_pdf'),
+  nem_type: text('nem_type'),
+  e_email: text('e_email'),
+  redex_remark: text('redex_remark'),
+  site_images: text('site_images').array(),
+  company_registration_no: text('company_registration_no'),
+  drawing_system_actual: text('drawing_system_actual').array(),
+  check_tnb_bill_and_meter_image: text('check_tnb_bill_and_meter_image'),
+  check_mykad: text('check_mykad'),
+  check_ownership: text('check_ownership'),
+  check_fill_in_detail: text('check_fill_in_detail'),
+  drawing_engineering_seda_pdf: text('drawing_engineering_seda_pdf').array(),
 });
 
 // Invoice Template Table
