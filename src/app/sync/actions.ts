@@ -1,11 +1,11 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, payments, submitted_payments, agents, users } from "@/db/schema";
+import { invoices, payments, submitted_payments, agents, users, sedaRegistration } from "@/db/schema";
 import { syncCompleteInvoicePackage } from "@/lib/bubble";
 import { revalidatePath } from "next/cache";
 import { logSyncActivity, getLatestLogs } from "@/lib/logger";
-import { eq, sql, and, or, isNull, isNotNull } from "drizzle-orm";
+import { eq, sql, and, or, isNull, isNotNull, inArray } from "drizzle-orm";
 
 export async function runManualSync(dateFrom?: string, dateTo?: string, syncFiles = false) {
   logSyncActivity(`Manual Sync Triggered: ${dateFrom || 'All'} to ${dateTo || 'All'}, syncFiles: ${syncFiles}`, 'INFO');
@@ -26,6 +26,81 @@ export async function runManualSync(dateFrom?: string, dateTo?: string, syncFile
     return result;
   } catch (error) {
     logSyncActivity(`Manual Sync CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function deleteDemoInvoices() {
+  logSyncActivity(`Starting 'Delete Demo Invoices' job...`, 'INFO');
+
+  try {
+    // 1. Identify Demo Invoices (No Linked Customer AND No Linked Payments)
+    // Fetch all needed fields to filter in memory (safer for arrays/nulls) or construct complex query
+    // We will do a hybrid approach: Get all invoices, filter in code to be 100% sure of logic, then bulk delete.
+    // Given ~4000 invoices max, this is fine.
+    
+    const allInvoices = await db.select({
+      id: invoices.id,
+      bubble_id: invoices.bubble_id,
+      linked_customer: invoices.linked_customer,
+      linked_payment: invoices.linked_payment,
+      linked_seda_registration: invoices.linked_seda_registration
+    }).from(invoices);
+
+    const demoInvoices = allInvoices.filter(inv => {
+      const noCustomer = !inv.linked_customer || inv.linked_customer.trim() === '';
+      const payments = inv.linked_payment as string[] | null;
+      const noPayments = !payments || payments.length === 0;
+      return noCustomer && noPayments;
+    });
+
+    if (demoInvoices.length === 0) {
+      logSyncActivity(`No Demo Invoices found.`, 'INFO');
+      return { success: true, count: 0, message: "No demo invoices found." };
+    }
+
+    const demoInvoiceIds = demoInvoices.map(i => i.id);
+    const demoInvoiceBubbleIds = demoInvoices.map(i => i.bubble_id).filter(Boolean) as string[];
+    
+    // 2. Identify Linked SEDA Registrations to delete
+    const sedaIdsToDelete: string[] = [];
+    for (const inv of demoInvoices) {
+      if (inv.linked_seda_registration) {
+        sedaIdsToDelete.push(inv.linked_seda_registration);
+      }
+    }
+
+    logSyncActivity(`Found ${demoInvoiceIds.length} demo invoices. ${sedaIdsToDelete.length} linked SEDA registrations will also be deleted.`, 'INFO');
+
+    // 3. Perform Deletion
+    // A. Delete SEDA Registrations
+    let sedaDeletedCount = 0;
+    if (sedaIdsToDelete.length > 0) {
+      // Chunking if too many (unlikely to exceed postgres limits here but good practice)
+      // PostgreSQL limit is 65535 parameters. 
+      await db.delete(sedaRegistration).where(inArray(sedaRegistration.bubble_id, sedaIdsToDelete));
+      sedaDeletedCount = sedaIdsToDelete.length;
+      logSyncActivity(`Deleted ${sedaDeletedCount} SEDA registrations.`, 'INFO');
+    }
+
+    // B. Delete Invoices
+    // We use the ID list
+    await db.delete(invoices).where(inArray(invoices.id, demoInvoiceIds));
+    
+    logSyncActivity(`Deleted ${demoInvoiceIds.length} Demo Invoices.`, 'INFO');
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+
+    return {
+      success: true,
+      deletedInvoices: demoInvoiceIds.length,
+      deletedSeda: sedaDeletedCount,
+      message: `Successfully deleted ${demoInvoiceIds.length} demo invoices and ${sedaDeletedCount} associated SEDA registrations.`
+    };
+
+  } catch (error) {
+    logSyncActivity(`Delete Demo Invoices Job CRASHED: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
 }

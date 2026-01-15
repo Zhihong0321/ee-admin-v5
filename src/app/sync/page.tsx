@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { 
   RefreshCw, Calendar, Clock, Database, FileText, 
-  UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck
+  UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices } from "./actions";
 import { useEffect } from "react";
 
 export default function SyncPage() {
@@ -14,6 +14,7 @@ export default function SyncPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isUpdatingPercentages, setIsUpdatingPercentages] = useState(false);
   const [isPatchingCreators, setIsPatchingCreators] = useState(false);
+  const [isDeletingDemo, setIsDeletingDemo] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
 
@@ -74,6 +75,22 @@ export default function SyncPage() {
       setResults({ success: false, error: String(error) });
     } finally {
       setIsPatchingCreators(false);
+    }
+  };
+
+  const handleDeleteDemo = async () => {
+    if (!confirm("DANGER: This will PERMANENTLY DELETE all 'Demo Invoices' (no customer & no payments) and their linked SEDA registrations. This cannot be undone. Are you sure?")) return;
+
+    setIsDeletingDemo(true);
+    setResults(null);
+    try {
+      const res = await deleteDemoInvoices();
+      setResults(res);
+      await loadLogs();
+    } catch (error) {
+      setResults({ success: false, error: String(error) });
+    } finally {
+      setIsDeletingDemo(false);
     }
   };
 
@@ -148,6 +165,15 @@ export default function SyncPage() {
              >
                {isPatchingCreators ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
                Patch Creator IDs (Fix NULLs)
+             </button>
+
+             <button 
+               onClick={handleDeleteDemo}
+               disabled={isDeletingDemo}
+               className="w-full py-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold transition-all flex items-center justify-center gap-2"
+             >
+               {isDeletingDemo ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+               Cleanup Demo Invoices
              </button>
           </div>
         </div>
