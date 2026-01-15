@@ -6,9 +6,10 @@ const STORAGE_ROOT = '/storage';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const filePath = path.join(STORAGE_ROOT, ...params.path);
+  const { path: pathSegments } = await params;
+  const filePath = path.join(STORAGE_ROOT, ...pathSegments);
 
   // Security: Ensure the path is within the storage root
   if (!filePath.startsWith(STORAGE_ROOT)) {
