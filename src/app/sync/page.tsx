@@ -46,22 +46,37 @@ export default function SyncPage() {
 
   // Migration SSE connection
   useEffect(() => {
-    if (!migrationSessionId) return;
+    console.log('[Migration SSE] Effect triggered, sessionId:', migrationSessionId);
+    if (!migrationSessionId) {
+      console.log('[Migration SSE] No sessionId, skipping connection');
+      return;
+    }
 
-    const eventSource = new EventSource(`/api/migration/progress/stream?sessionId=${migrationSessionId}`);
+    const url = `/api/migration/progress/stream?sessionId=${migrationSessionId}`;
+    console.log('[Migration SSE] Connecting to:', url);
+    const eventSource = new EventSource(url);
     migrationEventSourceRef.current = eventSource;
+    console.log('[Migration SSE] EventSource created');
+
+    eventSource.onopen = () => {
+      console.log('[Migration SSE] Connection opened');
+    };
 
     eventSource.onmessage = (event) => {
+      console.log('[Migration SSE] Message received:', event.data);
       const data = JSON.parse(event.data);
 
       if (data.type === 'initial' || data.type === 'progress') {
+        console.log('[Migration SSE] Updating progress:', data.progress);
         setMigrationProgress(data.progress);
       } else if (data.type === 'completed') {
+        console.log('[Migration SSE] Migration completed');
         setMigrationProgress(data.progress);
         setIsMigrating(false);
         eventSource.close();
         fetchMigrationStats(); // Refresh stats
       } else if (data.type === 'error') {
+        console.error('[Migration SSE] Migration error:', data);
         setIsMigrating(false);
         eventSource.close();
       }
@@ -70,6 +85,7 @@ export default function SyncPage() {
     eventSource.onerror = (error) => {
       console.error('[SSE] Migration connection error:', error);
       console.error('[SSE] Session ID:', migrationSessionId);
+      console.error('[SSE] ReadyState:', eventSource.readyState);
       eventSource.close();
     };
 
@@ -213,6 +229,7 @@ export default function SyncPage() {
       return;
     }
 
+    console.log('[Migration] Starting migration...');
     setIsMigrating(true);
     setMigrationProgress(null);
     try {
@@ -222,7 +239,10 @@ export default function SyncPage() {
       });
       const data = await res.json();
 
+      console.log('[Migration] Start response:', data);
+
       if (data.success) {
+        console.log('[Migration] Setting sessionId:', data.sessionId);
         setMigrationSessionId(data.sessionId);
       } else {
         alert('Failed to start migration: ' + data.error);
