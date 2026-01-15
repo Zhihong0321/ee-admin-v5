@@ -70,33 +70,34 @@ export async function deleteDemoInvoices() {
       }
     }
 
-    logSyncActivity(`Found ${demoInvoiceIds.length} demo invoices. ${sedaIdsToDelete.length} linked SEDA registrations will also be deleted.`, 'INFO');
+    logSyncActivity(`Found ${demoInvoiceIds.length} demo invoices. ${sedaIdsToDelete.length} linked SEDA registrations will also be marked as deleted.`, 'INFO');
 
-    // 3. Perform Deletion
-    // A. Delete SEDA Registrations
-    let sedaDeletedCount = 0;
+    // 3. Perform Soft Deletion (Update Status)
+    // A. Update SEDA Registrations status to 'Deleted'
+    let sedaUpdatedCount = 0;
     if (sedaIdsToDelete.length > 0) {
-      // Chunking if too many (unlikely to exceed postgres limits here but good practice)
-      // PostgreSQL limit is 65535 parameters. 
-      await db.delete(sedaRegistration).where(inArray(sedaRegistration.bubble_id, sedaIdsToDelete));
-      sedaDeletedCount = sedaIdsToDelete.length;
-      logSyncActivity(`Deleted ${sedaDeletedCount} SEDA registrations.`, 'INFO');
+      await db.update(sedaRegistration)
+        .set({ reg_status: 'Deleted', updated_at: new Date() })
+        .where(inArray(sedaRegistration.bubble_id, sedaIdsToDelete));
+      sedaUpdatedCount = sedaIdsToDelete.length;
+      logSyncActivity(`Marked ${sedaUpdatedCount} SEDA registrations as 'Deleted'.`, 'INFO');
     }
 
-    // B. Delete Invoices
-    // We use the ID list
-    await db.delete(invoices).where(inArray(invoices.id, demoInvoiceIds));
+    // B. Update Invoices status to 'deleted'
+    await db.update(invoices)
+      .set({ status: 'deleted', updated_at: new Date() })
+      .where(inArray(invoices.id, demoInvoiceIds));
     
-    logSyncActivity(`Deleted ${demoInvoiceIds.length} Demo Invoices.`, 'INFO');
+    logSyncActivity(`Marked ${demoInvoiceIds.length} Demo Invoices as 'deleted'.`, 'INFO');
 
     revalidatePath("/sync");
     revalidatePath("/invoices");
 
     return {
       success: true,
-      deletedInvoices: demoInvoiceIds.length,
-      deletedSeda: sedaDeletedCount,
-      message: `Successfully deleted ${demoInvoiceIds.length} demo invoices and ${sedaDeletedCount} associated SEDA registrations.`
+      updatedInvoices: demoInvoiceIds.length,
+      updatedSeda: sedaUpdatedCount,
+      message: `Successfully marked ${demoInvoiceIds.length} demo invoices and ${sedaUpdatedCount} associated SEDA registrations as deleted.`
     };
 
   } catch (error) {

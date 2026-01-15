@@ -79,7 +79,7 @@ export default function SyncPage() {
   };
 
   const handleDeleteDemo = async () => {
-    if (!confirm("DANGER: This will PERMANENTLY DELETE all 'Demo Invoices' (no customer & no payments) and their linked SEDA registrations. This cannot be undone. Are you sure?")) return;
+    if (!confirm("This will mark all 'Demo Invoices' (no customer & no payments) and their linked SEDA registrations as 'deleted'. Continue?")) return;
 
     setIsDeletingDemo(true);
     setResults(null);
@@ -170,10 +170,10 @@ export default function SyncPage() {
              <button 
                onClick={handleDeleteDemo}
                disabled={isDeletingDemo}
-               className="w-full py-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold transition-all flex items-center justify-center gap-2"
+               className="w-full py-3 rounded-xl border border-secondary-200 bg-secondary-50 hover:bg-secondary-100 text-secondary-700 font-bold transition-all flex items-center justify-center gap-2"
              >
                {isDeletingDemo ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-               Cleanup Demo Invoices
+               Hide Demo Invoices (Mark Deleted)
              </button>
           </div>
         </div>
