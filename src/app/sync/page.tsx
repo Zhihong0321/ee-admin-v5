@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import {
   RefreshCw, Calendar, Clock, Database, FileText,
   UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
-  Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag
+  Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag, Link
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks } from "./actions";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
@@ -17,6 +17,7 @@ export default function SyncPage() {
   const [isDeletingDemo, setIsDeletingDemo] = useState(false);
   const [isFixingDates, setIsFixingDates] = useState(false);
   const [isUpdatingStatuses, setIsUpdatingStatuses] = useState(false);
+  const [isRestoringLinks, setIsRestoringLinks] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
 
@@ -222,6 +223,22 @@ export default function SyncPage() {
       setResults({ success: false, error: String(error) });
     } finally {
       setIsUpdatingStatuses(false);
+    }
+  };
+
+  const handleRestoreLinks = async () => {
+    if (!confirm("This will restore missing links between invoices and SEDA registrations.\n\nIt will scan SEDA registrations and update invoice.linked_seda_registration based on the seda.linked_invoice array.\n\nContinue?")) return;
+
+    setIsRestoringLinks(true);
+    setResults(null);
+    try {
+      const res = await restoreInvoiceSedaLinks();
+      setResults(res);
+      await loadLogs();
+    } catch (error) {
+      setResults({ success: false, error: String(error) });
+    } finally {
+      setIsRestoringLinks(false);
     }
   };
 
@@ -551,6 +568,15 @@ export default function SyncPage() {
              >
                {isUpdatingStatuses ? <Loader2 className="h-5 w-5 animate-spin" /> : <Tag className="h-5 w-5" />}
                Update Invoice Statuses
+             </button>
+
+             <button
+               onClick={handleRestoreLinks}
+               disabled={isRestoringLinks}
+               className="w-full py-3 rounded-xl border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 font-bold transition-all flex items-center justify-center gap-2"
+             >
+               {isRestoringLinks ? <Loader2 className="h-5 w-5 animate-spin" /> : <Link className="h-5 w-5" />}
+               Restore Invoice-SEDA Links
              </button>
           </div>
         </div>

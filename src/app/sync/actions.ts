@@ -480,3 +480,102 @@ export async function updateInvoiceStatuses() {
     return { success: false, error: String(error) };
   }
 }
+
+/**
+ * Restore Invoice-SEDA Links
+ *
+ * Scans SEDA registrations for linked_invoice array and updates
+ * invoice.linked_seda_registration to restore the missing links.
+ *
+ * This fixes the issue where sync didn't populate invoice.linked_seda_registration
+ */
+export async function restoreInvoiceSedaLinks() {
+  logSyncActivity(`Starting 'Restore Invoice-SEDA Links' job...`, 'INFO');
+
+  try {
+    // Get all SEDA registrations with linked_invoice array
+    const sedaRegistrations = await db.select({
+      seda_bubble_id: sedaRegistration.bubble_id,
+      linked_invoices: sedaRegistration.linked_invoice,
+      reg_status: sedaRegistration.reg_status,
+    })
+    .from(sedaRegistration)
+    .where(
+      and(
+        isNotNull(sedaRegistration.linked_invoice),
+        sql`array_length(${sedaRegistration.linked_invoice}, 1) > 0`,
+        sql`${sedaRegistration.reg_status} != 'Deleted'`
+      )
+    );
+
+    logSyncActivity(`Found ${sedaRegistrations.length} SEDA registrations with linked invoices`, 'INFO');
+
+    let linkedCount = 0;
+    let skippedCount = 0;
+    let notFoundCount = 0;
+
+    for (const seda of sedaRegistrations) {
+      if (!seda.linked_invoices || seda.linked_invoices.length === 0) {
+        skippedCount++;
+        continue;
+      }
+
+      // Process each invoice in the linked_invoice array
+      for (const invoiceBubbleId of seda.linked_invoices) {
+        try {
+          // Find the invoice
+          const invoice = await db.query.invoices.findFirst({
+            where: eq(invoices.bubble_id, invoiceBubbleId as string),
+          });
+
+          if (!invoice) {
+            logSyncActivity(`SEDA ${seda.seda_bubble_id}: Invoice ${invoiceBubbleId} not found`, 'ERROR');
+            notFoundCount++;
+            continue;
+          }
+
+          // Skip if already linked
+          if (invoice.linked_seda_registration) {
+            if (invoice.linked_seda_registration !== seda.seda_bubble_id) {
+              logSyncActivity(`Invoice ${invoiceBubbleId}: Already linked to different SEDA (${invoice.linked_seda_registration}), skipping`, 'ERROR');
+            } else {
+              skippedCount++;
+            }
+            continue;
+          }
+
+          // Update the invoice with SEDA link
+          await db.update(invoices)
+            .set({ linked_seda_registration: seda.seda_bubble_id, updated_at: new Date() })
+            .where(eq(invoices.id, invoice.id));
+
+          linkedCount++;
+          logSyncActivity(`Invoice ${invoiceBubbleId}: Linked to SEDA ${seda.seda_bubble_id} (${seda.reg_status})`, 'INFO');
+
+        } catch (error) {
+          logSyncActivity(`Error linking invoice ${invoiceBubbleId}: ${String(error)}`, 'ERROR');
+        }
+      }
+    }
+
+    logSyncActivity(`Invoice-SEDA link restoration complete: ${linkedCount} linked, ${skippedCount} skipped, ${notFoundCount} not found`, 'INFO');
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+
+    return {
+      success: true,
+      linked: linkedCount,
+      skipped: skippedCount,
+      notFound: notFoundCount,
+      total: sedaRegistrations.length,
+      message: `Successfully linked ${linkedCount} invoices to their SEDA registrations.\n
+      • Linked: ${linkedCount}
+      • Skipped: ${skippedCount}
+      • Not Found: ${notFoundCount}`
+    };
+  } catch (error) {
+    logSyncActivity(`Restore SEDA Links CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
