@@ -46,6 +46,7 @@ export async function syncFilesByCategory(category: SyncCategory, limit = 50) {
 
       case 'user_profiles':
         await syncSingleColumn(users, 'profile_picture', 'profiles', limit, results);
+        await syncSingleColumn(invoice_templates, 'logo_url', 'logos', limit, results);
         break;
 
       case 'roof_site_images':

@@ -158,7 +158,7 @@ export default function SyncPage() {
           </div>
 
           {results.success && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="p-4 border-b border-secondary-100">
                 <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Invoices</p>
                 <p className="text-2xl font-bold text-secondary-900">{results.results?.syncedInvoices}</p>
@@ -176,6 +176,20 @@ export default function SyncPage() {
               <div className="p-4 border-b border-secondary-100">
                 <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">SEDA</p>
                 <p className="text-2xl font-bold text-secondary-900">{results.results?.syncedSedas}</p>
+              </div>
+              <div className="p-4 border-b border-secondary-100">
+                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Payments</p>
+                <p className="text-2xl font-bold text-secondary-900">
+                  {(results.results?.syncedPayments || 0) + (results.results?.syncedSubmittedPayments || 0)}
+                </p>
+              </div>
+              <div className="p-4 border-b border-secondary-100">
+                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Items</p>
+                <p className="text-2xl font-bold text-secondary-900">{results.results?.syncedItems}</p>
+              </div>
+              <div className="p-4 border-b border-secondary-100">
+                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Templates</p>
+                <p className="text-2xl font-bold text-secondary-900">{results.results?.syncedTemplates}</p>
               </div>
             </div>
           )}

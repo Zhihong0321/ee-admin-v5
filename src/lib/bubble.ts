@@ -138,6 +138,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
   const results = {
     syncedCustomers: 0, syncedInvoices: 0, syncedItems: 0,
     syncedPayments: 0, syncedSubmittedPayments: 0, syncedSedas: 0, syncedUsers: 0, syncedAgents: 0,
+    syncedTemplates: 0,
     errors: [] as string[]
   };
 
@@ -190,6 +191,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
         if (typeName === 'payment') results.syncedPayments += records.length;
         if (typeName === 'submit_payment') results.syncedSubmittedPayments += records.length;
         if (typeName === 'invoice_new_item') results.syncedItems += records.length;
+        if (typeName === 'invoice_template') results.syncedTemplates += records.length;
 
       } catch (err) {
         logSyncActivity(`Sync Engine: ${typeName} batch error: ${String(err)}`, 'ERROR');
@@ -255,7 +257,20 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
     }));
 
-    // 7. Sync Payments
+    // 7. Sync Invoice Templates
+    await syncTable('invoice_template', invoice_templates, invoice_templates.bubble_id, (b) => ({
+      template_name: b["Template Name"], company_name: b["Company Name"],
+      company_address: b["Company Address"], company_phone: b["Company Phone"],
+      company_email: b["Company Email"], sst_registration_no: b["SST Registration No"],
+      bank_name: b["Bank Name"], bank_account_no: b["Bank Account No"],
+      bank_account_name: b["Bank Account Name"], logo_url: b["Logo URL"],
+      terms_and_conditions: b["Terms and Conditions"], active: b["Active"],
+      is_default: b["Is Default"], disclaimer: b["Disclaimer"],
+      apply_sst: b["Apply SST"],
+      updated_at: new Date(b["Modified Date"])
+    }));
+
+    // 8. Sync Payments
     await syncTable('payment', payments, payments.bubble_id, (b) => ({
       amount: b.Amount?.toString(),
       payment_date: b["Payment Date"] ? new Date(b["Payment Date"]) : null,
