@@ -30,7 +30,9 @@ export async function middleware(request: NextRequest) {
 
     // 2. Verify Token
     const secret = new TextEncoder().encode(secretStr);
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, secret, {
+      clockTolerance: 60 // Allow 60 seconds of clock skew/drift
+    });
     
     const user = payload as unknown as { 
       role?: string; 
