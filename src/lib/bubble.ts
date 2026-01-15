@@ -209,7 +209,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
     // 4. Sync Invoices
     await syncTable('invoice', invoices, invoices.bubble_id, (b) => ({
       invoice_id: b["Invoice ID"] || b.invoice_id || null,
-      invoice_number: b["Invoice Number"] || b.invoice_number || null,
+      invoice_number: b["Invoice Number"] || b.invoice_number || (b["Invoice ID"] ? b["Invoice ID"].toString() : null),
       linked_customer: b["Linked Customer"] || b.linked_customer || null,
       linked_agent: b["Linked Agent"] || b.linked_agent || null,
       linked_payment: b["Linked Payment"] || b.linked_payment || null,

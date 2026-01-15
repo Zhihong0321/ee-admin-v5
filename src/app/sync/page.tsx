@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { 
   RefreshCw, Calendar, Clock, Database, FileText, 
-  UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent
+  UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators } from "./actions";
 import { useEffect } from "react";
 
 export default function SyncPage() {
@@ -13,6 +13,7 @@ export default function SyncPage() {
   const [syncFiles, setSyncFiles] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isUpdatingPercentages, setIsUpdatingPercentages] = useState(false);
+  const [isPatchingCreators, setIsPatchingCreators] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
 
@@ -57,6 +58,22 @@ export default function SyncPage() {
       setResults({ success: false, error: String(error) });
     } finally {
       setIsUpdatingPercentages(false);
+    }
+  };
+
+  const handlePatchCreators = async () => {
+    if (!confirm("This will attempt to fix invoices with NULL 'created_by' by looking up their Linked Agent's User profile. Continue?")) return;
+
+    setIsPatchingCreators(true);
+    setResults(null);
+    try {
+      const res = await patchInvoiceCreators();
+      setResults(res);
+      await loadLogs();
+    } catch (error) {
+      setResults({ success: false, error: String(error) });
+    } finally {
+      setIsPatchingCreators(false);
     }
   };
 
@@ -122,6 +139,15 @@ export default function SyncPage() {
              >
                {isUpdatingPercentages ? <Loader2 className="h-5 w-5 animate-spin" /> : <Percent className="h-5 w-5" />}
                Update Payment Percentages
+             </button>
+
+             <button 
+               onClick={handlePatchCreators}
+               disabled={isPatchingCreators}
+               className="w-full py-3 rounded-xl border border-secondary-200 bg-secondary-50 hover:bg-secondary-100 text-secondary-700 font-bold transition-all flex items-center justify-center gap-2"
+             >
+               {isPatchingCreators ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+               Patch Creator IDs (Fix NULLs)
              </button>
           </div>
         </div>

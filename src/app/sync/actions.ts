@@ -1,11 +1,11 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, payments, submitted_payments } from "@/db/schema";
+import { invoices, payments, submitted_payments, agents, users } from "@/db/schema";
 import { syncCompleteInvoicePackage } from "@/lib/bubble";
 import { revalidatePath } from "next/cache";
 import { logSyncActivity, getLatestLogs } from "@/lib/logger";
-import { eq, sql, and, or } from "drizzle-orm";
+import { eq, sql, and, or, isNull, isNotNull } from "drizzle-orm";
 
 export async function runManualSync(dateFrom?: string, dateTo?: string, syncFiles = false) {
   logSyncActivity(`Manual Sync Triggered: ${dateFrom || 'All'} to ${dateTo || 'All'}, syncFiles: ${syncFiles}`, 'INFO');
@@ -26,6 +26,96 @@ export async function runManualSync(dateFrom?: string, dateTo?: string, syncFile
     return result;
   } catch (error) {
     logSyncActivity(`Manual Sync CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function patchInvoiceCreators() {
+  logSyncActivity(`Starting 'Patch Invoice Creators' job...`, 'INFO');
+  
+  try {
+    // 1. Get stats before we start
+    const allNullCreatedBy = await db.select().from(invoices).where(isNull(invoices.created_by));
+    const totalNulls = allNullCreatedBy.length;
+    
+    if (totalNulls === 0) {
+      logSyncActivity(`No invoices found with created_by = NULL.`, 'INFO');
+      return { success: true, fixed: 0, unfixable: 0, total_nulls: 0, message: "No invoices need patching." };
+    }
+
+    logSyncActivity(`Found ${totalNulls} invoices with created_by = NULL. Analyzing...`, 'INFO');
+
+    let fixedCount = 0;
+    let unfixableCount = 0; // linked_agent is null
+    let agentNoUserCount = 0; // linked_agent exists but no user found
+
+    // 2. Find invoices that CAN be fixed (have linked_agent)
+    const fixableInvoices = await db.select({
+      id: invoices.id,
+      bubble_id: invoices.bubble_id,
+      linked_agent: invoices.linked_agent,
+    })
+    .from(invoices)
+    .where(and(isNull(invoices.created_by), isNotNull(invoices.linked_agent)));
+
+    // 3. Process fixable invoices
+    for (const inv of fixableInvoices) {
+      if (!inv.linked_agent) continue;
+
+      // Find the agent
+      const agent = await db.query.agents.findFirst({
+        where: eq(agents.bubble_id, inv.linked_agent)
+      });
+
+      if (agent && agent.bubble_id) {
+        // Find the user linked to this agent
+        // User table has `linked_agent_profile` which points to agent.bubble_id
+        const user = await db.query.users.findFirst({
+          where: eq(users.linked_agent_profile, agent.bubble_id)
+        });
+
+        if (user && user.bubble_id) {
+          // UPDATE the invoice
+          await db.update(invoices)
+            .set({ created_by: user.bubble_id })
+            .where(eq(invoices.id, inv.id));
+          
+          fixedCount++;
+          logSyncActivity(`Fixed Invoice ${inv.bubble_id}: Set created_by = ${user.bubble_id} (Agent: ${agent.name})`, 'INFO');
+        } else {
+          agentNoUserCount++;
+          logSyncActivity(`WARNING: Skipped Invoice ${inv.bubble_id}: Agent ${agent.name} has no linked User account.`, 'ERROR');
+        }
+      } else {
+        // Agent ID exists in invoice but not in Agent table?!
+         logSyncActivity(`WARNING: Skipped Invoice ${inv.bubble_id}: Linked Agent ID ${inv.linked_agent} not found in DB.`, 'ERROR');
+         agentNoUserCount++;
+      }
+    }
+
+    // 4. Count truly unfixable (no linked_agent)
+    const orphanedInvoices = await db.select({ count: sql<number>`count(*)` })
+      .from(invoices)
+      .where(and(isNull(invoices.created_by), isNull(invoices.linked_agent)));
+    
+    unfixableCount = Number(orphanedInvoices[0].count);
+
+    logSyncActivity(`Patch Job Complete. Fixed: ${fixedCount}. Unfixable (No Agent): ${unfixableCount}. Agent w/o User: ${agentNoUserCount}.`, 'INFO');
+    
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+
+    return {
+      success: true,
+      fixed: fixedCount,
+      unfixable: unfixableCount,
+      agent_no_user: agentNoUserCount,
+      total_nulls: totalNulls,
+      message: `Fixed ${fixedCount} invoices. ${unfixableCount} have no agent. ${agentNoUserCount} have agent but no user.`
+    };
+
+  } catch (error) {
+    logSyncActivity(`Patch Job CRASHED: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
 }
