@@ -662,7 +662,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
                 city: bSeda.City || null,
                 installation_address: bSeda["Installation Address"] || null,
                 linked_customer: bSeda["Linked Customer"] || null,
-                linked_invoice: [bSeda["Linked Invoice"]] || null,
+                linked_invoice: bSeda["Linked Invoice"] ? [bSeda["Linked Invoice"]] : null,
                 customer_signature: bSeda["Customer Signature"] || null,
                 email: bSeda.Email || null,
                 ic_copy_back: bSeda["IC Copy Back"] || null,
