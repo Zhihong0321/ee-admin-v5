@@ -3,15 +3,16 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
 const AUTH_URL = 'https://auth.atap.solar';
-const JWT_SECRET = process.env.JWT_SECRET; // Don't fallback silently, handle it logic
+const JWT_SECRET = process.env.JWT_SECRET;
+const APP_BASE_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 export async function middleware(request: NextRequest) {
-  // 1. Get Token from Cookie
   const token = request.cookies.get('auth_token')?.value;
 
   if (!token) {
-    // console.log("Middleware: No token found. Redirecting to Auth."); // Optional debug
-    const returnTo = encodeURIComponent(request.url);
+    const requestUrl = APP_BASE_URL ? `${APP_BASE_URL}${request.nextUrl.pathname}${request.nextUrl.search}` : request.url;
+    console.log(`[Auth] Redirecting to auth, return_to: ${requestUrl}`);
+    const returnTo = encodeURIComponent(requestUrl);
     return NextResponse.redirect(`${AUTH_URL}/?return_to=${returnTo}`);
   }
 
@@ -64,7 +65,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   } catch (err) {
     console.error(`Auth Error: ${String(err)}`);
-    const returnTo = encodeURIComponent(request.url);
+    const requestUrl = APP_BASE_URL ? `${APP_BASE_URL}${request.nextUrl.pathname}${request.nextUrl.search}` : request.url;
+    const returnTo = encodeURIComponent(requestUrl);
     return NextResponse.redirect(`${AUTH_URL}/?return_to=${returnTo}`);
   }
 }
