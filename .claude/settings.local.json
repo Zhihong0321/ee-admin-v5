@@ -6,7 +6,13 @@
       "Bash(git push:*)",
       "Bash(git check-ignore:*)",
       "mcp__zai-mcp-server__ui_diff_check",
-      "mcp__zai-mcp-server__extract_text_from_screenshot"
+      "mcp__zai-mcp-server__extract_text_from_screenshot",
+      "Bash(npx drizzle-kit introspect:*)",
+      "Bash(psql:*)",
+      "Bash(node scripts/analyze-db.js:*)",
+      "Bash(node scripts/analyze-relations:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node scripts/analyze-seda-links:*)"
     ]
   }
 }

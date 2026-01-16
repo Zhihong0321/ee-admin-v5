@@ -475,19 +475,26 @@ async function fetchBubbleRecordsWithConstraints(typeName: string, constraints: 
 
   // Build constraints query param
   const constraintsParam = encodeURIComponent(JSON.stringify(constraints));
+  console.log(`[Bubble API] Fetching ${typeName} with constraints:`, JSON.stringify(constraints));
 
   while (true) {
     try {
       const url = `${BUBBLE_BASE_URL}/${typeName}?limit=100&cursor=${cursor}&constraints=${constraintsParam}`;
+      console.log(`[Bubble API] URL: ${url}`);
       const res = await fetch(url, { headers });
 
       if (!res.ok) {
+        console.error(`[Bubble API] Failed response:`, res.status, res.statusText);
         throw new Error(`Failed to fetch ${typeName} with constraints: ${res.statusText}`);
       }
 
       const data = await res.json();
+      console.log(`[Bubble API] Response structure:`, JSON.stringify(data).substring(0, 500));
+
       const records = data.response.results || [];
       const remaining = data.response.remaining || 0;
+
+      console.log(`[Bubble API] Batch: ${records.length} records, ${remaining} remaining`);
 
       allRecords.push(...records);
 
@@ -502,6 +509,7 @@ async function fetchBubbleRecordsWithConstraints(typeName: string, constraints: 
     }
   }
 
+  console.log(`[Bubble API] Total records fetched: ${allRecords.length}`);
   return allRecords;
 }
 
@@ -546,20 +554,34 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
     // Step 1: Fetch invoices within date range from Bubble
     logSyncActivity(`Step 1: Fetching invoices from ${dateFrom} to ${dateTo || 'current'}...`, 'INFO');
 
+    // First, test API without constraints to verify it works
+    logSyncActivity(`Testing Bubble API connection without constraints...`, 'INFO');
+    const testFetch = await fetch(`${BUBBLE_BASE_URL}/invoice?limit=1`, { headers });
+    if (testFetch.ok) {
+      const testData = await testFetch.json();
+      logSyncActivity(`API Test: Found ${testData.response?.results?.length || 0} records (no constraints)`, 'INFO');
+      if (testData.response?.results?.length > 0) {
+        logSyncActivity(`Sample invoice: ${JSON.stringify(testData.response.results[0]).substring(0, 200)}`, 'INFO');
+      }
+    } else {
+      logSyncActivity(`API Test FAILED: ${testFetch.status} ${testFetch.statusText}`, 'ERROR');
+    }
+
     // Build Bubble constraints for date range filtering
     // Bubble uses constraints like: { key: 'Invoice Date', constraint: 'greater than', value: '2024-01-01' }
     const fromDate = new Date(dateFrom);
     const toDate = dateTo ? new Date(dateTo) : new Date();
 
+    // Try different constraint formats
     const constraints = [
       {
         key: 'Invoice Date',
-        constraint: 'greater than',
+        constraint: 'greater than or equal to',
         value: fromDate.toISOString()
       },
       {
         key: 'Invoice Date',
-        constraint: 'less than',
+        constraint: 'less than or equal to',
         value: toDate.toISOString()
       }
     ];
