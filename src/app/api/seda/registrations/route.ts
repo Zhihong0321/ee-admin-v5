@@ -11,7 +11,8 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const statusFilter = searchParams.get("status");
-    const searchQuery = searchParams.get("search").toLowerCase();
+    const searchValue = searchParams.get("search");
+    const searchQuery = searchValue ? searchValue.toLowerCase() : "";
 
     console.log("SEDA API called with:", { statusFilter, searchQuery });
 
