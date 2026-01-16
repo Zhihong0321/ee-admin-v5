@@ -1,41 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft, Loader2, FileText, ExternalLink, CheckCircle, XCircle } from "lucide-react";
 import { StatusBadge } from "@/components/seda/status-badge";
 import { StatusDropdown } from "@/components/seda/status-dropdown";
 import { ProgressBar } from "@/components/seda/progress-bar";
 import { DownloadButton } from "@/components/seda/download-button";
-import { CHECKPOINT_LABELS } from "@/lib/seda-validation";
 
-interface SedaDetailData {
-  seda: any;
-  checkpoints: {
-    name: boolean;
-    address: boolean;
-    mykad: boolean;
-    tnb_bill: boolean;
-    tnb_meter: boolean;
-    emergency_contact: boolean;
-    payment_5percent: boolean;
-  };
-  completed_count: number;
-  progress_percentage: number;
-}
-
-export default function SedaDetailPage({ params }: { params: Promise<{ bubble_id: string }> }) {
+export default function SedaDetailPage() {
   const router = useRouter();
-  const [bubbleId, setBubbleId] = useState<string>("");
-  const [data, setData] = useState<SedaDetailData | null>(null);
+  const params = useParams();
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [bubbleId, setBubbleId] = useState<string>("");
 
   useEffect(() => {
-    params.then((p) => {
-      setBubbleId(p.bubble_id);
-      fetchData(p.bubble_id);
-    });
-  }, []);
+    if (params.bubble_id) {
+      const id = Array.isArray(params.bubble_id) ? params.bubble_id[0] : params.bubble_id;
+      setBubbleId(id);
+      fetchData(id);
+    }
+  }, [params.bubble_id]);
 
   const fetchData = async (id: string) => {
     setLoading(true);
@@ -43,7 +29,7 @@ export default function SedaDetailPage({ params }: { params: Promise<{ bubble_id
       const response = await fetch(`/api/seda/${id}`);
       if (!response.ok) throw new Error("Failed to fetch");
 
-      const result: SedaDetailData = await response.json();
+      const result = await response.json();
       setData(result);
     } catch (error) {
       console.error("Error fetching SEDA details:", error);
@@ -65,7 +51,7 @@ export default function SedaDetailPage({ params }: { params: Promise<{ bubble_id
 
       if (!response.ok) throw new Error("Failed to update status");
 
-      // Refresh data
+      // Refresh current data
       fetchData(bubbleId);
     } catch (error) {
       console.error("Error updating status:", error);
@@ -112,13 +98,13 @@ export default function SedaDetailPage({ params }: { params: Promise<{ bubble_id
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            {seda.customer?.name || "Unknown Customer"}
+            {seda.customer?.name || seda.customer_name || "Unknown Customer"}
           </h1>
           <p className="text-gray-600 mt-1">SEDA Registration Details</p>
         </div>
         <DownloadButton
           bubbleId={bubbleId}
-          customerName={seda.customer?.name || "Unknown"}
+          customerName={seda.customer?.name || seda.customer_name || "Unknown"}
           size="lg"
         />
       </div>
@@ -137,15 +123,6 @@ export default function SedaDetailPage({ params }: { params: Promise<{ bubble_id
           checkpoints={checkpoints}
           size="lg"
         />
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <CheckpointItem label={CHECKPOINT_LABELS.name} complete={checkpoints.name} />
-          <CheckpointItem label={CHECKPOINT_LABELS.address} complete={checkpoints.address} />
-          <CheckpointItem label={CHECKPOINT_LABELS.mykad} complete={checkpoints.mykad} />
-          <CheckpointItem label={CHECKPOINT_LABELS.tnb_bill} complete={checkpoints.tnb_bill} />
-          <CheckpointItem label={CHECKPOINT_LABELS.tnb_meter} complete={checkpoints.tnb_meter} />
-          <CheckpointItem label={CHECKPOINT_LABELS.emergency_contact} complete={checkpoints.emergency_contact} />
-          <CheckpointItem label={CHECKPOINT_LABELS.payment_5percent} complete={checkpoints.payment_5percent} />
-        </div>
       </div>
 
       {/* Status Update Section */}
@@ -173,19 +150,15 @@ export default function SedaDetailPage({ params }: { params: Promise<{ bubble_id
             />
           </div>
         </div>
-        <div className="mt-4 text-sm text-gray-500">
-          Last updated: {seda.updated_at ? new Date(seda.updated_at).toLocaleString() : "N/A"}
-        </div>
       </div>
 
       {/* Customer Information */}
       <div className="card">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Customer Information</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <InfoRow label="Name" value={seda.customer?.name} />
+          <InfoRow label="Name" value={seda.customer?.name || seda.customer_name} />
           <InfoRow label="Email" value={seda.email} />
           <InfoRow label="IC Number" value={seda.ic_no} />
-          <InfoRow label="Linked Customer ID" value={seda.linked_customer} />
           <InfoRow label="Emergency Contact Name" value={seda.e_contact_name} />
           <InfoRow label="Emergency Contact No" value={seda.e_contact_no} />
           <InfoRow label="Emergency Contact Relationship" value={seda.e_contact_relationship} />
@@ -221,66 +194,10 @@ export default function SedaDetailPage({ params }: { params: Promise<{ bubble_id
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <InfoRow label="TNB Account No" value={seda.tnb_account_no} />
           <InfoRow label="TNB Meter Status" value={seda.tnb_meter_status} />
-          <div>
-            <div className="text-sm font-medium text-gray-500 mb-1">TNB Meter</div>
-            {seda.tnb_meter ? (
-              <a
-                href={seda.tnb_meter}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:text-primary-700 flex items-center gap-1"
-              >
-                View File <ExternalLink className="w-3 h-3" />
-              </a>
-            ) : (
-              <div className="text-gray-400">Not uploaded</div>
-            )}
-          </div>
-          <div>
-            <div className="text-sm font-medium text-gray-500 mb-1">TNB Bill 1</div>
-            {seda.tnb_bill_1 ? (
-              <a
-                href={seda.tnb_bill_1}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:text-primary-700 flex items-center gap-1"
-              >
-                View Bill <ExternalLink className="w-3 h-3" />
-              </a>
-            ) : (
-              <div className="text-gray-400">Not uploaded</div>
-            )}
-          </div>
-          <div>
-            <div className="text-sm font-medium text-gray-500 mb-1">TNB Bill 2</div>
-            {seda.tnb_bill_2 ? (
-              <a
-                href={seda.tnb_bill_2}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:text-primary-700 flex items-center gap-1"
-              >
-                View Bill <ExternalLink className="w-3 h-3" />
-              </a>
-            ) : (
-              <div className="text-gray-400">Not uploaded</div>
-            )}
-          </div>
-          <div>
-            <div className="text-sm font-medium text-gray-500 mb-1">TNB Bill 3</div>
-            {seda.tnb_bill_3 ? (
-              <a
-                href={seda.tnb_bill_3}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:text-primary-700 flex items-center gap-1"
-              >
-                View Bill <ExternalLink className="w-3 h-3" />
-              </a>
-            ) : (
-              <div className="text-gray-400">Not uploaded</div>
-            )}
-          </div>
+          <FileLink label="TNB Meter" url={seda.tnb_meter} />
+          <FileLink label="TNB Bill 1" url={seda.tnb_bill_1} />
+          <FileLink label="TNB Bill 2" url={seda.tnb_bill_2} />
+          <FileLink label="TNB Bill 3" url={seda.tnb_bill_3} />
         </div>
       </div>
 
@@ -292,7 +209,6 @@ export default function SedaDetailPage({ params }: { params: Promise<{ bubble_id
             label="Project Price"
             value={seda.project_price}
             prefix="RM "
-            suffix=""
             formatNumber
           />
           <div>
@@ -311,23 +227,8 @@ export default function SedaDetailPage({ params }: { params: Promise<{ bubble_id
             ) : (
               <div className="text-gray-400">No invoice linked</div>
             )}
-            {seda.invoice && (
-              <div className="text-sm text-gray-500 mt-1">
-                Total: RM {parseFloat(seda.invoice.total_amount || 0).toLocaleString()}
-              </div>
-            )}
           </div>
         </div>
-        {seda.payments && seda.payments.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Payments</h3>
-            {seda.payments.map((payment: any) => (
-              <div key={payment.id} className="text-sm text-gray-600">
-                RM {parseFloat(payment.amount || 0).toLocaleString()} - {payment.payment_date || "No date"}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Agent Information */}
@@ -346,28 +247,6 @@ export default function SedaDetailPage({ params }: { params: Promise<{ bubble_id
           <FileLink label="Customer Signature" url={seda.customer_signature} />
           <FileLink label="Property Ownership Proof" url={seda.property_ownership_prove} />
           <FileLink label="Emergency Contact MyKad" url={seda.e_contact_mykad} />
-
-          {/* Array files - show count */}
-          <div>
-            <div className="text-sm font-medium text-gray-500 mb-1">Roof Images</div>
-            {seda.roof_images && seda.roof_images.length > 0 ? (
-              <div className="text-sm text-gray-700">
-                {seda.roof_images.length} file{seda.roof_images.length > 1 ? "s" : ""}
-              </div>
-            ) : (
-              <div className="text-sm text-gray-400">None</div>
-            )}
-          </div>
-          <div>
-            <div className="text-sm font-medium text-gray-500 mb-1">Site Images</div>
-            {seda.site_images && seda.site_images.length > 0 ? (
-              <div className="text-sm text-gray-700">
-                {seda.site_images.length} file{seda.site_images.length > 1 ? "s" : ""}
-              </div>
-            ) : (
-              <div className="text-sm text-gray-400">None</div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -378,21 +257,6 @@ export default function SedaDetailPage({ params }: { params: Promise<{ bubble_id
           <p className="text-gray-700 whitespace-pre-wrap">{seda.special_remark}</p>
         </div>
       )}
-    </div>
-  );
-}
-
-function CheckpointItem({ label, complete }: { label: string; complete: boolean }) {
-  return (
-    <div className={`flex items-center gap-3 p-3 rounded-lg ${complete ? "bg-white" : "bg-red-50"}`}>
-      {complete ? (
-        <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-      ) : (
-        <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-      )}
-      <span className={`text-sm font-medium ${complete ? "text-gray-900" : "text-red-700"}`}>
-        {label}
-      </span>
     </div>
   );
 }

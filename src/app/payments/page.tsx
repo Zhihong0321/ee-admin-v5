@@ -22,7 +22,7 @@ import {
   RefreshCw,
   ArrowLeft
 } from "lucide-react";
-import { getSubmittedPayments, getVerifiedPayments, verifyPayment, getInvoiceDetailsByBubbleId, triggerPaymentSync } from "./actions";
+import { getSubmittedPayments, getVerifiedPayments, verifyPayment, getInvoiceDetailsByBubbleId, triggerPaymentSync, diagnoseMissingInvoices } from "./actions";
 import { cn } from "@/lib/utils";
 import InvoiceViewer from "@/components/InvoiceViewer";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
@@ -112,6 +112,29 @@ export default function PaymentsPage() {
     }
   }
 
+  async function handleDiagnose() {
+    try {
+      const result = await diagnoseMissingInvoices();
+      const message = `
+Invoice Diagnostic Results
+==========================
+Total payments checked: ${result.totalPayments}
+Payments with linked invoices: ${result.paymentsWithLinkedInvoice}
+Missing invoices: ${result.missingInvoices.length}
+
+${result.missingInvoices.length > 0 ? `Missing Invoice IDs:\n${result.missingInvoices.slice(0, 5).join('\n')}${result.missingInvoices.length > 5 ? '\n... and more' : ''}` : 'All invoices found!'}
+
+Sample Invoice IDs in database:\n${result.sampleBubbleIds.join('\n')}
+
+${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync from the Sync page to update missing invoices.' : ''}
+      `.trim();
+      alert(message);
+    } catch (error) {
+      console.error("Diagnostic error", error);
+      alert("Diagnostic failed: " + error);
+    }
+  }
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetchData();
@@ -143,11 +166,11 @@ export default function PaymentsPage() {
         setSelectedInvoice(details);
         setShowInvoiceInModal(true);
       } else {
-        alert("Invoice not found in the system.");
+        alert(`Invoice not found in the system.\n\nInvoice ID: ${invoiceBubbleId}\n\nThis invoice hasn't been synced from Bubble to the local database yet. Please run a full sync to update the invoices.`);
       }
     } catch (error) {
       console.error("Failed to fetch invoice details", error);
-      alert("Failed to load invoice details.");
+      alert(`Failed to load invoice details.\n\nInvoice ID: ${invoiceBubbleId}\n\nError: ${error}`);
     } finally {
       setLoadingInvoice(false);
     }
@@ -195,7 +218,14 @@ export default function PaymentsPage() {
         </div>
         
         <div className="flex items-center gap-3">
-          <button 
+          <button
+            onClick={handleDiagnose}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            Diagnose Invoices
+          </button>
+          <button
             onClick={handleSync}
             disabled={syncing}
             className="btn-secondary flex items-center gap-2 disabled:opacity-50"

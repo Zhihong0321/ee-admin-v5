@@ -5,7 +5,7 @@ import { desc, ne } from "drizzle-orm";
 
 /**
  * GET /api/seda/registrations
- * Fetch SEDA registrations - simplified version
+ * Fetch SEDA registrations - optimized for list view
  */
 export async function GET(request: NextRequest) {
   try {
@@ -16,9 +16,20 @@ export async function GET(request: NextRequest) {
 
     console.log("SEDA API called with:", { statusFilter, searchQuery });
 
-    // Simple query first - just SEDA table
+    // Fetch only necessary fields for list view
     const allSeda = await db
-      .select()
+      .select({
+        id: sedaRegistration.id,
+        bubble_id: sedaRegistration.bubble_id,
+        reg_status: sedaRegistration.reg_status,
+        seda_status: sedaRegistration.seda_status,
+        installation_address: sedaRegistration.installation_address,
+        city: sedaRegistration.city,
+        state: sedaRegistration.state,
+        ic_no: sedaRegistration.ic_no,
+        email: sedaRegistration.email,
+        customer_name: sql`NULL`, // Placeholder - will be filled from linked customer
+      })
       .from(sedaRegistration)
       .where(ne(sedaRegistration.reg_status, "Deleted"))
       .orderBy(desc(sedaRegistration.created_date))
@@ -54,21 +65,7 @@ export async function GET(request: NextRequest) {
     const response = Object.entries(grouped).map(([status, sedas]) => ({
       seda_status: status,
       count: sedas.length,
-      registrations: sedas.map(s => ({
-        ...s,
-        customer_name: null, // Will be filled in next step
-        checkpoints: {
-          name: false,
-          address: !!s.installation_address,
-          mykad: !!(s.mykad_pdf || s.ic_copy_front),
-          tnb_bill: !!(s.tnb_bill_1 && s.tnb_bill_2 && s.tnb_bill_3),
-          tnb_meter: !!s.tnb_meter,
-          emergency_contact: !!(s.e_contact_name && s.e_contact_no && s.e_contact_relationship),
-          payment_5percent: false, // Will calculate with invoice
-        },
-        completed_count: 0,
-        progress_percentage: 0,
-      }))
+      registrations: sedas
     }));
 
     response.sort((a, b) => {

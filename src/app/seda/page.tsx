@@ -12,23 +12,9 @@ interface SedaRegistration {
   bubble_id: string;
   customer_name: string | null;
   installation_address: string | null;
-  reg_status: string | null;
   seda_status: string | null;
   email: string | null;
   ic_no: string | null;
-  project_price: string | null;
-  created_date: string | null;
-  checkpoints: {
-    name: boolean;
-    address: boolean;
-    mykad: boolean;
-    tnb_bill: boolean;
-    tnb_meter: boolean;
-    emergency_contact: boolean;
-    payment_5percent: boolean;
-  };
-  completed_count: number;
-  progress_percentage: number;
 }
 
 interface SedaGroup {
@@ -78,37 +64,28 @@ export default function SedaListPage() {
     setSearch(searchInput);
   };
 
-  // Get all unique statuses and counts
-  const getAllStatuses = () => {
-    const allStatus = data.reduce(
-      (acc, group) => {
-        acc[group.seda_status] = (acc[group.seda_status] || 0) + group.count;
-        return acc;
-      },
-      {} as Record<string, number>
-    );
+  // Calculate total count
+  const totalCount = data.reduce((sum, group) => sum + group.count, 0);
 
-    return [
-      { status: "all", label: "All", count: Object.values(allStatus).reduce((a, b) => a + b, 0) },
-      { status: "null", label: "Not Set", count: allStatus["null"] || 0 },
-      { status: "Pending", label: "Pending", count: allStatus["Pending"] || 0 },
-      { status: "VERIFIED", label: "Verified", count: allStatus["VERIFIED"] || 0 },
-      { status: "APPROVED BY SEDA", label: "Approved", count: allStatus["APPROVED BY SEDA"] || 0 },
-      { status: "INCOMPLETE", label: "Incomplete", count: allStatus["INCOMPLETE"] || 0 },
-      { status: "DEMO", label: "Demo", count: allStatus["DEMO"] || 0 },
-    ];
-  };
+  // Get all unique statuses for tabs
+  const statusTabs = [
+    { status: "all", label: "All", count: totalCount },
+    ...data.map(g => ({
+      status: g.seda_status,
+      label: g.seda_status === "null" ? "Not Set" : g.seda_status,
+      count: g.count
+    }))
+  ];
 
   // Flatten registrations for table display
-  const getFlattenedRegistrations = () => {
-    const allRegistrations: SedaRegistration[] = [];
-    data.forEach((group) => {
-      allRegistrations.push(...group.registrations);
+  const getFlattenedRegistrations = (): SedaRegistration[] => {
+    const all: SedaRegistration[] = [];
+    data.forEach(group => {
+      all.push(...group.registrations);
     });
-    return allRegistrations;
+    return all;
   };
 
-  const statusTabs = getAllStatuses();
   const registrations = getFlattenedRegistrations();
 
   return (
@@ -149,7 +126,7 @@ export default function SedaListPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
             type="text"
-            placeholder="Search by customer name, address, IC, email..."
+            placeholder="Search by address, IC, email..."
             className="input pl-10"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -169,21 +146,20 @@ export default function SedaListPage() {
                 <th>Customer</th>
                 <th>Installation Address</th>
                 <th>SEDA Status</th>
-                <th className="w-64">Progress</th>
-                <th className="text-right">Actions</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
+                  <td colSpan={4} className="px-6 py-16 text-center">
                     <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-600" />
                     <p className="mt-4 text-gray-600">Loading SEDA registrations...</p>
                   </td>
                 </tr>
               ) : registrations.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
+                  <td colSpan={4} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="p-4 bg-gray-100 rounded-full">
                         <FileText className="h-8 w-8 text-gray-400" />
@@ -191,9 +167,7 @@ export default function SedaListPage() {
                       <div>
                         <p className="font-medium text-gray-900 mb-1">No SEDA registrations found</p>
                         <p className="text-sm text-gray-600">
-                          {search
-                            ? "Try adjusting your search criteria"
-                            : "Get started by creating your first SEDA registration"}
+                          {search ? "Try adjusting your search criteria" : "No registrations available"}
                         </p>
                       </div>
                     </div>
@@ -221,18 +195,6 @@ export default function SedaListPage() {
                     <td>
                       <StatusBadge status={seda.seda_status} type="seda_status" />
                     </td>
-                    <td>
-                      <ProgressBar
-                        completed={seda.completed_count}
-                        total={7}
-                        checkpoints={seda.checkpoints}
-                        showLabel={false}
-                        size="sm"
-                      />
-                      <div className="text-xs text-gray-500 mt-1">
-                        {seda.completed_count}/7 completed ({seda.progress_percentage}%)
-                      </div>
-                    </td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         <DownloadButton
@@ -243,7 +205,10 @@ export default function SedaListPage() {
                           showText={false}
                         />
                         <button
-                          onClick={() => router.push(`/seda/${seda.bubble_id}`)}
+                          onClick={() => {
+                            console.log("Navigating to:", seda.bubble_id);
+                            router.push(`/seda/${seda.bubble_id}`);
+                          }}
                           className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
                         >
                           <Eye className="h-4 w-4" />

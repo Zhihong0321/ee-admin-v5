@@ -97,21 +97,32 @@ export async function getVerifiedPayments(search?: string) {
 }
 
 export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
-  console.log(`Fetching invoice details by bubble_id: ${bubbleId}`);
+  console.log(`[INVOICE LOOKUP] Searching for invoice with bubble_id: ${bubbleId}`);
   try {
     const invoice = await db.query.invoices.findFirst({
       where: eq(invoices.bubble_id, bubbleId),
     });
 
-    if (!invoice) return null;
+    if (!invoice) {
+      console.error(`[INVOICE LOOKUP] Invoice NOT FOUND in database for bubble_id: ${bubbleId}`);
+      console.error(`[INVOICE LOOKUP] This means the invoice hasn't been synced from Bubble to Postgres yet.`);
+      // Check if there are ANY invoices in the database
+      const allInvoices = await db.query.invoices.findMany({ limit: 5 });
+      console.error(`[INVOICE LOOKUP] Sample invoice bubble_ids in database:`, allInvoices.map(inv => inv.bubble_id));
+      return null;
+    }
+
+    console.log(`[INVOICE LOOKUP] Invoice FOUND: ${invoice.invoice_number} (ID: ${invoice.bubble_id})`);
 
     const items = await db.query.invoice_new_items.findMany({
       where: eq(invoice_new_items.invoice_id, invoice.bubble_id as string),
       orderBy: [desc(invoice_new_items.sort_order)],
     });
 
+    console.log(`[INVOICE LOOKUP] Found ${items.length} items for invoice`);
+
     const template = await db.query.invoice_templates.findFirst({
-      where: invoice.template_id 
+      where: invoice.template_id
         ? eq(invoice_templates.bubble_id, invoice.template_id)
         : eq(invoice_templates.is_default, true),
     });
@@ -133,7 +144,58 @@ export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
       created_by_user_name
     };
   } catch (error) {
-    console.error("Database error in getInvoiceDetailsByBubbleId:", error);
+    console.error("[INVOICE LOOKUP] Database error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Diagnostic function to check for missing invoices linked to payments
+ */
+export async function diagnoseMissingInvoices() {
+  console.log("[DIAGNOSIS] Checking for missing invoices linked to payments...");
+  const result = {
+    totalPayments: 0,
+    paymentsWithLinkedInvoice: 0,
+    missingInvoices: [] as string[],
+    sampleBubbleIds: [] as string[]
+  };
+
+  try {
+    // Check verified payments
+    const allPayments = await db
+      .select({
+        bubble_id: payments.bubble_id,
+        linked_invoice: payments.linked_invoice,
+        payment_date: payments.payment_date
+      })
+      .from(payments)
+      .orderBy(desc(payments.payment_date))
+      .limit(50);
+
+    result.totalPayments = allPayments.length;
+
+    for (const payment of allPayments) {
+      if (payment.linked_invoice) {
+        result.paymentsWithLinkedInvoice++;
+        const invoice = await db.query.invoices.findFirst({
+          where: eq(invoices.bubble_id, payment.linked_invoice)
+        });
+
+        if (!invoice) {
+          result.missingInvoices.push(payment.linked_invoice);
+        }
+      }
+    }
+
+    // Get sample invoice IDs
+    const sampleInvoices = await db.query.invoices.findMany({ limit: 5 });
+    result.sampleBubbleIds = sampleInvoices.map(inv => inv.bubble_id).filter(Boolean) as string[];
+
+    console.log("[DIAGNOSIS] Results:", result);
+    return result;
+  } catch (error) {
+    console.error("[DIAGNOSIS] Error:", error);
     throw error;
   }
 }
