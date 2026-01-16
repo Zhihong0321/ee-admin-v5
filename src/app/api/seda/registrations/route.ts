@@ -36,10 +36,10 @@ export async function GET(request: NextRequest) {
       const searchTerm = `%${searchQuery.trim()}%`;
       searchCondition = sql`
         (
-          ${customers.name} ILIKE ${searchTerm} OR
-          ${sedaRegistration.installation_address} ILIKE ${searchTerm} OR
-          ${sedaRegistration.ic_no} ILIKE ${searchTerm} OR
-          ${sedaRegistration.email} ILIKE ${searchTerm}
+          COALESCE(${customers.name}, '') ILIKE ${searchTerm} OR
+          COALESCE(${sedaRegistration.installation_address}, '') ILIKE ${searchTerm} OR
+          COALESCE(${sedaRegistration.ic_no}, '') ILIKE ${searchTerm} OR
+          COALESCE(${sedaRegistration.email}, '') ILIKE ${searchTerm}
         )
       `;
     }

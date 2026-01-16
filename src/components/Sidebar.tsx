@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 import { logoutAction } from "@/app/auth-actions";
 
 const menuItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "SEDA Applications", href: "/seda", icon: FileCheck },
   { name: "Invoices", href: "/invoices", icon: FileText },
   { name: "Payments", href: "/payments", icon: CreditCard },
   { name: "Customers", href: "/customers", icon: Users },
@@ -33,6 +34,7 @@ export function Sidebar({ user }: SidebarProps) {
     if (isOwner) return true;
 
     switch (item.href) {
+      case '/seda':
       case '/invoices':
         return userTags.includes('admin') || userTags.includes('finance');
       case '/payments':
