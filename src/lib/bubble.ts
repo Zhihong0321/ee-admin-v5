@@ -444,10 +444,445 @@ export async function syncSingleProfileFromBubble(bubbleId: string, type: 'user'
              await db.insert(agents).values({ bubble_id: b._id, ...vals })
                 .onConflictDoUpdate({ target: agents.bubble_id, set: vals });
         }
-        
+
         return { success: true };
     } catch (error) {
         console.error(`Sync Single ${type} Error:`, error);
         return { success: false, error: String(error) };
     }
+}
+
+/**
+ * Fetch a single record from Bubble API by Bubble ID
+ */
+async function fetchBubbleRecordByTypeName(typeName: string, bubbleId: string): Promise<any> {
+  const res = await fetch(`${BUBBLE_BASE_URL}/${typeName}/${bubbleId}`, { headers });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch ${typeName} ${bubbleId} from Bubble: ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  return data.response; // Single object
+}
+
+/**
+ * Fetch records from Bubble API with constraints (for date filtering)
+ */
+async function fetchBubbleRecordsWithConstraints(typeName: string, constraints: any[] = []): Promise<any[]> {
+  const allRecords: any[] = [];
+  let cursor = 0;
+
+  // Build constraints query param
+  const constraintsParam = encodeURIComponent(JSON.stringify(constraints));
+
+  while (true) {
+    try {
+      const url = `${BUBBLE_BASE_URL}/${typeName}?limit=100&cursor=${cursor}&constraints=${constraintsParam}`;
+      const res = await fetch(url, { headers });
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch ${typeName} with constraints: ${res.statusText}`);
+      }
+
+      const data = await res.json();
+      const records = data.response.results || [];
+      const remaining = data.response.remaining || 0;
+
+      allRecords.push(...records);
+
+      if (remaining === 0 || records.length === 0) {
+        break;
+      }
+
+      cursor += records.length;
+    } catch (err) {
+      console.error(`Error fetching ${typeName} batch:`, err);
+      break;
+    }
+  }
+
+  return allRecords;
+}
+
+/**
+ * Full Invoice Sync with Date Range and Relational Data
+ *
+ * NEW APPROACH:
+ * 1. Fetch invoices filtered by date range from Bubble
+ * 2. For each invoice, fetch ALL its related data (customer, agent, payments, SEDA, items)
+ * 3. Upsert everything to PostgreSQL
+ * 4. Does NOT download files
+ *
+ * Source: Bubble Data API (Bubble DB)
+ * Destination: PostgreSQL
+ */
+export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?: string, sessionId?: string) {
+  logSyncActivity(`Full Invoice Sync Engine: Starting (DateFrom: ${dateFrom}, DateTo: ${dateTo || 'current'})`, 'INFO');
+
+  const results = {
+    syncedInvoices: 0,
+    syncedCustomers: 0,
+    syncedAgents: 0,
+    syncedUsers: 0,
+    syncedPayments: 0,
+    syncedSubmittedPayments: 0,
+    syncedItems: 0,
+    syncedSedas: 0,
+    syncedTemplates: 0,
+    errors: [] as string[]
+  };
+
+  // Initialize progress session if provided
+  if (sessionId) {
+    updateProgress(sessionId, {
+      status: 'running',
+      category: 'Fetching invoices',
+      details: ['Starting full invoice sync...']
+    });
+  }
+
+  try {
+    // Step 1: Fetch invoices within date range from Bubble
+    logSyncActivity(`Step 1: Fetching invoices from ${dateFrom} to ${dateTo || 'current'}...`, 'INFO');
+
+    // Build Bubble constraints for date range filtering
+    // Bubble uses constraints like: { key: 'Invoice Date', constraint: 'greater than', value: '2024-01-01' }
+    const fromDate = new Date(dateFrom);
+    const toDate = dateTo ? new Date(dateTo) : new Date();
+
+    const constraints = [
+      {
+        key: 'Invoice Date',
+        constraint: 'greater than',
+        value: fromDate.toISOString()
+      },
+      {
+        key: 'Invoice Date',
+        constraint: 'less than',
+        value: toDate.toISOString()
+      }
+    ];
+
+    const bubbleInvoices = await fetchBubbleRecordsWithConstraints('invoice', constraints);
+
+    logSyncActivity(`Found ${bubbleInvoices.length} invoices in date range`, 'INFO');
+
+    if (bubbleInvoices.length === 0) {
+      logSyncActivity(`No invoices found in the specified date range`, 'INFO');
+      return { success: true, results };
+    }
+
+    // Track all unique IDs we need to fetch
+    const customerIds = new Set<string>();
+    const agentIds = new Set<string>();
+    const paymentIds = new Set<string>();
+    const submittedPaymentIds = new Set<string>();
+    const sedaIds = new Set<string>();
+    const userIds = new Set<string>();
+
+    // Step 2: Collect all related IDs from invoices
+    logSyncActivity(`Step 2: Collecting related IDs from invoices...`, 'INFO');
+
+    for (const inv of bubbleInvoices) {
+      if (inv["Linked Customer"]) customerIds.add(inv["Linked Customer"]);
+      if (inv["Linked Agent"]) agentIds.add(inv["Linked Agent"]);
+      if (inv["Linked Payment"]) {
+        (inv["Linked Payment"] as string[]).forEach(p => paymentIds.add(p));
+      }
+      if (inv["Linked SEDA Registration"]) sedaIds.add(inv["Linked SEDA Registration"]);
+    }
+
+    logSyncActivity(`Collected: ${customerIds.size} customers, ${agentIds.size} agents, ${paymentIds.size} payments, ${sedaIds.size} SEDA`, 'INFO');
+
+    // Step 3: Fetch and sync all related data
+    logSyncActivity(`Step 3: Fetching and syncing related data...`, 'INFO');
+
+    // 3a. Fetch and sync Customers
+    for (const customerId of customerIds) {
+      try {
+        const customer = await fetchBubbleRecordByTypeName('Customer_Profile', customerId);
+        const vals = {
+          name: customer.Name || customer.name || "",
+          email: customer.Email || customer.email || null,
+          phone: customer.Contact || customer.Whatsapp || customer.phone || null,
+          address: customer.Address || customer.address || null,
+          city: customer.City || customer.city || null,
+          state: customer.State || customer.state || null,
+          postcode: customer.Postcode || customer.postcode || null,
+          ic_number: customer["IC Number"] || customer.ic_number || customer["IC No"] || null,
+          updated_at: new Date(customer["Modified Date"]),
+          last_synced_at: new Date()
+        };
+        await db.insert(customers).values({ customer_id: customerId, ...vals })
+          .onConflictDoUpdate({ target: customers.customer_id, set: vals });
+        results.syncedCustomers++;
+      } catch (err) {
+        results.errors.push(`Customer ${customerId}: ${err}`);
+      }
+    }
+
+    // 3b. Fetch and sync Agents
+    for (const agentId of agentIds) {
+      try {
+        const agent = await fetchBubbleRecordByTypeName('agent', agentId);
+        const vals = {
+          name: agent.Name,
+          email: agent.email,
+          contact: agent.Contact,
+          agent_type: agent["Agent Type"],
+          address: agent.Address,
+          bankin_account: agent.bankin_account,
+          banker: agent.banker,
+          updated_at: new Date(agent["Modified Date"]),
+          last_synced_at: new Date()
+        };
+        await db.insert(agents).values({ bubble_id: agentId, ...vals })
+          .onConflictDoUpdate({ target: agents.bubble_id, set: vals });
+        results.syncedAgents++;
+      } catch (err) {
+        results.errors.push(`Agent ${agentId}: ${err}`);
+      }
+    }
+
+    // 3c. Fetch and sync Users (linked to agents)
+    for (const agentId of agentIds) {
+      try {
+        // Find user by querying for users with this agent profile
+        const userConstraints = [{
+          key: 'Linked Agent Profile',
+          constraint: 'equals',
+          value: agentId
+        }];
+        const bubbleUsers = await fetchBubbleRecordsWithConstraints('user', userConstraints);
+
+        for (const user of bubbleUsers) {
+          const vals = {
+            email: user.authentication?.email?.email,
+            linked_agent_profile: user["Linked Agent Profile"],
+            agent_code: user.agent_code,
+            dealership: user.Dealership,
+            profile_picture: user["Profile Picture"],
+            user_signed_up: user.user_signed_up,
+            access_level: user["Access Level"] || [],
+            updated_at: new Date(user["Modified Date"]),
+            last_synced_at: new Date()
+          };
+          await db.insert(users).values({ bubble_id: user._id, ...vals })
+            .onConflictDoUpdate({ target: users.bubble_id, set: vals });
+          results.syncedUsers++;
+          userIds.add(user._id);
+        }
+      } catch (err) {
+        results.errors.push(`User for agent ${agentId}: ${err}`);
+      }
+    }
+
+    // 3d. Fetch and sync Payments
+    for (const paymentId of paymentIds) {
+      try {
+        const payment = await fetchBubbleRecordByTypeName('payment', paymentId);
+        const vals = {
+          amount: payment.Amount?.toString(),
+          payment_date: payment["Payment Date"] ? new Date(payment["Payment Date"]) : null,
+          payment_method: payment["Payment Method"],
+          remark: payment.Remark,
+          linked_agent: payment["Linked Agent"],
+          linked_customer: payment["Linked Customer"],
+          linked_invoice: payment["Linked Invoice"],
+          created_by: payment["Created By"],
+          created_date: payment["Created Date"] ? new Date(payment["Created Date"]) : null,
+          modified_date: new Date(payment["Modified Date"]),
+          last_synced_at: new Date()
+        };
+        await db.insert(payments).values({ bubble_id: paymentId, ...vals })
+          .onConflictDoUpdate({ target: payments.bubble_id, set: vals });
+        results.syncedPayments++;
+      } catch (err) {
+        // Payment might be in submit_payment table instead
+        try {
+          const submittedPayment = await fetchBubbleRecordByTypeName('submit_payment', paymentId);
+          const vals = {
+            amount: submittedPayment.Amount?.toString(),
+            payment_date: submittedPayment["Payment Date"] ? new Date(submittedPayment["Payment Date"]) : null,
+            payment_method: submittedPayment["Payment Method"],
+            remark: submittedPayment.Remark,
+            linked_agent: submittedPayment["Linked Agent"],
+            linked_customer: submittedPayment["Linked Customer"],
+            linked_invoice: submittedPayment["Linked Invoice"],
+            created_by: submittedPayment["Created By"],
+            created_date: submittedPayment["Created Date"] ? new Date(submittedPayment["Created Date"]) : null,
+            modified_date: new Date(submittedPayment["Modified Date"]),
+            status: submittedPayment.Status || 'pending',
+            last_synced_at: new Date()
+          };
+          await db.insert(submitted_payments).values({ bubble_id: paymentId, ...vals })
+            .onConflictDoUpdate({ target: submitted_payments.bubble_id, set: vals });
+          results.syncedSubmittedPayments++;
+        } catch (err2) {
+          results.errors.push(`Payment ${paymentId} (tried both tables): ${err2}`);
+        }
+      }
+    }
+
+    // 3e. Fetch and sync SEDA registrations
+    for (const sedaId of sedaIds) {
+      try {
+        const seda = await fetchBubbleRecordByTypeName('seda_registration', sedaId);
+        const vals = {
+          reg_status: seda["Reg Status"],
+          state: seda.State,
+          city: seda.City,
+          agent: seda.Agent,
+          project_price: seda["Project Price"],
+          linked_customer: seda["Linked Customer"],
+          customer_signature: seda["Customer Signature"],
+          ic_copy_front: seda["IC Copy Front"],
+          ic_copy_back: seda["IC Copy Back"],
+          tnb_bill_1: seda["TNB Bill 1"],
+          tnb_bill_2: seda["TNB Bill 2"],
+          tnb_bill_3: seda["TNB Bill 3"],
+          updated_at: new Date(seda["Modified Date"]),
+          last_synced_at: new Date()
+        };
+        await db.insert(sedaRegistration).values({ bubble_id: sedaId, ...vals })
+          .onConflictDoUpdate({ target: sedaRegistration.bubble_id, set: vals });
+        results.syncedSedas++;
+      } catch (err) {
+        results.errors.push(`SEDA ${sedaId}: ${err}`);
+      }
+    }
+
+    // Step 4: Sync the invoices themselves
+    logSyncActivity(`Step 4: Syncing invoices...`, 'INFO');
+
+    for (const inv of bubbleInvoices) {
+      try {
+        const vals = {
+          invoice_id: inv["Invoice ID"] || inv.invoice_id || null,
+          invoice_number: inv["Invoice Number"] || inv.invoice_number || (inv["Invoice ID"] ? inv["Invoice ID"].toString() : null),
+          linked_customer: inv["Linked Customer"] || inv.linked_customer || null,
+          linked_agent: inv["Linked Agent"] || inv.linked_agent || null,
+          linked_payment: inv["Linked Payment"] || inv.linked_payment || null,
+          linked_seda_registration: inv["Linked SEDA Registration"] || inv.linked_seda_registration || null,
+          amount: inv.Amount ? inv.Amount.toString() : null,
+          total_amount: inv["Total Amount"] || inv.total_amount || inv.Amount || null,
+          status: inv.Status || inv.status || 'draft',
+          invoice_date: inv["Invoice Date"] ? new Date(inv["Invoice Date"]) : (inv["Created Date"] ? new Date(inv["Created Date"]) : null),
+          created_at: inv["Created Date"] ? new Date(inv["Created Date"]) : new Date(),
+          created_by: inv["Created By"] || null,
+          updated_at: new Date(inv["Modified Date"]),
+        };
+        await db.insert(invoices).values({ bubble_id: inv._id, ...vals })
+          .onConflictDoUpdate({ target: invoices.bubble_id, set: vals });
+        results.syncedInvoices++;
+      } catch (err) {
+        results.errors.push(`Invoice ${inv._id}: ${err}`);
+      }
+    }
+
+    // Step 5: Sync invoice items for each invoice
+    logSyncActivity(`Step 5: Syncing invoice items...`, 'INFO');
+
+    for (const inv of bubbleInvoices) {
+      try {
+        // Fetch items for this invoice
+        const itemConstraints = [{
+          key: 'Invoice',
+          constraint: 'equals',
+          value: inv._id
+        }];
+        const items = await fetchBubbleRecordsWithConstraints('invoice_new_item', itemConstraints);
+
+        for (const item of items) {
+          const vals = {
+            invoice_id: item.Invoice,
+            description: item.Description,
+            qty: item.Qty,
+            unit_price: item["Unit Price"],
+            total_price: item["Total Price"],
+            item_type: item["Item Type"],
+            sort_order: item["Sort Order"],
+            created_at: new Date(item["Created Date"])
+          };
+          await db.insert(invoice_new_items).values({ bubble_id: item._id, ...vals })
+            .onConflictDoUpdate({ target: invoice_new_items.bubble_id, set: vals });
+          results.syncedItems++;
+        }
+      } catch (err) {
+        results.errors.push(`Items for invoice ${inv._id}: ${err}`);
+      }
+    }
+
+    // Step 6: Sync invoice templates (fetch all for completeness)
+    logSyncActivity(`Step 6: Syncing invoice templates...`, 'INFO');
+
+    let cursor = 0;
+    while (true) {
+      try {
+        const res = await fetch(`${BUBBLE_BASE_URL}/invoice_template?limit=100&cursor=${cursor}`, { headers });
+        if (!res.ok) break;
+        const data = await res.json();
+        const records = data.response.results || [];
+        const remaining = data.response.remaining || 0;
+
+        for (const tmpl of records) {
+          const vals = {
+            template_name: tmpl["Template Name"],
+            company_name: tmpl["Company Name"],
+            company_address: tmpl["Company Address"],
+            company_phone: tmpl["Company Phone"],
+            company_email: tmpl["Company Email"],
+            sst_registration_no: tmpl["SST Registration No"],
+            bank_name: tmpl["Bank Name"],
+            bank_account_no: tmpl["Bank Account No"],
+            bank_account_name: tmpl["Bank Account Name"],
+            logo_url: tmpl["Logo URL"],
+            terms_and_conditions: tmpl["Terms and Conditions"],
+            active: tmpl["Active"],
+            is_default: tmpl["Is Default"],
+            disclaimer: tmpl["Disclaimer"],
+            apply_sst: tmpl["Apply SST"],
+            updated_at: new Date(tmpl["Modified Date"])
+          };
+          await db.insert(invoice_templates).values({ bubble_id: tmpl._id, ...vals })
+            .onConflictDoUpdate({ target: invoice_templates.bubble_id, set: vals });
+          results.syncedTemplates++;
+        }
+
+        if (remaining === 0 || records.length === 0) break;
+        cursor += records.length;
+      } catch (err) {
+        logSyncActivity(`Template sync error: ${err}`, 'ERROR');
+        break;
+      }
+    }
+
+    if (sessionId) {
+      updateProgress(sessionId, {
+        status: 'completed',
+        category: 'Completed',
+        details: [`Full Invoice Sync Complete: ${results.syncedInvoices} invoices synced`]
+      });
+    }
+
+    logSyncActivity(`Full Invoice Sync Complete: ${results.syncedInvoices} invoices, ${results.syncedCustomers} customers, ${results.syncedAgents} agents, ${results.syncedPayments + results.syncedSubmittedPayments} payments, ${results.syncedItems} items, ${results.syncedSedas} SEDA, ${results.syncedTemplates} templates`, 'INFO');
+
+    if (results.errors.length > 0) {
+      logSyncActivity(`Errors encountered: ${results.errors.length}`, 'ERROR');
+      results.errors.slice(0, 5).forEach(e => logSyncActivity(e, 'ERROR'));
+    }
+
+    return { success: true, results };
+  } catch (error) {
+    logSyncActivity(`Full Invoice Sync Engine Error: ${String(error)}`, 'ERROR');
+    if (sessionId) {
+      updateProgress(sessionId, {
+        status: 'error',
+        category: 'Error',
+        details: [`Error: ${String(error)}`]
+      });
+    }
+    return { success: false, error: String(error) };
+  }
 }

@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { invoices, payments, submitted_payments, agents, users, sedaRegistration } from "@/db/schema";
-import { syncCompleteInvoicePackage } from "@/lib/bubble";
+import { syncCompleteInvoicePackage, syncInvoicePackageWithRelations } from "@/lib/bubble";
 import { revalidatePath } from "next/cache";
 import { logSyncActivity, getLatestLogs } from "@/lib/logger";
 import { eq, sql, and, or, isNull, isNotNull, inArray } from "drizzle-orm";
@@ -576,6 +576,43 @@ export async function restoreInvoiceSedaLinks() {
     };
   } catch (error) {
     logSyncActivity(`Restore SEDA Links CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Full Invoice Sync with Date Range
+ *
+ * This is a NEW sync method that:
+ * 1. Syncs invoices within a specified date range (from -> to)
+ * 2. For each invoice, syncs ALL its relational data (customer, agent, payments, SEDA, items)
+ * 3. Does NOT download files (user will handle file migration separately)
+ *
+ * Key differences from syncCompleteInvoicePackage:
+ * - Filters by invoice date range (dateFrom to dateTo)
+ * - Directly queries related tables by Bubble ID for each invoice
+ * - Ensures all relational data is synced for the filtered invoices
+ * - Skips file downloads entirely
+ */
+export async function runFullInvoiceSync(dateFrom: string, dateTo?: string, sessionId?: string) {
+  logSyncActivity(`Full Invoice Sync: ${dateFrom} to ${dateTo || 'current'}`, 'INFO');
+
+  try {
+    const result = await syncInvoicePackageWithRelations(dateFrom, dateTo, sessionId);
+
+    if (result.success) {
+      logSyncActivity(`Full Invoice Sync SUCCESS: ${result.results?.syncedInvoices} invoices with all relations`, 'INFO');
+    } else {
+      logSyncActivity(`Full Invoice Sync FAILED: ${result.error}`, 'ERROR');
+    }
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+    revalidatePath("/customers");
+
+    return result;
+  } catch (error) {
+    logSyncActivity(`Full Invoice Sync CRASHED: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
 }

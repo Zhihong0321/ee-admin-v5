@@ -6,12 +6,18 @@ import {
   UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
   Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag, Link
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync } from "./actions";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [syncFiles, setSyncFiles] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Full Invoice Sync state
+  const [fullSyncDateFrom, setFullSyncDateFrom] = useState("");
+  const [fullSyncDateTo, setFullSyncDateTo] = useState("");
+  const [isFullSyncing, setIsFullSyncing] = useState(false);
+  const [fullSyncResults, setFullSyncResults] = useState<any>(null);
   const [isUpdatingPercentages, setIsUpdatingPercentages] = useState(false);
   const [isPatchingCreators, setIsPatchingCreators] = useState(false);
   const [isDeletingDemo, setIsDeletingDemo] = useState(false);
@@ -239,6 +245,31 @@ export default function SyncPage() {
       setResults({ success: false, error: String(error) });
     } finally {
       setIsRestoringLinks(false);
+    }
+  };
+
+  const handleFullInvoiceSync = async () => {
+    if (!fullSyncDateFrom) {
+      alert("Please select a 'From' date for the sync range");
+      return;
+    }
+
+    const confirmMsg = fullSyncDateTo
+      ? `Sync all invoices and their relational data from ${fullSyncDateFrom} to ${fullSyncDateTo}?\n\nThis will:\n• Sync invoices within the date range\n• Sync all related customers, agents, payments, SEDA, and items\n• NOT download files (use File Migration separately)\n\nContinue?`
+      : `Sync all invoices and their relational data from ${fullSyncDateFrom} to current date?\n\nThis will:\n• Sync invoices within the date range\n• Sync all related customers, agents, payments, SEDA, and items\n• NOT download files (use File Migration separately)\n\nContinue?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setIsFullSyncing(true);
+    setFullSyncResults(null);
+    try {
+      const res = await runFullInvoiceSync(fullSyncDateFrom, fullSyncDateTo || undefined);
+      setFullSyncResults(res);
+      await loadLogs();
+    } catch (error) {
+      setFullSyncResults({ success: false, error: String(error) });
+    } finally {
+      setIsFullSyncing(false);
     }
   };
 
@@ -479,6 +510,134 @@ export default function SyncPage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Full Invoice Sync Section */}
+      <div className="card overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 text-white shadow-elevation-lg">
+        <div className="p-6 border-b border-white/10">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-500/20 rounded-xl backdrop-blur-md border border-blue-500/30">
+                <Database className="h-6 w-6 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Full Invoice Sync with Date Range</h3>
+                <p className="text-blue-200 text-sm">Sync invoices + all relational data (customers, agents, payments, SEDA, items)</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Date From Input */}
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] uppercase font-bold text-blue-300">From:</label>
+                <input
+                  type="date"
+                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={fullSyncDateFrom}
+                  onChange={(e) => setFullSyncDateFrom(e.target.value)}
+                  disabled={isFullSyncing}
+                />
+              </div>
+
+              {/* Date To Input */}
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] uppercase font-bold text-blue-300">To:</label>
+                <input
+                  type="date"
+                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={fullSyncDateTo}
+                  onChange={(e) => setFullSyncDateTo(e.target.value)}
+                  disabled={isFullSyncing}
+                  placeholder="Current"
+                />
+                {fullSyncDateTo && (
+                  <button
+                    onClick={() => setFullSyncDateTo('')}
+                    className="text-xs text-blue-300 hover:text-white underline"
+                    disabled={isFullSyncing}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {!isFullSyncing && (
+                <button
+                  onClick={handleFullInvoiceSync}
+                  disabled={!fullSyncDateFrom}
+                  className="btn-primary bg-blue-600 hover:bg-blue-500 border-none flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Start Full Invoice Sync
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Full Sync Results */}
+        {fullSyncResults && (
+          <div className="p-6 bg-black/20 border-b border-white/5">
+            <div className={`flex items-center gap-3 mb-4 ${fullSyncResults.success ? 'text-green-400' : 'text-red-400'}`}>
+              {fullSyncResults.success ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+              <p className="font-bold">{fullSyncResults.success ? 'Sync Completed Successfully' : 'Sync Failed'}</p>
+            </div>
+
+            {fullSyncResults.success && (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedInvoices}</p>
+                  <p className="text-[10px] uppercase font-bold text-blue-300">Invoices</p>
+                </div>
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedCustomers}</p>
+                  <p className="text-[10px] uppercase font-bold text-blue-300">Customers</p>
+                </div>
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedAgents}</p>
+                  <p className="text-[10px] uppercase font-bold text-blue-300">Agents</p>
+                </div>
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedUsers}</p>
+                  <p className="text-[10px] uppercase font-bold text-blue-300">Users</p>
+                </div>
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedPayments + fullSyncResults.results?.syncedSubmittedPayments}</p>
+                  <p className="text-[10px] uppercase font-bold text-blue-300">Payments</p>
+                </div>
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedItems}</p>
+                  <p className="text-[10px] uppercase font-bold text-blue-300">Items</p>
+                </div>
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedSedas}</p>
+                  <p className="text-[10px] uppercase font-bold text-blue-300">SEDA</p>
+                </div>
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedTemplates}</p>
+                  <p className="text-[10px] uppercase font-bold text-blue-300">Templates</p>
+                </div>
+              </div>
+            )}
+
+            {!fullSyncResults.success && (
+              <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
+                {fullSyncResults.error}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Full Sync Progress */}
+        {isFullSyncing && (
+          <div className="p-6 bg-black/20 border-b border-white/5">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
+              <p className="font-bold text-white">Syncing invoices and all related data...</p>
+            </div>
+            <p className="text-sm text-blue-200 mt-2">This may take a few minutes. Please check the logs below for progress.</p>
           </div>
         )}
       </div>
