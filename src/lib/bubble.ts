@@ -568,19 +568,19 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
     }
 
     // Build Bubble constraints for date range filtering
-    // Bubble uses constraints like: { key: 'Invoice Date', constraint: 'greater than', value: '2024-01-01' }
+    // Use 'Modified Date' to catch both new AND recently modified invoices
     const fromDate = new Date(dateFrom);
     const toDate = dateTo ? new Date(dateTo) : new Date();
 
-    // Try different constraint formats
+    // Filter by Modified Date to catch recently updated records
     const constraints = [
       {
-        key: 'Invoice Date',
+        key: 'Modified Date',
         constraint: 'greater than or equal to',
         value: fromDate.toISOString()
       },
       {
-        key: 'Invoice Date',
+        key: 'Modified Date',
         constraint: 'less than or equal to',
         value: toDate.toISOString()
       }
