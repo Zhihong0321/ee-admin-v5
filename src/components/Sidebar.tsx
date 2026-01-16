@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 import { logoutAction } from "@/app/auth-actions";
@@ -15,6 +15,7 @@ const menuItems = [
   { name: "Users", href: "/users", icon: UserCircle },
   { name: "Manage Company", href: "/manage-company", icon: Building2 },
   { name: "Sync Center", href: "/sync", icon: RefreshCw },
+  { name: "Schema Manager", href: "/schema-manager", icon: Database },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -40,6 +41,7 @@ export function Sidebar({ user }: SidebarProps) {
       case '/customers':
       case '/manage-company':
       case '/sync':
+      case '/schema-manager':
         return userTags.includes('admin');
       default:
         return true; // Dashboard, Settings, etc.

@@ -312,3 +312,17 @@ export const submitted_payments = pgTable('submitted_payment', {
   verified_by: text('verified_by'),
   edit_history: text('edit_history'),
 });
+
+// Schema Descriptions Table - for storing column descriptions for documentation
+export const schema_descriptions = pgTable('schema_descriptions', {
+  id: serial('id').primaryKey(),
+  table_name: text('table_name').notNull(),
+  column_name: text('column_name').notNull(),
+  description: text('description').notNull(),
+  data_type: text('data_type'),
+  is_nullable: text('is_nullable'),
+  column_default: text('column_default'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  updated_by: text('updated_by'),
+});
