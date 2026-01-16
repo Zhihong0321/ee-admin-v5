@@ -276,7 +276,7 @@ export default function SyncPage() {
   };
 
   const handlePatchUrls = async () => {
-    if (!confirm("This will convert all relative /storage/ URLs to absolute https://admin.atap.solar/storage/ URLs in the database.\n\nThis is needed so other apps on different subdomains can access the files.\n\nContinue?")) return;
+    if (!confirm("This will convert all /storage/ URLs to absolute https://admin.atap.solar/api/files/storage/ URLs in the database.\n\nThis fixes the issue where:\n1. Other apps on different subdomains cannot access files\n2. /storage/ path redirects to dashboard instead of serving files\n\nContinue?")) return;
 
     setIsPatchingUrls(true);
     setResults(null);

@@ -34,9 +34,9 @@ export async function downloadBubbleFile(url: string, subfolder: string, filenam
     await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(localPath));
 
     // Return the ABSOLUTE URL for database storage
-    // Format: https://admin.atap.solar/storage/seda/ic_copies/filename.jpg
+    // Format: https://admin.atap.solar/api/files/storage/seda/ic_copies/filename.jpg
     const relativePath = localPath.replace(STORAGE_ROOT, '/storage');
-    return `${FILE_BASE_URL}${relativePath}`;
+    return `${FILE_BASE_URL}/api/files${relativePath}`;
   } catch (error) {
     console.error(`Error downloading file ${fullUrl}:`, error);
     return null;

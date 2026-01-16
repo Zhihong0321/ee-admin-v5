@@ -620,7 +620,8 @@ export async function runFullInvoiceSync(dateFrom: string, dateTo?: string, sess
 /**
  * Patch File URLs to Absolute URLs
  *
- * Converts all relative /storage/ URLs to absolute https://admin.atap.solar/storage/ URLs
+ * Converts all relative /storage/ URLs to absolute https://admin.atap.solar/api/files/storage/ URLs
+ * Also converts old absolute URLs to use the correct API path
  * This fixes the issue where other apps on different subdomains cannot access files
  */
 export async function patchFileUrlsToAbsolute() {
@@ -715,8 +716,13 @@ export async function patchFileUrlsToAbsolute() {
             for (const record of records) {
               if (Array.isArray(record.urls)) {
                 const updatedUrls = record.urls.map((url: string) => {
-                  if (url && url.startsWith('/storage/') && !url.startsWith(BASE_URL)) {
-                    return `${BASE_URL}${url}`;
+                  // Convert /storage/... to https://admin.atap.solar/api/files/storage/...
+                  if (url && url.startsWith('/storage/') && !url.includes('/api/files/')) {
+                    return `${BASE_URL}/api/files${url}`;
+                  }
+                  // Convert old https://admin.atap.solar/storage/... to https://admin.atap.solar/api/files/storage/...
+                  if (url && url.startsWith(`${BASE_URL}/storage/`) && !url.includes('/api/files/')) {
+                    return url.replace(`${BASE_URL}/storage/`, `${BASE_URL}/api/files/storage/`);
                   }
                   return url;
                 });
@@ -753,11 +759,18 @@ export async function patchFileUrlsToAbsolute() {
 
             for (const record of records) {
               const url = record.url as string | null;
+              let newUrl: string | null = null;
 
               // Check if URL needs patching
-              if (url && url.startsWith('/storage/') && !url.startsWith(BASE_URL)) {
-                const newUrl = `${BASE_URL}${url}`;
+              if (url && url.startsWith('/storage/') && !url.includes('/api/files/')) {
+                // Convert /storage/... to https://admin.atap.solar/api/files/storage/...
+                newUrl = `${BASE_URL}/api/files${url}`;
+              } else if (url && url.startsWith(`${BASE_URL}/storage/`) && !url.includes('/api/files/')) {
+                // Convert old https://admin.atap.solar/storage/... to https://admin.atap.solar/api/files/storage/...
+                newUrl = url.replace(`${BASE_URL}/storage/`, `${BASE_URL}/api/files/storage/`);
+              }
 
+              if (newUrl) {
                 await db
                   .update(config.table)
                   .set({ [fieldName]: newUrl })
