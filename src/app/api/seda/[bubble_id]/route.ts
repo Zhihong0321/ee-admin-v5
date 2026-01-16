@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sedaRegistration, customers, invoices, payments, agents } from "@/db/schema";
-import { eq, sql, and } from "drizzle-orm";
-import { validateSedaCheckpoints } from "@/lib/seda-validation";
+import { sedaRegistration } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 interface RouteContext {
   params: Promise<{
@@ -12,7 +11,7 @@ interface RouteContext {
 
 /**
  * GET /api/seda/[bubble_id]
- * Fetch single SEDA registration with all related data
+ * Fetch single SEDA registration - SIMPLE VERSION
  */
 export async function GET(
   request: NextRequest,
@@ -21,7 +20,9 @@ export async function GET(
   try {
     const { bubble_id } = await params;
 
-    // Fetch SEDA registration
+    console.log("Fetching SEDA details for:", bubble_id);
+
+    // SIMPLE QUERY - Just fetch SEDA data, no joins
     const sedaData = await db
       .select()
       .from(sedaRegistration)
@@ -29,6 +30,7 @@ export async function GET(
       .limit(1);
 
     if (sedaData.length === 0) {
+      console.log("SEDA not found:", bubble_id);
       return NextResponse.json(
         { error: "SEDA registration not found" },
         { status: 404 }
@@ -36,90 +38,43 @@ export async function GET(
     }
 
     const seda = sedaData[0];
+    console.log("Found SEDA:", seda.bubble_id);
 
-    // Fetch customer
-    let customerData = null;
-    if (seda.linked_customer) {
-      const customerRecords = await db
-        .select()
-        .from(customers)
-        .where(eq(customers.customer_id, seda.linked_customer))
-        .limit(1);
+    // Calculate checkpoints inline - no external function calls
+    const checkpoints = {
+      name: false, // TODO: fetch from customer
+      address: !!seda.installation_address,
+      mykad: !!(seda.mykad_pdf || seda.ic_copy_front),
+      tnb_bill: !!(seda.tnb_bill_1 && seda.tnb_bill_2 && seda.tnb_bill_3),
+      tnb_meter: !!seda.tnb_meter,
+      emergency_contact: !!(seda.e_contact_name && seda.e_contact_no && seda.e_contact_relationship),
+      payment_5percent: false, // TODO: fetch from invoice/payments
+    };
 
-      if (customerRecords.length > 0) {
-        customerData = customerRecords[0];
-      }
-    }
+    const completed_count = Object.values(checkpoints).filter(Boolean).length;
+    const progress_percentage = Math.round((completed_count / 7) * 100);
 
-    // Fetch agent
-    let agentData = null;
-    if (seda.agent) {
-      const agentRecords = await db
-        .select()
-        .from(agents)
-        .where(eq(agents.bubble_id, seda.agent))
-        .limit(1);
-
-      if (agentRecords.length > 0) {
-        agentData = agentRecords[0];
-      }
-    }
-
-    // Get first invoice (linked_invoice[0])
-    const firstInvoiceId = seda.linked_invoice && seda.linked_invoice.length > 0
-      ? seda.linked_invoice[0]
-      : null;
-
-    let invoiceData: any = null;
-    let paymentsData: any[] = [];
-
-    if (firstInvoiceId) {
-      // Fetch invoice
-      const invoiceRecords = await db
-        .select()
-        .from(invoices)
-        .where(eq(invoices.bubble_id, firstInvoiceId))
-        .limit(1);
-
-      if (invoiceRecords.length > 0) {
-        invoiceData = invoiceRecords[0];
-
-        // Fetch payments for this invoice
-        const paymentIds = invoiceData.linked_payment || [];
-        if (paymentIds.length > 0) {
-          paymentsData = await db
-            .select()
-            .from(payments)
-            .where(sql`${payments.bubble_id} = ANY(${paymentIds})`);
-        }
-      }
-    }
-
-    // Validate checkpoints
-    const checkpointValidation = await validateSedaCheckpoints(
-      seda,
-      customerData,
-      invoiceData,
-      paymentsData
-    );
-
-    // Return complete data
+    // Return SIMPLE response
     return NextResponse.json({
-      seda: {
-        ...seda,
-        customer: customerData,
-        agent: agentData,
-        invoice: invoiceData,
-        payments: paymentsData,
-      },
-      checkpoints: checkpointValidation.result,
-      completed_count: checkpointValidation.completed_count,
-      progress_percentage: checkpointValidation.progress_percentage,
+      seda: seda,
+      customer: null,
+      agent: null,
+      invoice: null,
+      payments: [],
+      checkpoints,
+      completed_count,
+      progress_percentage,
     });
-  } catch (error) {
-    console.error("Error fetching SEDA registration:", error);
+  } catch (error: any) {
+    console.error("Error fetching SEDA details:", error);
+    console.error("Error details:", error.message);
+    console.error("Error stack:", error.stack);
     return NextResponse.json(
-      { error: "Failed to fetch SEDA registration" },
+      {
+        error: "Failed to fetch SEDA registration",
+        message: error.message,
+        stack: error.stack
+      },
       { status: 500 }
     );
   }
@@ -128,7 +83,6 @@ export async function GET(
 /**
  * PATCH /api/seda/[bubble_id]
  * Update SEDA registration status
- * Body: { reg_status?: string, seda_status?: string }
  */
 export async function PATCH(
   request: NextRequest,
@@ -139,48 +93,9 @@ export async function PATCH(
     const body = await request.json();
     const { reg_status, seda_status } = body;
 
-    // Validate status values
-    const validRegStatuses = [
-      "Draft",
-      "Submitted",
-      "Approved",
-      "APPROVED",
-      "Deleted",
-      "Incomplete",
-      "Demo",
-      "Verified",
-      "1 NEW CONTACT",
-      "PROPOSAL",
-      "2 PROPOSAL",
-      null,
-    ];
+    console.log("Updating SEDA:", bubble_id, { reg_status, seda_status });
 
-    const validSedaStatuses = [
-      "Pending",
-      "VERIFIED",
-      "APPROVED BY SEDA",
-      "INCOMPLETE",
-      "DEMO",
-      null,
-    ];
-
-    // Check if reg_status is valid (including null)
-    if (reg_status !== undefined && !validRegStatuses.includes(reg_status)) {
-      return NextResponse.json(
-        { error: "Invalid reg_status value" },
-        { status: 400 }
-      );
-    }
-
-    // Check if seda_status is valid (including null)
-    if (seda_status !== undefined && !validSedaStatuses.includes(seda_status)) {
-      return NextResponse.json(
-        { error: "Invalid seda_status value" },
-        { status: 400 }
-      );
-    }
-
-    // Build update object
+    // Simple update
     const updateData: any = {
       updated_at: new Date(),
     };
@@ -193,7 +108,6 @@ export async function PATCH(
       updateData.seda_status = seda_status;
     }
 
-    // Update database
     const updated = await db
       .update(sedaRegistration)
       .set(updateData)
@@ -207,14 +121,16 @@ export async function PATCH(
       );
     }
 
+    console.log("Updated SEDA:", updated[0].bubble_id);
+
     return NextResponse.json({
       success: true,
       data: updated[0],
     });
-  } catch (error) {
-    console.error("Error updating SEDA registration:", error);
+  } catch (error: any) {
+    console.error("Error updating SEDA:", error);
     return NextResponse.json(
-      { error: "Failed to update SEDA registration" },
+      { error: "Failed to update SEDA registration", message: error.message },
       { status: 500 }
     );
   }
