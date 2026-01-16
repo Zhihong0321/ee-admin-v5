@@ -43,8 +43,15 @@ export default function SyncPage() {
   const [migrationDateFilter, setMigrationDateFilter] = useState<string>(''); // Date filter for migration
 
   const loadLogs = async () => {
-    const latestLogs = await fetchSyncLogs();
-    setLogs(latestLogs);
+    console.log('[loadLogs] Fetching logs...');
+    try {
+      const latestLogs = await fetchSyncLogs();
+      console.log('[loadLogs] Received logs:', latestLogs.length);
+      setLogs(latestLogs);
+    } catch (error) {
+      console.error('[loadLogs] Failed:', error);
+      setLogs([`Error loading logs: ${String(error)}`]);
+    }
   };
 
   useEffect(() => {
