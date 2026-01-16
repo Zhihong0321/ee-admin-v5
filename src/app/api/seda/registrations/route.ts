@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sedaRegistration, customers, invoices, payments, agents } from "@/db/schema";
-import { eq, sql, and, or, desc, arrayContains } from "drizzle-orm";
+import { eq, sql, and, desc, or, like } from "drizzle-orm";
 import { validateSedaCheckpoints } from "@/lib/seda-validation";
 
 /**
  * GET /api/seda/registrations
  * Fetch SEDA registrations with customer, invoice, and payment data
- * Query params:
- * - status: Filter by seda_status (optional)
- * - search: Search by customer name, address, IC, email (optional)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -18,36 +15,14 @@ export async function GET(request: NextRequest) {
     const searchQuery = searchParams.get("search");
 
     // Build query conditions
-    const conditions = [];
-
-    // Exclude deleted registrations
-    conditions.push(sql`${sedaRegistration.reg_status} != 'Deleted'`);
+    const conditions: any[] = [
+      sql`${sedaRegistration.reg_status} != 'Deleted'`
+    ];
 
     // Filter by status
     if (statusFilter && statusFilter !== "all") {
-      conditions.push(
-        sql`${sedaRegistration.seda_status} = ${statusFilter}`
-      );
+      conditions.push(eq(sedaRegistration.seda_status, statusFilter));
     }
-
-    // Search query
-    let searchCondition = null;
-    if (searchQuery && searchQuery.trim() !== "") {
-      const searchTerm = `%${searchQuery.trim()}%`;
-      searchCondition = sql`
-        (
-          COALESCE(${customers.name}, '') ILIKE ${searchTerm} OR
-          COALESCE(${sedaRegistration.installation_address}, '') ILIKE ${searchTerm} OR
-          COALESCE(${sedaRegistration.ic_no}, '') ILIKE ${searchTerm} OR
-          COALESCE(${sedaRegistration.email}, '') ILIKE ${searchTerm}
-        )
-      `;
-    }
-
-    // Combine all conditions
-    const whereClause = searchCondition
-      ? and(...conditions, searchCondition)
-      : and(...conditions);
 
     // Fetch SEDA registrations with relations
     const sedaList = await db
@@ -91,12 +66,25 @@ export async function GET(request: NextRequest) {
       .from(sedaRegistration)
       .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))
       .leftJoin(agents, eq(sedaRegistration.agent, agents.bubble_id))
-      .where(whereClause)
-      .orderBy(desc(sedaRegistration.created_date));
+      .where(and(...conditions))
+      .orderBy(desc(sedaRegistration.created_date))
+      .limit(100);
+
+    // Filter by search in JavaScript (safer than complex SQL)
+    let filteredSedaList = sedaList;
+    if (searchQuery && searchQuery.trim() !== "") {
+      const searchLower = searchQuery.trim().toLowerCase();
+      filteredSedaList = sedaList.filter((seda) =>
+        (seda.customer_name && seda.customer_name.toLowerCase().includes(searchLower)) ||
+        (seda.installation_address && seda.installation_address.toLowerCase().includes(searchLower)) ||
+        (seda.ic_no && seda.ic_no.toLowerCase().includes(searchLower)) ||
+        (seda.email && seda.email.toLowerCase().includes(searchLower))
+      );
+    }
 
     // Now fetch invoice and payment data for each SEDA
     const results = await Promise.all(
-      sedaList.map(async (seda) => {
+      filteredSedaList.map(async (seda) => {
         // Get first invoice (linked_invoice[0])
         const firstInvoiceId = seda.linked_invoice && seda.linked_invoice.length > 0
           ? seda.linked_invoice[0]
@@ -174,7 +162,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Error fetching SEDA registrations:", error);
     return NextResponse.json(
-      { error: "Failed to fetch SEDA registrations" },
+      { error: "Failed to fetch SEDA registrations", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
