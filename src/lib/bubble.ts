@@ -590,6 +590,22 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
 
     logSyncActivity(`Found ${bubbleInvoices.length} invoices in date range`, 'INFO');
 
+    // FALLBACK: If constraints returned 0, try fetching all and filter locally
+    if (bubbleInvoices.length === 0) {
+      logSyncActivity(`Constraints returned 0 results. Trying fallback: fetch all and filter locally...`, 'INFO');
+
+      const allInvoices = await fetchBubbleRecordsWithConstraints('invoice', []);
+      logSyncActivity(`Fetched ${allInvoices.length} total invoices from Bubble`, 'INFO');
+
+      const filtered = allInvoices.filter(inv => {
+        const modifiedDate = new Date(inv["Modified Date"]);
+        return modifiedDate >= fromDate && modifiedDate <= toDate;
+      });
+
+      logSyncActivity(`After local filtering: ${filtered.length} invoices match date range`, 'INFO');
+      bubbleInvoices.push(...filtered);
+    }
+
     if (bubbleInvoices.length === 0) {
       logSyncActivity(`No invoices found in the specified date range`, 'INFO');
       return { success: true, results };
