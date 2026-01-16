@@ -5,8 +5,8 @@
 
 import { db } from "@/lib/db";
 import { sedaRegistration, users, payments, submitted_payments, invoice_templates, customers } from "@/db/schema";
-import { eq, or, and, isNotNull, notLike, gte } from "drizzle-orm";
-import { downloadBubbleFile } from "@/lib/storage";
+import { eq, or, and, isNotNull, notLike, gte, sql } from "drizzle-orm";
+import { downloadBubbleFile, FILE_BASE_URL } from "@/lib/storage";
 import { updateProgress, deleteProgress } from "@/lib/progress-tracker";
 import path from "path";
 import fs from "fs";
@@ -129,7 +129,8 @@ const FILE_FIELDS_CONFIG: FileFieldConfig[] = [
  */
 function isExternalUrl(url: string | null): boolean {
   if (!url) return false;
-  if (url.startsWith('/storage/')) return false; // Already migrated
+  if (url.startsWith('/storage/')) return false; // Already migrated (relative)
+  if (url.startsWith(FILE_BASE_URL + '/storage/')) return false; // Already migrated (absolute)
   if (url.startsWith('http://') || url.startsWith('https://')) return true;
   if (url.startsWith('//')) return true; // Protocol-relative URL
   return false;
@@ -147,11 +148,15 @@ function formatBytes(bytes: number): string {
 }
 
 /**
- * Get file size from path
+ * Get file size from path (supports both absolute URLs and relative paths)
  */
 function getFileSize(filePath: string): number {
   try {
-    return fs.statSync(filePath).size;
+    // Convert absolute URL back to relative path for file system access
+    const localPath = filePath.startsWith(FILE_BASE_URL)
+      ? filePath.replace(FILE_BASE_URL, '')
+      : filePath;
+    return fs.statSync(localPath).size;
   } catch {
     return 0;
   }
@@ -246,7 +251,8 @@ export async function migrateAllBubbleFiles(sessionId?: string, createdAfter?: s
             // Single field - get records where field is external URL
             const whereConditions = [
               isNotNull((config.table as any)[fieldConfig.fieldName]),
-              notLike((config.table as any)[fieldConfig.fieldName], '/storage/%')
+              notLike((config.table as any)[fieldConfig.fieldName], '/storage/%'),
+              notLike((config.table as any)[fieldConfig.fieldName], `${FILE_BASE_URL}/storage/%`)
             ];
 
             // Add date filter if specified
@@ -540,7 +546,8 @@ export async function getMigrationStats(createdAfter?: string) {
         if (fieldConfig.fieldType === 'single') {
           const whereConditions = [
             isNotNull((config.table as any)[fieldConfig.fieldName]),
-            notLike((config.table as any)[fieldConfig.fieldName], '/storage/%')
+            notLike((config.table as any)[fieldConfig.fieldName], '/storage/%'),
+            notLike((config.table as any)[fieldConfig.fieldName], `${FILE_BASE_URL}/storage/%`)
           ];
 
           if (createdAfter) {

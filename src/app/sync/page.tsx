@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import {
   RefreshCw, Calendar, Clock, Database, FileText,
   UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
-  Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag, Link
+  Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag, Link, Globe
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute } from "./actions";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
@@ -24,6 +24,7 @@ export default function SyncPage() {
   const [isFixingDates, setIsFixingDates] = useState(false);
   const [isUpdatingStatuses, setIsUpdatingStatuses] = useState(false);
   const [isRestoringLinks, setIsRestoringLinks] = useState(false);
+  const [isPatchingUrls, setIsPatchingUrls] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
 
@@ -245,6 +246,22 @@ export default function SyncPage() {
       setResults({ success: false, error: String(error) });
     } finally {
       setIsRestoringLinks(false);
+    }
+  };
+
+  const handlePatchUrls = async () => {
+    if (!confirm("This will convert all relative /storage/ URLs to absolute https://admin.atap.solar/storage/ URLs in the database.\n\nThis is needed so other apps on different subdomains can access the files.\n\nContinue?")) return;
+
+    setIsPatchingUrls(true);
+    setResults(null);
+    try {
+      const res = await patchFileUrlsToAbsolute();
+      setResults(res);
+      await loadLogs();
+    } catch (error) {
+      setResults({ success: false, error: String(error) });
+    } finally {
+      setIsPatchingUrls(false);
     }
   };
 
@@ -736,6 +753,15 @@ export default function SyncPage() {
              >
                {isRestoringLinks ? <Loader2 className="h-5 w-5 animate-spin" /> : <Link className="h-5 w-5" />}
                Restore Invoice-SEDA Links
+             </button>
+
+             <button
+               onClick={handlePatchUrls}
+               disabled={isPatchingUrls}
+               className="w-full py-3 rounded-xl border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold transition-all flex items-center justify-center gap-2"
+             >
+               {isPatchingUrls ? <Loader2 className="h-5 w-5 animate-spin" /> : <Globe className="h-5 w-5" />}
+               Patch File URLs to Absolute
              </button>
           </div>
         </div>

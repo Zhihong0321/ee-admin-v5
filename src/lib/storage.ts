@@ -4,17 +4,19 @@ import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 
 const STORAGE_ROOT = '/storage';
+// Base URL for serving files - change this if your domain changes
+export const FILE_BASE_URL = process.env.FILE_BASE_URL || 'https://admin.atap.solar';
 
 /**
  * Downloads a file from a URL and saves it to the attached storage.
- * Returns the local path where the file was saved.
+ * Returns the ABSOLUTE URL where the file can be accessed.
  */
 export async function downloadBubbleFile(url: string, subfolder: string, filename: string): Promise<string | null> {
   if (!url) return null;
 
   // Handle Bubble's protocol-relative URLs
   const fullUrl = url.startsWith('//') ? `https:${url}` : url;
-  
+
   try {
     const response = await fetch(fullUrl);
     if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
@@ -27,12 +29,14 @@ export async function downloadBubbleFile(url: string, subfolder: string, filenam
     }
 
     const localPath = path.join(targetDir, filename);
-    
+
     // @ts-ignore - node fetch body is a ReadableStream which pipeline handles
     await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(localPath));
 
-    // Return the path relative to the app or absolute as requested
-    return localPath;
+    // Return the ABSOLUTE URL for database storage
+    // Format: https://admin.atap.solar/storage/seda/ic_copies/filename.jpg
+    const relativePath = localPath.replace(STORAGE_ROOT, '/storage');
+    return `${FILE_BASE_URL}${relativePath}`;
   } catch (error) {
     console.error(`Error downloading file ${fullUrl}:`, error);
     return null;

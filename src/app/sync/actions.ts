@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, payments, submitted_payments, agents, users, sedaRegistration } from "@/db/schema";
+import { invoices, payments, submitted_payments, agents, users, sedaRegistration, invoice_templates, customers } from "@/db/schema";
 import { syncCompleteInvoicePackage, syncInvoicePackageWithRelations } from "@/lib/bubble";
 import { revalidatePath } from "next/cache";
 import { logSyncActivity, getLatestLogs } from "@/lib/logger";
@@ -613,6 +613,169 @@ export async function runFullInvoiceSync(dateFrom: string, dateTo?: string, sess
     return result;
   } catch (error) {
     logSyncActivity(`Full Invoice Sync CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Patch File URLs to Absolute URLs
+ *
+ * Converts all relative /storage/ URLs to absolute https://admin.atap.solar/storage/ URLs
+ * This fixes the issue where other apps on different subdomains cannot access files
+ */
+export async function patchFileUrlsToAbsolute() {
+  logSyncActivity(`Starting 'Patch File URLs to Absolute' job...`, 'INFO');
+
+  const BASE_URL = 'https://admin.atap.solar';
+
+  try {
+    let totalUpdated = 0;
+    const updates: string[] = [];
+
+    // ============================================================================
+    // Define all file fields across all tables
+    // ============================================================================
+    const fileFieldsConfig = [
+      // SEDA Registration - Multiple file fields
+      {
+        table: sedaRegistration,
+        tableName: 'seda_registration',
+        idField: 'id',
+        fields: [
+          'customer_signature',
+          'ic_copy_front',
+          'ic_copy_back',
+          'tnb_bill_1',
+          'tnb_bill_2',
+          'tnb_bill_3',
+          'nem_cert',
+          'mykad_pdf',
+          'property_ownership_prove',
+          'check_tnb_bill_and_meter_image',
+          'roof_images',
+          'site_images',
+          'drawing_pdf_system',
+          'drawing_system_actual',
+          'drawing_engineering_seda_pdf',
+        ]
+      },
+      // Users - Profile pictures
+      {
+        table: users,
+        tableName: 'user',
+        idField: 'id',
+        fields: ['profile_picture']
+      },
+      // Payments - Attachments (array)
+      {
+        table: payments,
+        tableName: 'payment',
+        idField: 'id',
+        fields: ['attachment']
+      },
+      // Submitted Payments - Attachments (array)
+      {
+        table: submitted_payments,
+        tableName: 'submitted_payment',
+        idField: 'id',
+        fields: ['attachment']
+      },
+      // Invoice Templates - Logos
+      {
+        table: invoice_templates,
+        tableName: 'invoice_template',
+        idField: 'id',
+        fields: ['logo_url']
+      },
+    ];
+
+    // ============================================================================
+    // Process each table and field
+    // ============================================================================
+    for (const config of fileFieldsConfig) {
+      logSyncActivity(`Scanning ${config.tableName}...`, 'INFO');
+
+      for (const fieldName of config.fields) {
+        try {
+          // Check if field is array or single by looking at a sample record
+          const sample = await db
+            .select({ [fieldName]: (config.table as any)[fieldName] })
+            .from(config.table)
+            .limit(1);
+
+          if (sample.length === 0) continue;
+
+          const isArray = Array.isArray(sample[0][fieldName]);
+
+          if (isArray) {
+            // Array field - need to process in memory
+            const records = await db
+              .select({
+                id: (config.table as any)[config.idField],
+                urls: (config.table as any)[fieldName]
+              })
+              .from(config.table)
+              .where(isNotNull((config.table as any)[fieldName]));
+
+            for (const record of records) {
+              if (Array.isArray(record.urls)) {
+                const updatedUrls = record.urls.map((url: string) => {
+                  if (url && url.startsWith('/storage/') && !url.startsWith(BASE_URL)) {
+                    return `${BASE_URL}${url}`;
+                  }
+                  return url;
+                });
+
+                // Check if any URL changed
+                const hasChanges = updatedUrls.some((newUrl, idx) => newUrl !== record.urls[idx]);
+
+                if (hasChanges) {
+                  await db
+                    .update(config.table)
+                    .set({ [fieldName]: updatedUrls })
+                    .where(eq((config.table as any)[config.idField], record.id));
+                  totalUpdated++;
+                  logSyncActivity(`Updated ${config.tableName}.${fieldName} (ID: ${record.id})`, 'INFO');
+                }
+              }
+            }
+          } else {
+            // Single field - can update directly with SQL
+            const result = await db.execute(sql`
+              UPDATE ${sql.identifier(config.tableName)}
+              SET ${sql.identifier(fieldName)} = CONCAT('${BASE_URL}', ${sql.identifier(fieldName)})
+              WHERE ${sql.identifier(fieldName)} LIKE '/storage/%'
+              AND ${sql.identifier(fieldName)} NOT LIKE '${BASE_URL}/%'
+            `);
+
+            const updatedCount = Number(result.rowCount || 0);
+            if (updatedCount > 0) {
+              totalUpdated += updatedCount;
+              updates.push(`${config.tableName}.${fieldName}: ${updatedCount} records`);
+              logSyncActivity(`Updated ${updatedCount} records in ${config.tableName}.${fieldName}`, 'INFO');
+            }
+          }
+        } catch (error) {
+          logSyncActivity(`Error patching ${config.tableName}.${fieldName}: ${String(error)}`, 'ERROR');
+        }
+      }
+    }
+
+    logSyncActivity(`Patch complete: ${totalUpdated} URL(s) updated`, 'INFO');
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+    revalidatePath("/customers");
+
+    return {
+      success: true,
+      totalUpdated,
+      updates,
+      message: `Successfully patched ${totalUpdated} file URL(s) to absolute URLs.\n\nUpdated:\n${updates.join('\n')}`
+    };
+
+  } catch (error) {
+    logSyncActivity(`Patch File URLs CRASHED: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
 }
