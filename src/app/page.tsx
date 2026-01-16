@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, TrendingUp, FileText, Users, DollarSign, Activity } from "lucide-react";
+import { ArrowRight, TrendingUp, FileText, Users, DollarSign, Activity, FileCheck } from "lucide-react";
 
 const stats = [
   {
@@ -37,9 +37,9 @@ const stats = [
 ];
 
 const quickActions = [
-  { name: "View Invoices", href: "/invoices", icon: FileText, color: "primary" },
-  { name: "Manage Customers", href: "/customers", icon: Users, color: "accent" },
-  { name: "View Reports", href: "/reports", icon: Activity, color: "success" },
+  { name: "SEDA Registrations", href: "/seda", icon: FileCheck, color: "primary" },
+  { name: "View Invoices", href: "/invoices", icon: FileText, color: "accent" },
+  { name: "Manage Customers", href: "/customers", icon: Users, color: "success" },
 ];
 
 export default function Home() {
