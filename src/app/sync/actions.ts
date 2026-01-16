@@ -634,6 +634,7 @@ export async function patchFileUrlsToAbsolute() {
 
     // ============================================================================
     // Define all file fields across all tables
+    // Note: We need to specify which fields are arrays vs single
     // ============================================================================
     const fileFieldsConfig = [
       // SEDA Registration - Multiple file fields
@@ -642,21 +643,20 @@ export async function patchFileUrlsToAbsolute() {
         tableName: 'seda_registration',
         idField: 'id',
         fields: [
-          'customer_signature',
-          'ic_copy_front',
-          'ic_copy_back',
-          'tnb_bill_1',
-          'tnb_bill_2',
-          'tnb_bill_3',
-          'nem_cert',
-          'mykad_pdf',
-          'property_ownership_prove',
-          'check_tnb_bill_and_meter_image',
-          'roof_images',
-          'site_images',
-          'drawing_pdf_system',
-          'drawing_system_actual',
-          'drawing_engineering_seda_pdf',
+          { name: 'customer_signature', type: 'single' },
+          { name: 'ic_copy_front', type: 'single' },
+          { name: 'ic_copy_back', type: 'single' },
+          { name: 'tnb_bill_1', type: 'single' },
+          { name: 'tnb_bill_2', type: 'single' },
+          { name: 'tnb_bill_3', type: 'single' },
+          { name: 'nem_cert', type: 'single' },
+          { name: 'mykad_pdf', type: 'single' },
+          { name: 'property_ownership_prove', type: 'single' },
+          { name: 'roof_images', type: 'array' },
+          { name: 'site_images', type: 'array' },
+          { name: 'drawing_pdf_system', type: 'array' },
+          { name: 'drawing_system_actual', type: 'array' },
+          { name: 'drawing_engineering_seda_pdf', type: 'array' },
         ]
       },
       // Users - Profile pictures
@@ -664,28 +664,28 @@ export async function patchFileUrlsToAbsolute() {
         table: users,
         tableName: 'user',
         idField: 'id',
-        fields: ['profile_picture']
+        fields: [{ name: 'profile_picture', type: 'single' }]
       },
       // Payments - Attachments (array)
       {
         table: payments,
         tableName: 'payment',
         idField: 'id',
-        fields: ['attachment']
+        fields: [{ name: 'attachment', type: 'array' }]
       },
       // Submitted Payments - Attachments (array)
       {
         table: submitted_payments,
         tableName: 'submitted_payment',
         idField: 'id',
-        fields: ['attachment']
+        fields: [{ name: 'attachment', type: 'array' }]
       },
       // Invoice Templates - Logos
       {
         table: invoice_templates,
         tableName: 'invoice_template',
         idField: 'id',
-        fields: ['logo_url']
+        fields: [{ name: 'logo_url', type: 'single' }]
       },
     ];
 
@@ -695,20 +695,13 @@ export async function patchFileUrlsToAbsolute() {
     for (const config of fileFieldsConfig) {
       logSyncActivity(`Scanning ${config.tableName}...`, 'INFO');
 
-      for (const fieldName of config.fields) {
+      for (const fieldConfig of config.fields) {
+        const fieldName = fieldConfig.name;
+        const fieldType = fieldConfig.type;
+
         try {
-          // Check if field is array or single by looking at a sample record
-          const sample = await db
-            .select({ [fieldName]: (config.table as any)[fieldName] })
-            .from(config.table)
-            .limit(1);
-
-          if (sample.length === 0) continue;
-
-          const isArray = Array.isArray(sample[0][fieldName]);
-
-          if (isArray) {
-            // Array field - need to process in memory
+          if (fieldType === 'array') {
+            // Array field - process in memory
             const records = await db
               .select({
                 id: (config.table as any)[config.idField],
@@ -716,6 +709,8 @@ export async function patchFileUrlsToAbsolute() {
               })
               .from(config.table)
               .where(isNotNull((config.table as any)[fieldName]));
+
+            let fieldUpdatedCount = 0;
 
             for (const record of records) {
               if (Array.isArray(record.urls)) {
@@ -735,24 +730,47 @@ export async function patchFileUrlsToAbsolute() {
                     .set({ [fieldName]: updatedUrls })
                     .where(eq((config.table as any)[config.idField], record.id));
                   totalUpdated++;
-                  logSyncActivity(`Updated ${config.tableName}.${fieldName} (ID: ${record.id})`, 'INFO');
+                  fieldUpdatedCount++;
                 }
               }
             }
-          } else {
-            // Single field - can update directly with SQL
-            const result = await db.execute(sql`
-              UPDATE ${sql.identifier(config.tableName)}
-              SET ${sql.identifier(fieldName)} = CONCAT('${BASE_URL}', ${sql.identifier(fieldName)})
-              WHERE ${sql.identifier(fieldName)} LIKE '/storage/%'
-              AND ${sql.identifier(fieldName)} NOT LIKE '${BASE_URL}/%'
-            `);
 
-            const updatedCount = Number(result.rowCount || 0);
-            if (updatedCount > 0) {
-              totalUpdated += updatedCount;
-              updates.push(`${config.tableName}.${fieldName}: ${updatedCount} records`);
-              logSyncActivity(`Updated ${updatedCount} records in ${config.tableName}.${fieldName}`, 'INFO');
+            if (fieldUpdatedCount > 0) {
+              updates.push(`${config.tableName}.${fieldName}: ${fieldUpdatedCount} records`);
+              logSyncActivity(`Updated ${fieldUpdatedCount} records in ${config.tableName}.${fieldName}`, 'INFO');
+            }
+          } else {
+            // Single field - process in memory
+            const records = await db
+              .select({
+                id: (config.table as any)[config.idField],
+                url: (config.table as any)[fieldName]
+              })
+              .from(config.table)
+              .where(isNotNull((config.table as any)[fieldName]));
+
+            let fieldUpdatedCount = 0;
+
+            for (const record of records) {
+              const url = record.url as string | null;
+
+              // Check if URL needs patching
+              if (url && url.startsWith('/storage/') && !url.startsWith(BASE_URL)) {
+                const newUrl = `${BASE_URL}${url}`;
+
+                await db
+                  .update(config.table)
+                  .set({ [fieldName]: newUrl })
+                  .where(eq((config.table as any)[config.idField], record.id));
+
+                totalUpdated++;
+                fieldUpdatedCount++;
+              }
+            }
+
+            if (fieldUpdatedCount > 0) {
+              updates.push(`${config.tableName}.${fieldName}: ${fieldUpdatedCount} records`);
+              logSyncActivity(`Updated ${fieldUpdatedCount} records in ${config.tableName}.${fieldName}`, 'INFO');
             }
           }
         } catch (error) {
