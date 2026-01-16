@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sedaRegistration } from "@/db/schema";
-import { desc, ne } from "drizzle-orm";
+import { desc, ne, sql } from "drizzle-orm";
 
 /**
  * GET /api/seda/registrations
