@@ -130,9 +130,9 @@ const FILE_FIELDS_CONFIG: FileFieldConfig[] = [
 function isExternalUrl(url: string | null): boolean {
   if (!url) return false;
   if (url.startsWith('/storage/')) return false; // Already migrated (relative)
-  if (url.startsWith('/api/files/storage/')) return false; // Already migrated (API path)
+  if (url.startsWith('/api/files/seda/') || url.startsWith('/api/files/users/') || url.startsWith('/api/files/payments/') || url.startsWith('/api/files/templates/')) return false; // Already migrated (API path)
   if (url.startsWith(FILE_BASE_URL + '/storage/')) return false; // Already migrated (absolute)
-  if (url.startsWith(FILE_BASE_URL + '/api/files/storage/')) return false; // Already migrated (absolute API)
+  if (url.startsWith(FILE_BASE_URL + '/api/files/')) return false; // Already migrated (absolute API)
   if (url.startsWith('http://') || url.startsWith('https://')) return true;
   if (url.startsWith('//')) return true; // Protocol-relative URL
   return false;
@@ -155,14 +155,14 @@ function formatBytes(bytes: number): string {
 function getFileSize(filePath: string): number {
   try {
     // Convert absolute URL back to relative path for file system access
-    // Handles both: https://admin.atap.solar/api/files/storage/... and /storage/...
+    // Handles: https://admin.atap.solar/api/files/seda/... → /storage/seda/...
     let localPath = filePath;
     if (filePath.startsWith(FILE_BASE_URL)) {
       localPath = filePath.replace(FILE_BASE_URL, '');
     }
-    // Remove /api/files prefix if present
-    if (localPath.startsWith('/api/files')) {
-      localPath = localPath.replace('/api/files', '');
+    // Remove /api/files prefix and add /storage
+    if (localPath.startsWith('/api/files/')) {
+      localPath = localPath.replace('/api/files/', '/storage/');
     }
     return fs.statSync(localPath).size;
   } catch {
@@ -260,9 +260,9 @@ export async function migrateAllBubbleFiles(sessionId?: string, createdAfter?: s
             const whereConditions = [
               isNotNull((config.table as any)[fieldConfig.fieldName]),
               notLike((config.table as any)[fieldConfig.fieldName], '/storage/%'),
-              notLike((config.table as any)[fieldConfig.fieldName], '/api/files/storage/%'),
+              notLike((config.table as any)[fieldConfig.fieldName], '/api/files/%'),
               notLike((config.table as any)[fieldConfig.fieldName], `${FILE_BASE_URL}/storage/%`),
-              notLike((config.table as any)[fieldConfig.fieldName], `${FILE_BASE_URL}/api/files/storage/%`)
+              notLike((config.table as any)[fieldConfig.fieldName], `${FILE_BASE_URL}/api/files/%`)
             ];
 
             // Add date filter if specified
@@ -557,9 +557,9 @@ export async function getMigrationStats(createdAfter?: string) {
           const whereConditions = [
             isNotNull((config.table as any)[fieldConfig.fieldName]),
             notLike((config.table as any)[fieldConfig.fieldName], '/storage/%'),
-            notLike((config.table as any)[fieldConfig.fieldName], '/api/files/storage/%'),
+            notLike((config.table as any)[fieldConfig.fieldName], '/api/files/%'),
             notLike((config.table as any)[fieldConfig.fieldName], `${FILE_BASE_URL}/storage/%`),
-            notLike((config.table as any)[fieldConfig.fieldName], `${FILE_BASE_URL}/api/files/storage/%`)
+            notLike((config.table as any)[fieldConfig.fieldName], `${FILE_BASE_URL}/api/files/%`)
           ];
 
           if (createdAfter) {
