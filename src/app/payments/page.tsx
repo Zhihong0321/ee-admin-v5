@@ -35,6 +35,9 @@ export default function PaymentsPage() {
   const [syncing, setSyncing] = useState(false);
   const [viewingPayment, setViewingPayment] = useState<any | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
   
   // Invoice state
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
@@ -50,7 +53,19 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, [activeTab]); // Note: sort and filter are applied client-side after fetch
+
+  // Apply client-side sorting and filtering
+  const filteredAndSortedPayments = payments
+    .filter(payment => {
+      if (paymentMethodFilter === "all") return true;
+      return (payment.payment_method || "").toLowerCase() === paymentMethodFilter.toLowerCase();
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.payment_date || a.created_at || 0).getTime();
+      const dateB = new Date(b.payment_date || b.created_at || 0).getTime();
+      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+    });
 
   useEffect(() => {
     if (inlineInvoiceRef.current && selectedInvoice && showInvoiceInline) {
@@ -235,21 +250,90 @@ export default function PaymentsPage() {
               />
             </div>
             
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <button 
+            <div className="flex items-center gap-2 w-full md:w-auto relative">
+              {/* Filter Button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                  className={cn(
+                    "btn-secondary flex items-center gap-2",
+                    paymentMethodFilter !== "all" && "border-primary-500 text-primary-600"
+                  )}
+                >
+                  <Filter className="w-4 h-4" />
+                  Filter
+                  {paymentMethodFilter !== "all" && (
+                    <span className="ml-1 w-2 h-2 bg-primary-500 rounded-full"></span>
+                  )}
+                </button>
+
+                {/* Filter Dropdown */}
+                {showFilterDropdown && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowFilterDropdown(false)}
+                    ></div>
+                    <div className="absolute right-0 top-full mt-2 z-20 w-56 bg-white rounded-lg shadow-xl border border-secondary-200 animate-scale-in">
+                      <div className="p-2">
+                        <p className="px-3 py-2 text-xs font-semibold text-secondary-500 uppercase tracking-wider">
+                          Payment Method
+                        </p>
+                        <button
+                          onClick={() => {
+                            setPaymentMethodFilter("all");
+                            setShowFilterDropdown(false);
+                          }}
+                          className={cn(
+                            "w-full text-left px-3 py-2 rounded-md text-sm flex items-center justify-between transition-colors",
+                            paymentMethodFilter === "all"
+                              ? "bg-primary-50 text-primary-700 font-medium"
+                              : "text-secondary-700 hover:bg-secondary-50"
+                          )}
+                        >
+                          <span>All Methods</span>
+                          {paymentMethodFilter === "all" && <CheckCircle className="h-4 w-4 text-primary-600" />}
+                        </button>
+                        {Array.from(new Set(payments.map(p => p.payment_method).filter(Boolean)))
+                          .sort()
+                          .map(method => (
+                          <button
+                            key={method}
+                            onClick={() => {
+                              setPaymentMethodFilter(method);
+                              setShowFilterDropdown(false);
+                            }}
+                            className={cn(
+                              "w-full text-left px-3 py-2 rounded-md text-sm flex items-center justify-between transition-colors",
+                              paymentMethodFilter.toLowerCase() === method.toLowerCase()
+                                ? "bg-primary-50 text-primary-700 font-medium"
+                                : "text-secondary-700 hover:bg-secondary-50"
+                            )}
+                          >
+                            <span>{method}</span>
+                            {paymentMethodFilter.toLowerCase() === method.toLowerCase() && (
+                              <CheckCircle className="h-4 w-4 text-primary-600" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Sort Button */}
+              <button
                 type="button"
-                onClick={fetchData}
+                onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
                 className="btn-secondary flex items-center gap-2"
               >
-                <Filter className="w-4 h-4" />
-                Filter
-              </button>
-              <button 
-                type="button"
-                className="btn-secondary flex items-center gap-2"
-              >
-                <ArrowUpDown className="w-4 h-4" />
+                <ArrowUpDown className={cn("w-4 h-4", sortOrder === "asc" && "rotate-180 transition-transform")} />
                 Sort
+                <span className="text-xs text-secondary-500">
+                  ({sortOrder === "desc" ? "Newest" : "Oldest"})
+                </span>
               </button>
             </div>
           </form>
@@ -277,7 +361,7 @@ export default function PaymentsPage() {
                     </td>
                   </tr>
                 ))
-              ) : payments.length === 0 ? (
+              ) : filteredAndSortedPayments.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
@@ -294,7 +378,7 @@ export default function PaymentsPage() {
                   </td>
                 </tr>
               ) : (
-                payments.map((payment) => (
+                filteredAndSortedPayments.map((payment) => (
                   <tr key={payment.id}>
                     <td>
                       <div className="flex flex-col">
@@ -302,7 +386,7 @@ export default function PaymentsPage() {
                           {payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'N/A'}
                         </span>
                         <span className="text-xs text-secondary-500">
-                          {payment.created_at ? new Date(payment.created_at).toLocaleTimeString() : ''}
+                          {payment.payment_date ? new Date(payment.payment_date).toLocaleTimeString() : ''}
                         </span>
                       </div>
                     </td>
@@ -323,9 +407,16 @@ export default function PaymentsPage() {
                       </div>
                     </td>
                     <td>
-                      <span className="px-2.5 py-1 bg-secondary-100 text-secondary-700 rounded-full text-xs font-medium">
-                        {payment.payment_method || "N/A"}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="px-2.5 py-1 bg-secondary-100 text-secondary-700 rounded-full text-xs font-medium w-fit">
+                          {payment.payment_method || "N/A"}
+                        </span>
+                        {payment.issuer_bank && (
+                          <span className="text-xs text-secondary-500">
+                            Bank: {payment.issuer_bank}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <div className="flex flex-col gap-1">
@@ -373,7 +464,7 @@ export default function PaymentsPage() {
         <div className="p-6 border-t border-secondary-200 bg-secondary-50/30 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <p className="text-sm text-secondary-600">
-              Showing <span className="font-semibold text-secondary-900">{payments.length}</span> results
+              Showing <span className="font-semibold text-secondary-900">{filteredAndSortedPayments.length}</span> results
             </p>
           </div>
           <div className="flex items-center gap-2">

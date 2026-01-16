@@ -74,6 +74,7 @@ export async function getVerifiedPayments(search?: string) {
         amount: payments.amount,
         payment_date: payments.payment_date,
         payment_method: payments.payment_method,
+        issuer_bank: payments.issuer_bank,
         attachment: payments.attachment,
         remark: payments.remark,
         agent_name: agents.name,
@@ -85,7 +86,7 @@ export async function getVerifiedPayments(search?: string) {
       .leftJoin(agents, eq(payments.linked_agent, agents.bubble_id))
       .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
       .where(filters)
-      .orderBy(desc(payments.created_at))
+      .orderBy(desc(payments.payment_date), desc(payments.created_at))
       .limit(50);
 
     return data;

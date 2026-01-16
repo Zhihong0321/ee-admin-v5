@@ -94,9 +94,15 @@ export default function SchemaManagerPage() {
 
       if (data.success) {
         setTableData(data);
+      } else {
+        console.error('API error:', data.error);
+        setSaveStatus({ type: 'error', message: data.error || 'Failed to load table columns' });
+        setTimeout(() => setSaveStatus({ type: null, message: '' }), 3000);
       }
     } catch (error) {
       console.error('Failed to fetch columns:', error);
+      setSaveStatus({ type: 'error', message: 'Network error loading table columns' });
+      setTimeout(() => setSaveStatus({ type: null, message: '' }), 3000);
     } finally {
       setLoading(false);
     }
@@ -292,6 +298,26 @@ export default function SchemaManagerPage() {
           </button>
         </div>
       </div>
+
+      {/* Global Error/Status Message */}
+      {saveStatus.type && (
+        <div
+          className={`p-4 rounded-lg ${
+            saveStatus.type === 'success'
+              ? 'bg-success-50 text-success-800 border border-success-200'
+              : 'bg-danger-50 text-danger-800 border border-danger-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {saveStatus.type === 'success' ? (
+              <CheckCircle className="h-5 w-5" />
+            ) : (
+              <AlertCircle className="h-5 w-5" />
+            )}
+            <span className="font-medium">{saveStatus.message}</span>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

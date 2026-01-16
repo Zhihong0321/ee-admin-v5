@@ -34,16 +34,21 @@ export async function GET(
 
     const columnsResult = await db.execute(columnsQuery);
 
-    // Fetch descriptions from schema_descriptions table
-    const descriptions = await db
-      .select()
-      .from(schema_descriptions)
-      .where(eq(schema_descriptions.table_name, tableName));
+    // Fetch descriptions from schema_descriptions table (if it exists)
+    let descriptionMap = new Map<string, string>();
+    try {
+      const descriptions = await db
+        .select()
+        .from(schema_descriptions)
+        .where(eq(schema_descriptions.table_name, tableName));
 
-    // Create a map of descriptions for quick lookup
-    const descriptionMap = new Map(
-      descriptions.map((d) => [d.column_name, d.description])
-    );
+      descriptionMap = new Map(
+        descriptions.map((d) => [d.column_name, d.description])
+      );
+    } catch (descError) {
+      // Table might not exist yet, that's okay - just continue with empty descriptions
+      console.log('Schema descriptions table not yet available, continuing without descriptions');
+    }
 
     // Combine column info with descriptions
     const columns = columnsResult.rows.map((col: any) => ({
