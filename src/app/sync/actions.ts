@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { invoices, payments, submitted_payments, agents, users, sedaRegistration, invoice_templates, customers } from "@/db/schema";
 import { syncCompleteInvoicePackage, syncInvoicePackageWithRelations } from "@/lib/bubble";
 import { revalidatePath } from "next/cache";
-import { logSyncActivity, getLatestLogs } from "@/lib/logger";
+import { logSyncActivity, getLatestLogs, clearLogs } from "@/lib/logger";
 import { eq, sql, and, or, isNull, isNotNull, inArray } from "drizzle-orm";
 import { createProgressSession } from "@/lib/progress-tracker";
 import { randomUUID } from "crypto";
@@ -794,6 +794,27 @@ export async function patchFileUrlsToAbsolute() {
 
   } catch (error) {
     logSyncActivity(`Patch File URLs CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Clear Sync Logs
+ *
+ * Deletes the sync.log file to clear all logs
+ */
+export async function clearSyncLogs() {
+  logSyncActivity('Clearing logs...', 'INFO');
+
+  try {
+    const result = clearLogs();
+
+    if (result.success) {
+      return { success: true, message: result.message };
+    } else {
+      return { success: false, error: result.message };
+    }
+  } catch (error) {
     return { success: false, error: String(error) };
   }
 }

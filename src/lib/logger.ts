@@ -29,3 +29,15 @@ export function getLatestLogs(limit = 50): string[] {
     return [`Error reading logs: ${err}`];
   }
 }
+
+export function clearLogs(): { success: boolean; message: string } {
+  try {
+    if (!fs.existsSync(SYNC_LOG_PATH)) {
+      return { success: true, message: 'No log file to delete.' };
+    }
+    fs.unlinkSync(SYNC_LOG_PATH);
+    return { success: true, message: 'Logs cleared successfully.' };
+  } catch (err) {
+    return { success: false, message: `Failed to clear logs: ${err}` };
+  }
+}

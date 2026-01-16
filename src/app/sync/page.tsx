@@ -6,7 +6,7 @@ import {
   UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
   Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag, Link, Globe
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, clearSyncLogs } from "./actions";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
@@ -25,6 +25,7 @@ export default function SyncPage() {
   const [isUpdatingStatuses, setIsUpdatingStatuses] = useState(false);
   const [isRestoringLinks, setIsRestoringLinks] = useState(false);
   const [isPatchingUrls, setIsPatchingUrls] = useState(false);
+  const [isClearingLogs, setIsClearingLogs] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
 
@@ -51,6 +52,24 @@ export default function SyncPage() {
     } catch (error) {
       console.error('[loadLogs] Failed:', error);
       setLogs([`Error loading logs: ${String(error)}`]);
+    }
+  };
+
+  const handleClearLogs = async () => {
+    if (!confirm("This will delete all sync logs. This action cannot be undone. Continue?")) return;
+
+    setIsClearingLogs(true);
+    try {
+      const res = await clearSyncLogs();
+      if (res.success) {
+        setLogs(['Logs cleared.']);
+      } else {
+        setLogs([`Failed to clear logs: ${res.error}`]);
+      }
+    } catch (error) {
+      setLogs([`Error: ${String(error)}`]);
+    } finally {
+      setIsClearingLogs(false);
     }
   };
 
@@ -1018,12 +1037,22 @@ export default function SyncPage() {
             <FileText className="h-4 w-4" />
             Live Sync Logs
           </div>
-          <button 
-            onClick={loadLogs}
-            className="text-[10px] font-bold text-primary-600 hover:text-primary-700 uppercase tracking-widest"
-          >
-            Refresh Logs
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={loadLogs}
+              className="text-[10px] font-bold text-primary-600 hover:text-primary-700 uppercase tracking-widest"
+            >
+              Refresh Logs
+            </button>
+            <button
+              onClick={handleClearLogs}
+              disabled={isClearingLogs}
+              className="text-[10px] font-bold text-red-600 hover:text-red-700 uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              {isClearingLogs ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              Clear Logs
+            </button>
+          </div>
         </div>
         <div className="bg-secondary-950 rounded-2xl p-6 font-mono text-[11px] text-secondary-300 h-80 overflow-y-auto border border-secondary-800 shadow-elevation-lg">
           {logs.map((log, i) => {
