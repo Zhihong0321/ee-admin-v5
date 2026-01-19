@@ -903,7 +903,7 @@ export async function patchChineseFilenames() {
                   continue;
                 }
               } else {
-                logSyncActivity(`⚠ File not found on disk: ${oldPath}`, 'WARN');
+                logSyncActivity(`⚠ File not found on disk: ${oldPath}`, 'INFO');
               }
 
               // Generate new URL
