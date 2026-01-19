@@ -39,10 +39,24 @@ export default function SedaListPage() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [attentionCount, setAttentionCount] = useState<number>(0);
 
   useEffect(() => {
     fetchData();
+    fetchAttentionCount();
   }, [search, activeTab]);
+
+  const fetchAttentionCount = async () => {
+    try {
+      const response = await fetch('/api/seda/attention-count');
+      if (response.ok) {
+        const data = await response.json();
+        setAttentionCount(data.count);
+      }
+    } catch (error) {
+      console.error("Error fetching attention count:", error);
+    }
+  };
 
   useEffect(() => {
     // Expand first group by default when data changes
@@ -125,7 +139,14 @@ export default function SedaListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">SEDA Processing</h1>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            SEDA Processing
+            {attentionCount > 0 && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                {attentionCount} Need Attention
+              </span>
+            )}
+          </h1>
           <p className="text-gray-600">Manage invoices with partial payments (0-100%)</p>
         </div>
       </div>
