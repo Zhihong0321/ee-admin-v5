@@ -35,7 +35,7 @@ interface InvoiceGroup {
 export default function SedaListPage() {
   const [data, setData] = useState<InvoiceGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<string>("no-status"); // Default to urgent
+  const [activeTab, setActiveTab] = useState<string>("need-attention"); // Default to need-attention
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -126,10 +126,10 @@ export default function SedaListPage() {
   };
 
   const tabs = [
-    { id: "no-status", label: "No SEDA Status", description: "Invoices with SEDA but no status set" },
+    { id: "need-attention", label: "Need Attention", description: "Not approved yet (sorted by latest modified)" },
     { id: "no-seda", label: "Without SEDA", description: "Invoices without SEDA registration" },
-    { id: "seda-status", label: "By SEDA Status", description: "Grouped by SEDA approval status" },
-    { id: "reg-status", label: "By Reg Status", description: "Grouped by registration status" },
+    { id: "seda-status", label: "By SEDA Status", description: "All SEDA grouped by approval status" },
+    { id: "reg-status", label: "By Reg Status", description: "All SEDA grouped by registration status" },
   ];
 
   const totalCount = data.reduce((sum, group) => sum + group.count, 0);
@@ -147,7 +147,7 @@ export default function SedaListPage() {
               </span>
             )}
           </h1>
-          <p className="text-gray-600">Manage invoices with partial payments (0-100%)</p>
+          <p className="text-gray-600">Manage invoices needing SEDA approval (payment > 0%)</p>
         </div>
       </div>
 

@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const searchValue = searchParams.get("search");
-    const groupBy = searchParams.get("group") || "seda-status"; // "seda-status", "reg-status", or "no-seda"
+    const groupBy = searchParams.get("group") || "need-attention"; // Default to need-attention
     const searchQuery = searchValue ? searchValue.toLowerCase() : "";
 
     console.log("Invoices API called with:", { searchQuery, groupBy });
@@ -19,38 +19,31 @@ export async function GET(request: NextRequest) {
     // Determine which invoices to fetch based on groupBy
     let whereCondition;
 
-    if (groupBy === "no-seda") {
-      // Invoices without SEDA registration
+    if (groupBy === "need-attention") {
+      // Default: Invoices needing attention (not approved yet)
       whereCondition = and(
         gt(invoices.percent_of_total_amount, '0'),
-        lt(invoices.percent_of_total_amount, '100'),
-        isNull(invoices.linked_seda_registration)
-      );
-    } else if (groupBy === "no-status") {
-      // Invoices WITH SEDA registration but NO status (urgent)
-      whereCondition = and(
-        gt(invoices.percent_of_total_amount, '0'),
-        lt(invoices.percent_of_total_amount, '100'),
         sql`${invoices.linked_seda_registration} IS NOT NULL`,
         or(
           isNull(sedaRegistration.seda_status),
-          eq(sedaRegistration.seda_status, ''),
-          eq(sedaRegistration.seda_status, 'null')
+          sql`${sedaRegistration.seda_status} != 'APPROVED BY SEDA'`
         )
       );
-    } else if (groupBy === "seda-status" || groupBy === "reg-status") {
-      // Only invoices WITH SEDA registration
+    } else if (groupBy === "no-seda") {
+      // Invoices without SEDA registration
       whereCondition = and(
         gt(invoices.percent_of_total_amount, '0'),
-        lt(invoices.percent_of_total_amount, '100'),
+        isNull(invoices.linked_seda_registration)
+      );
+    } else if (groupBy === "seda-status" || groupBy === "reg-status") {
+      // Only invoices WITH SEDA registration (all)
+      whereCondition = and(
+        gt(invoices.percent_of_total_amount, '0'),
         sql`${invoices.linked_seda_registration} IS NOT NULL`
       );
     } else {
-      // All invoices with partial payment
-      whereCondition = and(
-        gt(invoices.percent_of_total_amount, '0'),
-        lt(invoices.percent_of_total_amount, '100')
-      );
+      // All invoices with payment > 0
+      whereCondition = gt(invoices.percent_of_total_amount, '0');
     }
 
     // Fetch invoices
@@ -108,7 +101,32 @@ export async function GET(request: NextRequest) {
     console.log("Filtered invoices:", filtered.length);
 
     // Group the results
-    if (groupBy === "seda-status") {
+    if (groupBy === "need-attention") {
+      // Group by seda_status (same as seda-status but for attention view)
+      const grouped: Record<string, typeof filtered> = {};
+      filtered.forEach(invoice => {
+        const status = invoice.seda_status || "No Status";
+        if (!grouped[status]) grouped[status] = [];
+        grouped[status].push(invoice);
+      });
+
+      const response = Object.entries(grouped).map(([status, invoices]) => ({
+        group: status,
+        group_type: "need-attention",
+        count: invoices.length,
+        invoices
+      }));
+
+      // Sort groups: "No Status" first, then by count DESC
+      response.sort((a, b) => {
+        if (a.group === "No Status") return -1;
+        if (b.group === "No Status") return 1;
+        return b.count - a.count; // Largest count first
+      });
+
+      return NextResponse.json(response);
+
+    } else if (groupBy === "seda-status") {
       // Group by seda_status
       const grouped: Record<string, typeof filtered> = {};
       filtered.forEach(invoice => {
@@ -124,10 +142,11 @@ export async function GET(request: NextRequest) {
         invoices
       }));
 
+      // Sort groups: "No Status" first, then by count DESC
       response.sort((a, b) => {
         if (a.group === "No Status") return -1;
         if (b.group === "No Status") return 1;
-        return a.group.localeCompare(b.group);
+        return b.count - a.count;
       });
 
       return NextResponse.json(response);
@@ -148,10 +167,11 @@ export async function GET(request: NextRequest) {
         invoices
       }));
 
+      // Sort groups: "No Reg Status" first, then by count DESC
       response.sort((a, b) => {
         if (a.group === "No Reg Status") return -1;
         if (b.group === "No Reg Status") return 1;
-        return a.group.localeCompare(b.group);
+        return b.count - a.count;
       });
 
       return NextResponse.json(response);
