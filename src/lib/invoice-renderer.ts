@@ -2,11 +2,12 @@ import { INVOICE_TEMPLATE_HTML } from "./invoice-template";
 
 export function getInvoiceHtml(invoiceData: any): string {
   const template = invoiceData.template || {};
-  const subtotal = parseFloat(invoiceData.subtotal) || 0;
+  const totalAmount = parseFloat(invoiceData.total_amount) || 0;
+  // Use total_amount as subtotal since breakdown fields were removed
+  const subtotal = totalAmount;
   const sstAmount = parseFloat(invoiceData.sst_amount) || 0;
   const discountAmount = parseFloat(invoiceData.discount_amount) || 0;
   const voucherAmount = parseFloat(invoiceData.voucher_amount) || 0;
-  const totalAmount = parseFloat(invoiceData.total_amount) || 0;
   const sstRate = invoiceData.sst_rate || 6;
 
   const replacements: Record<string, string | number> = {

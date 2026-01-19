@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
       .where(
         and(
-          gt(invoices.percent_of_total_amount, '0'),
+          sql`CAST(${invoices.total_amount} AS FLOAT) > 0`,
           or(
             isNull(sedaRegistration.seda_status),
             sql`${sedaRegistration.seda_status} != 'APPROVED BY SEDA'`

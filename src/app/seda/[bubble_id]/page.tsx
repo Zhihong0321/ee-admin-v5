@@ -40,9 +40,9 @@ export default function SedaDetailPage() {
     }
   };
 
-  const handleUpdateStatus = async (type: "reg_status" | "seda_status", newStatus: string) => {
+  const handleUpdateStatus = async (newStatus: string) => {
     try {
-      const body = type === "reg_status" ? { reg_status: newStatus } : { seda_status: newStatus };
+      const body = { seda_status: newStatus };
       const response = await fetch(`/api/seda/${bubbleId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -133,22 +133,11 @@ export default function SedaDetailPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Registration Status
-            </label>
-            <StatusDropdown
-              currentStatus={seda.reg_status}
-              type="reg_status"
-              onUpdate={(newStatus) => handleUpdateStatus("reg_status", newStatus)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
               SEDA Status
             </label>
             <StatusDropdown
               currentStatus={seda.seda_status}
-              type="seda_status"
-              onUpdate={(newStatus) => handleUpdateStatus("seda_status", newStatus)}
+              onUpdate={handleUpdateStatus}
             />
           </div>
         </div>

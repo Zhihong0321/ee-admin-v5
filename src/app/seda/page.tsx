@@ -7,11 +7,9 @@ interface InvoiceNeedingSeda {
   invoice_bubble_id: string;
   invoice_number: string | null;
   total_amount: string | null;
-  percent_paid: string | null;
   customer_name: string | null;
   customer_bubble_id: string | null;
   agent_bubble_id: string | null;
-  agent_name_snapshot: string | null;
   agent_name: string | null;
   linked_seda_registration: string | null;
   invoice_date: string | null;
@@ -103,8 +101,8 @@ export default function SedaListPage() {
   };
 
   const getPaymentPercentage = (invoice: InvoiceNeedingSeda): number => {
-    if (!invoice.percent_paid) return 0;
-    return parseFloat(invoice.percent_paid);
+    // percent_paid field was removed, return 0 as placeholder
+    return 0;
   };
 
   const getPaymentColor = (percent: number): string => {
@@ -394,7 +392,7 @@ export default function SedaListPage() {
                               {/* Agent */}
                               <td className="px-6 py-4">
                                 <div className="text-sm text-slate-600">
-                                  {invoice.agent_name || invoice.agent_name_snapshot || "N/A"}
+                                  {invoice.agent_name || "N/A"}
                                 </div>
                               </td>
 

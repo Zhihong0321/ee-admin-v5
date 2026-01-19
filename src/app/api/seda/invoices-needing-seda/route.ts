@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     if (groupBy === "need-attention") {
       // Default: Invoices needing attention (not approved yet)
       whereCondition = and(
-        gt(invoices.percent_of_total_amount, '0'),
+        gt(invoices.total_amount, '0'),
         sql`${invoices.linked_seda_registration} IS NOT NULL`,
         or(
           isNull(sedaRegistration.seda_status),
@@ -32,18 +32,18 @@ export async function GET(request: NextRequest) {
     } else if (groupBy === "no-seda") {
       // Invoices without SEDA registration
       whereCondition = and(
-        gt(invoices.percent_of_total_amount, '0'),
+        gt(invoices.total_amount, '0'),
         isNull(invoices.linked_seda_registration)
       );
     } else if (groupBy === "seda-status" || groupBy === "reg-status") {
       // Only invoices WITH SEDA registration (all)
       whereCondition = and(
-        gt(invoices.percent_of_total_amount, '0'),
+        gt(invoices.total_amount, '0'),
         sql`${invoices.linked_seda_registration} IS NOT NULL`
       );
     } else {
       // All invoices with payment > 0
-      whereCondition = gt(invoices.percent_of_total_amount, '0');
+      whereCondition = gt(invoices.total_amount, '0');
     }
 
     // Fetch invoices
@@ -52,11 +52,9 @@ export async function GET(request: NextRequest) {
         invoice_bubble_id: invoices.bubble_id,
         invoice_number: invoices.invoice_number,
         total_amount: invoices.total_amount,
-        percent_paid: invoices.percent_of_total_amount,
-        customer_name: invoices.customer_name_snapshot,
+        customer_name: customers.name,
         customer_bubble_id: invoices.linked_customer,
         agent_bubble_id: invoices.linked_agent,
-        agent_name_snapshot: invoices.agent_name_snapshot,
         linked_seda_registration: invoices.linked_seda_registration,
         invoice_date: invoices.invoice_date,
         invoice_status: invoices.status,
@@ -93,7 +91,6 @@ export async function GET(request: NextRequest) {
         (inv.invoice_number?.toLowerCase().includes(searchQuery)) ||
         (inv.customer_name?.toLowerCase().includes(searchQuery)) ||
         (inv.agent_name?.toLowerCase().includes(searchQuery)) ||
-        (inv.agent_name_snapshot?.toLowerCase().includes(searchQuery)) ||
         (inv.seda_installation_address?.toLowerCase().includes(searchQuery))
       );
     }

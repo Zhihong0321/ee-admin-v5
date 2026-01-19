@@ -35,13 +35,12 @@ export async function POST(request: NextRequest) {
         invoice_bubble_id: invoices.bubble_id,
         linked_customer: invoices.linked_customer,
         invoice_number: invoices.invoice_number,
-        percent_paid: invoices.percent_of_total_amount,
       })
       .from(invoices)
       .where(
         and(
           isNull(invoices.linked_seda_registration),
-          sql`${invoices.percent_of_total_amount} > 0`,
+          sql`CAST(${invoices.total_amount} AS FLOAT) > 0`,
           sql`${invoices.linked_customer} IS NOT NULL`
         )
       );

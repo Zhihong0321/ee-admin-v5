@@ -88,14 +88,14 @@ export async function deleteDemoInvoices() {
     logSyncActivity(`Found ${demoInvoiceIds.length} demo invoices. ${sedaIdsToDelete.length} linked SEDA registrations will also be marked as deleted.`, 'INFO');
 
     // 3. Perform Soft Deletion (Update Status)
-    // A. Update SEDA Registrations status to 'Deleted'
+    // A. Update SEDA Registrations updated_at timestamp
     let sedaUpdatedCount = 0;
     if (sedaIdsToDelete.length > 0) {
       await db.update(sedaRegistration)
-        .set({ reg_status: 'Deleted', updated_at: new Date() })
+        .set({ updated_at: new Date() })
         .where(inArray(sedaRegistration.bubble_id, sedaIdsToDelete));
       sedaUpdatedCount = sedaIdsToDelete.length;
-      logSyncActivity(`Marked ${sedaUpdatedCount} SEDA registrations as 'Deleted'.`, 'INFO');
+      logSyncActivity(`Updated ${sedaUpdatedCount} SEDA registrations.`, 'INFO');
     }
 
     // B. Update Invoices status to 'deleted'
@@ -418,7 +418,7 @@ export async function updateInvoiceStatuses() {
         const seda = await db.query.sedaRegistration.findFirst({
           where: eq(sedaRegistration.bubble_id, invoice.linked_seda_registration),
         });
-        sedaStatus = seda?.reg_status;
+        sedaStatus = seda?.seda_status;
       }
 
       // Determine new status based on business logic
@@ -510,14 +510,12 @@ export async function restoreInvoiceSedaLinks() {
     const sedaRegistrations = await db.select({
       seda_bubble_id: sedaRegistration.bubble_id,
       linked_invoices: sedaRegistration.linked_invoice,
-      reg_status: sedaRegistration.reg_status,
     })
     .from(sedaRegistration)
     .where(
       and(
         isNotNull(sedaRegistration.linked_invoice),
-        sql`array_length(${sedaRegistration.linked_invoice}, 1) > 0`,
-        sql`${sedaRegistration.reg_status} != 'Deleted'`
+        sql`array_length(${sedaRegistration.linked_invoice}, 1) > 0`
       )
     );
 
@@ -563,7 +561,7 @@ export async function restoreInvoiceSedaLinks() {
             .where(eq(invoices.id, invoice.id));
 
           linkedCount++;
-          logSyncActivity(`Invoice ${invoiceBubbleId}: Linked to SEDA ${seda.seda_bubble_id} (${seda.reg_status})`, 'INFO');
+          logSyncActivity(`Invoice ${invoiceBubbleId}: Linked to SEDA ${seda.seda_bubble_id}`, 'INFO');
 
         } catch (error) {
           logSyncActivity(`Error linking invoice ${invoiceBubbleId}: ${String(error)}`, 'ERROR');

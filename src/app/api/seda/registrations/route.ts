@@ -22,7 +22,6 @@ export async function GET(request: NextRequest) {
       .select({
         id: sedaRegistration.id,
         bubble_id: sedaRegistration.bubble_id,
-        reg_status: sedaRegistration.reg_status,
         seda_status: sedaRegistration.seda_status,
         installation_address: sedaRegistration.installation_address,
         city: sedaRegistration.city,
@@ -41,7 +40,6 @@ export async function GET(request: NextRequest) {
       .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))
       .leftJoin(users, eq(sedaRegistration.agent, users.bubble_id))
       .leftJoin(agents, eq(users.linked_agent_profile, agents.bubble_id))
-      .where(ne(sedaRegistration.reg_status, "Deleted"))
       .orderBy(desc(sql`COALESCE(${sedaRegistration.modified_date}, ${sedaRegistration.updated_at}, ${sedaRegistration.created_date})`))
       .limit(100);
 

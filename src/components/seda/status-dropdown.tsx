@@ -6,14 +6,12 @@ import { StatusBadge } from "./status-badge";
 
 interface StatusDropdownProps {
   currentStatus: string | null;
-  type: "reg_status" | "seda_status";
   onUpdate: (newStatus: string) => Promise<void>;
   disabled?: boolean;
 }
 
 export function StatusDropdown({
   currentStatus,
-  type,
   onUpdate,
   disabled = false,
 }: StatusDropdownProps) {
@@ -21,30 +19,14 @@ export function StatusDropdown({
   const [updating, setUpdating] = useState(false);
 
   const getStatusOptions = () => {
-    if (type === "reg_status") {
-      return [
-        { value: "", label: "Not Set" },
-        { value: "Draft", label: "Draft" },
-        { value: "Submitted", label: "Submitted" },
-        { value: "Approved", label: "Approved" },
-        { value: "Deleted", label: "Deleted" },
-        { value: "Incomplete", label: "Incomplete" },
-        { value: "Demo", label: "Demo" },
-        { value: "Verified", label: "Verified" },
-        { value: "1 NEW CONTACT", label: "1 NEW CONTACT" },
-        { value: "PROPOSAL", label: "PROPOSAL" },
-        { value: "2 PROPOSAL", label: "2 PROPOSAL" },
-      ];
-    } else {
-      return [
-        { value: "", label: "Not Set" },
-        { value: "Pending", label: "Pending" },
-        { value: "VERIFIED", label: "VERIFIED" },
-        { value: "APPROVED BY SEDA", label: "APPROVED BY SEDA" },
-        { value: "INCOMPLETE", label: "INCOMPLETE" },
-        { value: "DEMO", label: "DEMO" },
-      ];
-    }
+    return [
+      { value: "", label: "Not Set" },
+      { value: "Pending", label: "Pending" },
+      { value: "VERIFIED", label: "VERIFIED" },
+      { value: "APPROVED BY SEDA", label: "APPROVED BY SEDA" },
+      { value: "INCOMPLETE", label: "INCOMPLETE" },
+      { value: "DEMO", label: "DEMO" },
+    ];
   };
 
   const handleSelect = async (newStatus: string) => {
@@ -71,7 +53,7 @@ export function StatusDropdown({
             : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
         }`}
       >
-        <StatusBadge status={currentStatus} type={type} />
+        <StatusBadge status={currentStatus} />
         {!disabled && !updating && (
           <ChevronDown className="w-4 h-4 text-gray-500" />
         )}
@@ -96,7 +78,7 @@ export function StatusDropdown({
                 onClick={() => handleSelect(option.value)}
                 className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors"
               >
-                <StatusBadge status={option.value} type={type} />
+                <StatusBadge status={option.value} />
               </button>
             ))}
           </div>

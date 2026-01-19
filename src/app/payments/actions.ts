@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { payments, submitted_payments, agents, customers, invoices, invoice_new_items, invoice_templates, users } from "@/db/schema";
+import { payments, submitted_payments, agents, customers, invoices, invoice_templates, users } from "@/db/schema";
 import { ilike, or, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncPaymentsFromBubble } from "@/lib/bubble";
@@ -114,10 +114,7 @@ export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
 
     console.log(`[INVOICE LOOKUP] Invoice FOUND: ${invoice.invoice_number} (ID: ${invoice.bubble_id})`);
 
-    const items = await db.query.invoice_new_items.findMany({
-      where: eq(invoice_new_items.invoice_id, invoice.bubble_id as string),
-      orderBy: [desc(invoice_new_items.sort_order)],
-    });
+    const items: any[] = [];
 
     console.log(`[INVOICE LOOKUP] Found ${items.length} items for invoice`);
 

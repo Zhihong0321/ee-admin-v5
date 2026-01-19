@@ -93,7 +93,7 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
       const items: any[] = [];
 
       const template = await db.query.invoice_templates.findFirst({
-        where: invoice.template_id 
+        where: invoice.template_id
           ? eq(invoice_templates.bubble_id, invoice.template_id)
           : eq(invoice_templates.is_default, true),
       });
@@ -109,11 +109,24 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
         }
       }
 
+      // Fetch customer data for template rendering
+      let customerData = null;
+      if (invoice.linked_customer) {
+        customerData = await db.query.customers.findFirst({
+          where: eq(customers.customer_id, invoice.linked_customer),
+        });
+      }
+
       return {
         ...invoice,
         items,
         template,
-        created_by_user_name
+        created_by_user_name,
+        // Add customer fields for template
+        customer_name_snapshot: customerData?.name || null,
+        customer_address_snapshot: customerData?.address || null,
+        customer_phone_snapshot: customerData?.phone || null,
+        customer_email_snapshot: customerData?.email || null,
       };
     } else {
       // v1 legacy - limited detail support for now

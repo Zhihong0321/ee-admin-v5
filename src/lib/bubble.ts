@@ -717,45 +717,13 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
 
       // Check invoice items timestamps (independent check)
       try {
-        const itemConstraints = [{
-          key: 'Invoice',
-          constraint: 'equals',
-          value: inv._id
-        }];
-        const bubbleItems = await fetchBubbleRecordsWithConstraints('invoice_new_item', itemConstraints);
-
-        if (bubbleItems && bubbleItems.length > 0) {
-          // Check if any item is newer than what we have locally
-          let itemsNeedSync = false;
-
-          for (const item of bubbleItems) {
-            const existingItem = await db.query.invoice_new_items.findFirst({
-              where: eq(invoice_new_items.bubble_id, item._id)
-            });
-
-            const bubbleItemModifiedDate = new Date(item["Modified Date"]);
-
-            // Item doesn't exist locally, needs sync
-            if (!existingItem) {
-              itemsNeedSync = true;
-              break;
-            }
-
-            // Item exists but is newer in Bubble
-            const itemIsNewer = !existingItem.last_synced_at ||
-              bubbleItemModifiedDate > new Date(existingItem.last_synced_at);
-
-            if (itemIsNewer) {
-              itemsNeedSync = true;
-              break;
-            }
-          }
-
-          if (itemsNeedSync) {
-            needsSync = true;
-            reasons.push('items');
-          }
-        }
+        // Note: invoice_new_items sync is disabled
+        // const itemConstraints = [{
+        //   key: 'Invoice',
+        //   constraint: 'equals',
+        //   value: inv._id
+        // }];
+        // const bubbleItems = await fetchBubbleRecordsWithConstraints('invoice_new_item', itemConstraints);
       } catch (err) {
         // Items check failed, but don't fail the entire sync
         // Log and continue - items will be checked again during the item sync phase

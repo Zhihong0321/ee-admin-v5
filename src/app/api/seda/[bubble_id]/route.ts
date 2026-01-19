@@ -97,18 +97,14 @@ export async function PATCH(
   try {
     const { bubble_id } = await params;
     const body = await request.json();
-    const { reg_status, seda_status } = body;
+    const { seda_status } = body;
 
-    console.log("Updating SEDA:", bubble_id, { reg_status, seda_status });
+    console.log("Updating SEDA:", bubble_id, { seda_status });
 
     // Simple update
     const updateData: any = {
       updated_at: new Date(),
     };
-
-    if (reg_status !== undefined) {
-      updateData.reg_status = reg_status;
-    }
 
     if (seda_status !== undefined) {
       updateData.seda_status = seda_status;
