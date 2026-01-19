@@ -5,7 +5,7 @@ import { gt, sql, or, eq, and } from "drizzle-orm";
 
 /**
  * GET /api/seda/attention-count
- * Count invoices needing attention: payment > 0% AND reg_status != APPROVED
+ * Count invoices needing attention: payment > 0% AND seda_status != APPROVED BY SEDA
  */
 export async function GET(request: NextRequest) {
   try {
@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
         and(
           gt(invoices.percent_of_total_amount, '0'),
           or(
-            isNull(sedaRegistration.reg_status),
-            sql`${sedaRegistration.reg_status} != 'APPROVED'`
+            isNull(sedaRegistration.seda_status),
+            sql`${sedaRegistration.seda_status} != 'APPROVED BY SEDA'`
           )
         )
       );
