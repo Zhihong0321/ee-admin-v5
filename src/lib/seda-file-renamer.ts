@@ -154,14 +154,21 @@ export async function downloadFile(url: string): Promise<Buffer> {
 export function extractAllFiles(sedaData: any, customerName: string) {
   const files: { url: string; newName: string }[] = [];
 
+  console.log(`[extractAllFiles] Processing SEDA data for customer: ${customerName}`);
+  console.log(`[extractAllFiles] Total field mappings to check: ${FILE_MAPPINGS.length}`);
+
   for (const mapping of FILE_MAPPINGS) {
     const fieldValue = sedaData[mapping.field];
+
+    console.log(`[extractAllFiles] Field "${mapping.field}":`, fieldValue ? "HAS VALUE" : "NULL/EMPTY");
 
     if (!fieldValue) continue;
 
     if (mapping.isArray) {
       // Handle array fields
       const urls = Array.isArray(fieldValue) ? fieldValue : [];
+      console.log(`[extractAllFiles] Array field "${mapping.field}" has ${urls.length} items`);
+
       urls.forEach((url: string, index: number) => {
         if (url && url.trim() !== "") {
           const newName = generateFileName(
@@ -171,6 +178,7 @@ export function extractAllFiles(sedaData: any, customerName: string) {
             url
           );
           files.push({ url, newName });
+          console.log(`[extractAllFiles] Added: ${newName}`);
         }
       });
     } else {
@@ -183,9 +191,11 @@ export function extractAllFiles(sedaData: any, customerName: string) {
           fieldValue
         );
         files.push({ url: fieldValue, newName });
+        console.log(`[extractAllFiles] Added: ${newName}`);
       }
     }
   }
 
+  console.log(`[extractAllFiles] Total files extracted: ${files.length}`);
   return files;
 }
