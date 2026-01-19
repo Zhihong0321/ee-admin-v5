@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { invoices, sedaRegistration, agents, customers } from "@/db/schema";
-import { desc, or, and, sql, gt, lt, eq, isNull, ne } from "drizzle-orm";
+import { desc, or, and, sql, eq, isNull } from "drizzle-orm";
 
 /**
  * GET /api/seda/invoices-needing-seda
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     if (groupBy === "need-attention") {
       // Default: Invoices needing attention (not approved yet)
       whereCondition = and(
-        gt(invoices.total_amount, '0'),
+        sql`${invoices.percent_of_total_amount} > 0`,
         sql`${invoices.linked_seda_registration} IS NOT NULL`,
         or(
           isNull(sedaRegistration.seda_status),
@@ -32,18 +32,18 @@ export async function GET(request: NextRequest) {
     } else if (groupBy === "no-seda") {
       // Invoices without SEDA registration
       whereCondition = and(
-        gt(invoices.total_amount, '0'),
+        sql`${invoices.percent_of_total_amount} > 0`,
         isNull(invoices.linked_seda_registration)
       );
-    } else if (groupBy === "seda-status" || groupBy === "reg-status") {
+    } else if (groupBy === "seda-status") {
       // Only invoices WITH SEDA registration (all)
       whereCondition = and(
-        gt(invoices.total_amount, '0'),
+        sql`${invoices.percent_of_total_amount} > 0`,
         sql`${invoices.linked_seda_registration} IS NOT NULL`
       );
     } else {
       // All invoices with payment > 0
-      whereCondition = gt(invoices.total_amount, '0');
+      whereCondition = sql`${invoices.percent_of_total_amount} > 0`;
     }
 
     // Fetch invoices
@@ -52,9 +52,11 @@ export async function GET(request: NextRequest) {
         invoice_bubble_id: invoices.bubble_id,
         invoice_number: invoices.invoice_number,
         total_amount: invoices.total_amount,
-        customer_name: customers.name,
+        percent_paid: invoices.percent_of_total_amount,
+        customer_name: invoices.customer_name_snapshot,
         customer_bubble_id: invoices.linked_customer,
         agent_bubble_id: invoices.linked_agent,
+        agent_name_snapshot: invoices.agent_name_snapshot,
         linked_seda_registration: invoices.linked_seda_registration,
         invoice_date: invoices.invoice_date,
         invoice_status: invoices.status,
@@ -63,7 +65,6 @@ export async function GET(request: NextRequest) {
         // SEDA fields
         seda_bubble_id: sedaRegistration.bubble_id,
         seda_status: sedaRegistration.seda_status,
-        seda_reg_status: sedaRegistration.reg_status,
         seda_modified_date: sedaRegistration.modified_date,
         seda_updated_at: sedaRegistration.updated_at,
         seda_installation_address: sedaRegistration.installation_address,
@@ -91,6 +92,7 @@ export async function GET(request: NextRequest) {
         (inv.invoice_number?.toLowerCase().includes(searchQuery)) ||
         (inv.customer_name?.toLowerCase().includes(searchQuery)) ||
         (inv.agent_name?.toLowerCase().includes(searchQuery)) ||
+        (inv.agent_name_snapshot?.toLowerCase().includes(searchQuery)) ||
         (inv.seda_installation_address?.toLowerCase().includes(searchQuery))
       );
     }
@@ -148,35 +150,10 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(response);
 
-    } else if (groupBy === "reg-status") {
-      // Group by reg_status
-      const grouped: Record<string, typeof filtered> = {};
-      filtered.forEach(invoice => {
-        const status = invoice.seda_reg_status || "No Reg Status";
-        if (!grouped[status]) grouped[status] = [];
-        grouped[status].push(invoice);
-      });
-
-      const response = Object.entries(grouped).map(([status, invoices]) => ({
-        group: status,
-        group_type: "reg_status",
-        count: invoices.length,
-        invoices
-      }));
-
-      // Sort groups: "No Reg Status" first, then by count DESC
-      response.sort((a, b) => {
-        if (a.group === "No Reg Status") return -1;
-        if (b.group === "No Reg Status") return 1;
-        return b.count - a.count;
-      });
-
-      return NextResponse.json(response);
-
     } else {
-      // no-seda or no-status: return as single flat list
+      // no-seda: return as single flat list
       return NextResponse.json([{
-        group: groupBy === "no-seda" ? "Without SEDA" : "No SEDA Status",
+        group: "Without SEDA",
         group_type: groupBy,
         count: filtered.length,
         invoices: filtered
