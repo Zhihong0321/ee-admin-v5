@@ -579,44 +579,165 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
       return { success: true, results };
     }
 
-    // Build a map of which invoices are newer (need full sync with relations)
+    // Build a map of which invoices need sync (invoice OR relations are newer)
     const invoicesNeedingFullSync = new Map<string, boolean>();
     const customerIdsToSync = new Set<string>();
     const agentIdsToSync = new Set<string>();
     const paymentIdsToSync = new Set<string>();
     const sedaIdsToSync = new Set<string>();
 
-    logSyncActivity(`Step 2: Checking which invoices are newer than local data...`, 'INFO');
+    logSyncActivity(`Step 2: Checking which invoices OR their relations are newer...`, 'INFO');
 
     for (const inv of bubbleInvoices) {
-      const existingRecord = await db.query.invoices.findFirst({
+      let needsSync = false;
+      const reasons: string[] = [];
+
+      // Check invoice timestamp
+      const existingInvoice = await db.query.invoices.findFirst({
         where: eq(invoices.bubble_id, inv._id)
       });
 
-      const bubbleModifiedDate = new Date(inv["Modified Date"]);
-      const isNewer = !existingRecord ||
-        !existingRecord.updated_at ||
-        bubbleModifiedDate > new Date(existingRecord.updated_at);
+      const bubbleInvModifiedDate = new Date(inv["Modified Date"]);
+      const invoiceIsNewer = !existingInvoice ||
+        !existingInvoice.updated_at ||
+        bubbleInvModifiedDate > new Date(existingInvoice.updated_at);
 
-      invoicesNeedingFullSync.set(inv._id, isNewer);
+      if (invoiceIsNewer) {
+        needsSync = true;
+        reasons.push('invoice');
+      }
 
-      // Collect IDs only for invoices that are newer
-      if (isNewer) {
+      // Check customer timestamp
+      if (inv["Linked Customer"]) {
+        const existingCustomer = await db.query.customers.findFirst({
+          where: eq(customers.customer_id, inv["Linked Customer"])
+        });
+
+        // Need to fetch from Bubble to check Modified Date
+        try {
+          const customer = await fetchBubbleRecordByTypeName('Customer_Profile', inv["Linked Customer"]);
+          const bubbleCustModifiedDate = new Date(customer["Modified Date"]);
+          const customerIsNewer = !existingCustomer ||
+            !existingCustomer.last_synced_at ||
+            bubbleCustModifiedDate > new Date(existingCustomer.last_synced_at);
+
+          if (customerIsNewer) {
+            needsSync = true;
+            reasons.push('customer');
+          }
+        } catch (err) {
+          // Customer might not exist, skip
+        }
+      }
+
+      // Check agent timestamp
+      if (inv["Linked Agent"]) {
+        const existingAgent = await db.query.agents.findFirst({
+          where: eq(agents.bubble_id, inv["Linked Agent"])
+        });
+
+        try {
+          const agent = await fetchBubbleRecordByTypeName('agent', inv["Linked Agent"]);
+          const bubbleAgentModifiedDate = new Date(agent["Modified Date"]);
+          const agentIsNewer = !existingAgent ||
+            !existingAgent.last_synced_at ||
+            bubbleAgentModifiedDate > new Date(existingAgent.last_synced_at);
+
+          if (agentIsNewer) {
+            needsSync = true;
+            reasons.push('agent');
+          }
+        } catch (err) {
+          // Agent might not exist, skip
+        }
+      }
+
+      // Check SEDA timestamp
+      if (inv["Linked SEDA Registration"]) {
+        const existingSeda = await db.query.sedaRegistration.findFirst({
+          where: eq(sedaRegistration.bubble_id, inv["Linked SEDA Registration"])
+        });
+
+        try {
+          const seda = await fetchBubbleRecordByTypeName('seda_registration', inv["Linked SEDA Registration"]);
+          const bubbleSedaModifiedDate = new Date(seda["Modified Date"]);
+          const sedaIsNewer = !existingSeda ||
+            !existingSeda.last_synced_at ||
+            bubbleSedaModifiedDate > new Date(existingSeda.last_synced_at);
+
+          if (sedaIsNewer) {
+            needsSync = true;
+            reasons.push('seda');
+          }
+        } catch (err) {
+          // SEDA might not exist, skip
+        }
+      }
+
+      // Check payments timestamps
+      if (inv["Linked Payment"] && Array.isArray(inv["Linked Payment"])) {
+        for (const paymentId of inv["Linked Payment"] as string[]) {
+          let paymentIsNewer = false;
+
+          // Try payment table first
+          const existingPayment = await db.query.payments.findFirst({
+            where: eq(payments.bubble_id, paymentId)
+          });
+
+          if (existingPayment) {
+            if (!existingPayment.last_synced_at) {
+              paymentIsNewer = true;
+            } else if (existingPayment.modified_date) {
+              paymentIsNewer = new Date(existingPayment.modified_date) > new Date(existingPayment.last_synced_at);
+            }
+          } else {
+            // Try submitted_payments table
+            const existingSubmittedPayment = await db.query.submitted_payments.findFirst({
+              where: eq(submitted_payments.bubble_id, paymentId)
+            });
+
+            if (existingSubmittedPayment) {
+              if (!existingSubmittedPayment.last_synced_at) {
+                paymentIsNewer = true;
+              } else if (existingSubmittedPayment.modified_date) {
+                paymentIsNewer = new Date(existingSubmittedPayment.modified_date) > new Date(existingSubmittedPayment.last_synced_at);
+              }
+            } else {
+              // Payment doesn't exist locally, needs sync
+              paymentIsNewer = true;
+            }
+          }
+
+          if (paymentIsNewer) {
+            needsSync = true;
+            reasons.push('payment');
+            break; // At least one payment is newer, no need to check more
+          }
+        }
+      }
+
+      invoicesNeedingFullSync.set(inv._id, needsSync);
+
+      // Collect IDs only for invoices that need sync
+      if (needsSync) {
         if (inv["Linked Customer"]) customerIdsToSync.add(inv["Linked Customer"]);
         if (inv["Linked Agent"]) agentIdsToSync.add(inv["Linked Agent"]);
         if (inv["Linked Payment"]) {
           (inv["Linked Payment"] as string[]).forEach(p => paymentIdsToSync.add(p));
         }
         if (inv["Linked SEDA Registration"]) sedaIdsToSync.add(inv["Linked SEDA Registration"]);
+
+        // Log why this invoice needs sync (for debugging)
+        logSyncActivity(`Invoice ${inv._id} needs sync: ${reasons.join(', ')}`, 'INFO');
       }
     }
 
-    const newerCount = Array.from(invoicesNeedingFullSync.values()).filter(v => v).length;
-    logSyncActivity(`Found ${newerCount} invoices newer than local data (will sync with all relations)`, 'INFO');
+    const needsSyncCount = Array.from(invoicesNeedingFullSync.values()).filter(v => v).length;
+    logSyncActivity(`Found ${needsSyncCount} invoices needing sync (invoice or relations newer)`, 'INFO');
 
     // Step 3: Fetch and sync all related data
-    // NOTE: We force-sync these because their parent invoices are newer
-    logSyncActivity(`Step 3: Fetching and syncing related data for newer invoices...`, 'INFO');
+    // NOTE: We force-sync these because invoice OR relations are newer
+    logSyncActivity(`Step 3: Fetching and syncing related data for invoices needing sync...`, 'INFO');
 
     // 3a. Fetch and sync Customers (FORCE SYNC - linked to newer invoices)
     for (const customerId of customerIdsToSync) {
