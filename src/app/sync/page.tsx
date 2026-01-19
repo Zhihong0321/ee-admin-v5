@@ -648,7 +648,7 @@ export default function SyncPage() {
               </div>
               <div>
                 <h3 className="text-xl font-bold">Full Invoice Sync with Date Range</h3>
-                <p className="text-blue-200 text-sm">Sync invoices + all relational data (customers, agents, payments, SEDA, items)</p>
+                <p className="text-blue-200 text-sm">NOW WITH INVOICE ITEM SYNC! Sync invoices + all relational data (customers, agents, payments, SEDA, items)</p>
               </div>
             </div>
 
@@ -694,7 +694,7 @@ export default function SyncPage() {
                   className="btn-primary bg-blue-600 hover:bg-blue-500 border-none flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <RefreshCw className="h-4 w-4" />
-                  Start Full Invoice Sync
+                  Start Full Invoice Sync (with Items)
                 </button>
               )}
             </div>

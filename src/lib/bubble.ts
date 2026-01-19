@@ -223,7 +223,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       linked_agent: b["Linked Agent"] || b.linked_agent || null,
       linked_payment: b["Linked Payment"] || b.linked_payment || null,
       linked_seda_registration: b["Linked SEDA Registration"] || b.linked_seda_registration || null,
-      linked_invoice_item: b["linked_invoice_item"] || b.linked_invoice_item || null,
+      linked_invoice_item: b["Linked Invoice Item"] || b["Linked invoice item"] || null,
       amount: b.Amount ? b.Amount.toString() : null,
       total_amount: b["Total Amount"] || b.total_amount || b.Amount || null,
       status: b.Status || b.status || 'draft',
