@@ -522,6 +522,9 @@ async function fetchBubbleRecordsWithConstraints(typeName: string, constraints: 
  * 3. Upsert everything to PostgreSQL
  * 4. Does NOT download files
  *
+ * CRITICAL: If an invoice is newer in Bubble, ALL its related data is synced regardless of
+ * their individual timestamps. This ensures complete invoice data package.
+ *
  * Source: Bubble Data API (Bubble DB)
  * Destination: PostgreSQL
  */
@@ -576,45 +579,49 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
       return { success: true, results };
     }
 
-    // Track all unique IDs we need to fetch
-    const customerIds = new Set<string>();
-    const agentIds = new Set<string>();
-    const paymentIds = new Set<string>();
-    const submittedPaymentIds = new Set<string>();
-    const sedaIds = new Set<string>();
-    const userIds = new Set<string>();
+    // Build a map of which invoices are newer (need full sync with relations)
+    const invoicesNeedingFullSync = new Map<string, boolean>();
+    const customerIdsToSync = new Set<string>();
+    const agentIdsToSync = new Set<string>();
+    const paymentIdsToSync = new Set<string>();
+    const sedaIdsToSync = new Set<string>();
 
-    // Step 2: Collect all related IDs from invoices
-    logSyncActivity(`Step 2: Collecting related IDs from invoices...`, 'INFO');
+    logSyncActivity(`Step 2: Checking which invoices are newer than local data...`, 'INFO');
 
     for (const inv of bubbleInvoices) {
-      if (inv["Linked Customer"]) customerIds.add(inv["Linked Customer"]);
-      if (inv["Linked Agent"]) agentIds.add(inv["Linked Agent"]);
-      if (inv["Linked Payment"]) {
-        (inv["Linked Payment"] as string[]).forEach(p => paymentIds.add(p));
+      const existingRecord = await db.query.invoices.findFirst({
+        where: eq(invoices.bubble_id, inv._id)
+      });
+
+      const bubbleModifiedDate = new Date(inv["Modified Date"]);
+      const isNewer = !existingRecord ||
+        !existingRecord.updated_at ||
+        bubbleModifiedDate > new Date(existingRecord.updated_at);
+
+      invoicesNeedingFullSync.set(inv._id, isNewer);
+
+      // Collect IDs only for invoices that are newer
+      if (isNewer) {
+        if (inv["Linked Customer"]) customerIdsToSync.add(inv["Linked Customer"]);
+        if (inv["Linked Agent"]) agentIdsToSync.add(inv["Linked Agent"]);
+        if (inv["Linked Payment"]) {
+          (inv["Linked Payment"] as string[]).forEach(p => paymentIdsToSync.add(p));
+        }
+        if (inv["Linked SEDA Registration"]) sedaIdsToSync.add(inv["Linked SEDA Registration"]);
       }
-      if (inv["Linked SEDA Registration"]) sedaIds.add(inv["Linked SEDA Registration"]);
     }
 
-    logSyncActivity(`Collected: ${customerIds.size} customers, ${agentIds.size} agents, ${paymentIds.size} payments, ${sedaIds.size} SEDA`, 'INFO');
+    const newerCount = Array.from(invoicesNeedingFullSync.values()).filter(v => v).length;
+    logSyncActivity(`Found ${newerCount} invoices newer than local data (will sync with all relations)`, 'INFO');
 
     // Step 3: Fetch and sync all related data
-    logSyncActivity(`Step 3: Fetching and syncing related data...`, 'INFO');
+    // NOTE: We force-sync these because their parent invoices are newer
+    logSyncActivity(`Step 3: Fetching and syncing related data for newer invoices...`, 'INFO');
 
-    // 3a. Fetch and sync Customers
-    for (const customerId of customerIds) {
+    // 3a. Fetch and sync Customers (FORCE SYNC - linked to newer invoices)
+    for (const customerId of customerIdsToSync) {
       try {
         const customer = await fetchBubbleRecordByTypeName('Customer_Profile', customerId);
-
-        // Check if record exists and compare timestamps
-        const existingRecord = await db.query.customers.findFirst({
-          where: eq(customers.customer_id, customerId)
-        });
-
-        const bubbleModifiedDate = new Date(customer["Modified Date"]);
-        const shouldUpdate = !existingRecord ||
-          !existingRecord.last_synced_at ||
-          bubbleModifiedDate > new Date(existingRecord.last_synced_at);
 
         const vals = {
           name: customer.Name || customer.name || "",
@@ -625,34 +632,23 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
           state: customer.State || customer.state || null,
           postcode: customer.Postcode || customer.postcode || null,
           ic_number: customer["IC Number"] || customer.ic_number || customer["IC No"] || null,
-          updated_at: bubbleModifiedDate,
+          updated_at: new Date(customer["Modified Date"]),
           last_synced_at: new Date()
         };
 
-        if (shouldUpdate) {
-          await db.insert(customers).values({ customer_id: customerId, ...vals })
-            .onConflictDoUpdate({ target: customers.customer_id, set: vals });
-        }
+        // FORCE UPSERT - Always update because parent invoice is newer
+        await db.insert(customers).values({ customer_id: customerId, ...vals })
+          .onConflictDoUpdate({ target: customers.customer_id, set: vals });
         results.syncedCustomers++;
       } catch (err) {
         results.errors.push(`Customer ${customerId}: ${err}`);
       }
     }
 
-    // 3b. Fetch and sync Agents
-    for (const agentId of agentIds) {
+    // 3b. Fetch and sync Agents (FORCE SYNC - linked to newer invoices)
+    for (const agentId of agentIdsToSync) {
       try {
         const agent = await fetchBubbleRecordByTypeName('agent', agentId);
-
-        // Check if record exists and compare timestamps
-        const existingRecord = await db.query.agents.findFirst({
-          where: eq(agents.bubble_id, agentId)
-        });
-
-        const bubbleModifiedDate = new Date(agent["Modified Date"]);
-        const shouldUpdate = !existingRecord ||
-          !existingRecord.last_synced_at ||
-          bubbleModifiedDate > new Date(existingRecord.last_synced_at);
 
         const vals = {
           name: agent.Name,
@@ -662,22 +658,21 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
           address: agent.Address,
           bankin_account: agent.bankin_account,
           banker: agent.banker,
-          updated_at: bubbleModifiedDate,
+          updated_at: new Date(agent["Modified Date"]),
           last_synced_at: new Date()
         };
 
-        if (shouldUpdate) {
-          await db.insert(agents).values({ bubble_id: agentId, ...vals })
-            .onConflictDoUpdate({ target: agents.bubble_id, set: vals });
-        }
+        // FORCE UPSERT - Always update because parent invoice is newer
+        await db.insert(agents).values({ bubble_id: agentId, ...vals })
+          .onConflictDoUpdate({ target: agents.bubble_id, set: vals });
         results.syncedAgents++;
       } catch (err) {
         results.errors.push(`Agent ${agentId}: ${err}`);
       }
     }
 
-    // 3c. Fetch and sync Users (linked to agents)
-    for (const agentId of agentIds) {
+    // 3c. Fetch and sync Users (FORCE SYNC - linked to newer invoices via agents)
+    for (const agentId of agentIdsToSync) {
       try {
         // Find user by querying for users with this agent profile
         const userConstraints = [{
@@ -688,16 +683,6 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
         const bubbleUsers = await fetchBubbleRecordsWithConstraints('user', userConstraints);
 
         for (const user of bubbleUsers) {
-          // Check if record exists and compare timestamps
-          const existingRecord = await db.query.users.findFirst({
-            where: eq(users.bubble_id, user._id)
-          });
-
-          const bubbleModifiedDate = new Date(user["Modified Date"]);
-          const shouldUpdate = !existingRecord ||
-            !existingRecord.last_synced_at ||
-            bubbleModifiedDate > new Date(existingRecord.last_synced_at);
-
           const vals = {
             email: user.authentication?.email?.email,
             linked_agent_profile: user["Linked Agent Profile"],
@@ -706,36 +691,24 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
             profile_picture: user["Profile Picture"],
             user_signed_up: user.user_signed_up,
             access_level: user["Access Level"] || [],
-            updated_at: bubbleModifiedDate,
+            updated_at: new Date(user["Modified Date"]),
             last_synced_at: new Date()
           };
 
-          if (shouldUpdate) {
-            await db.insert(users).values({ bubble_id: user._id, ...vals })
-              .onConflictDoUpdate({ target: users.bubble_id, set: vals });
-          }
+          // FORCE UPSERT - Always update because parent invoice is newer
+          await db.insert(users).values({ bubble_id: user._id, ...vals })
+            .onConflictDoUpdate({ target: users.bubble_id, set: vals });
           results.syncedUsers++;
-          userIds.add(user._id);
         }
       } catch (err) {
         results.errors.push(`User for agent ${agentId}: ${err}`);
       }
     }
 
-    // 3d. Fetch and sync Payments
-    for (const paymentId of paymentIds) {
+    // 3d. Fetch and sync Payments (FORCE SYNC - linked to newer invoices)
+    for (const paymentId of paymentIdsToSync) {
       try {
         const payment = await fetchBubbleRecordByTypeName('payment', paymentId);
-
-        // Check if record exists and compare timestamps
-        const existingRecord = await db.query.payments.findFirst({
-          where: eq(payments.bubble_id, paymentId)
-        });
-
-        const bubbleModifiedDate = new Date(payment["Modified Date"]);
-        const shouldUpdate = !existingRecord ||
-          !existingRecord.last_synced_at ||
-          bubbleModifiedDate > new Date(existingRecord.last_synced_at);
 
         const vals = {
           amount: payment.Amount?.toString(),
@@ -747,29 +720,18 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
           linked_invoice: payment["Linked Invoice"],
           created_by: payment["Created By"],
           created_date: payment["Created Date"] ? new Date(payment["Created Date"]) : null,
-          modified_date: bubbleModifiedDate,
+          modified_date: new Date(payment["Modified Date"]),
           last_synced_at: new Date()
         };
 
-        if (shouldUpdate) {
-          await db.insert(payments).values({ bubble_id: paymentId, ...vals })
-            .onConflictDoUpdate({ target: payments.bubble_id, set: vals });
-        }
+        // FORCE UPSERT - Always update because parent invoice is newer
+        await db.insert(payments).values({ bubble_id: paymentId, ...vals })
+          .onConflictDoUpdate({ target: payments.bubble_id, set: vals });
         results.syncedPayments++;
       } catch (err) {
         // Payment might be in submit_payment table instead
         try {
           const submittedPayment = await fetchBubbleRecordByTypeName('submit_payment', paymentId);
-
-          // Check if record exists and compare timestamps
-          const existingRecord = await db.query.submitted_payments.findFirst({
-            where: eq(submitted_payments.bubble_id, paymentId)
-          });
-
-          const bubbleModifiedDate = new Date(submittedPayment["Modified Date"]);
-          const shouldUpdate = !existingRecord ||
-            !existingRecord.last_synced_at ||
-            bubbleModifiedDate > new Date(existingRecord.last_synced_at);
 
           const vals = {
             amount: submittedPayment.Amount?.toString(),
@@ -781,15 +743,14 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
             linked_invoice: submittedPayment["Linked Invoice"],
             created_by: submittedPayment["Created By"],
             created_date: submittedPayment["Created Date"] ? new Date(submittedPayment["Created Date"]) : null,
-            modified_date: bubbleModifiedDate,
+            modified_date: new Date(submittedPayment["Modified Date"]),
             status: submittedPayment.Status || 'pending',
             last_synced_at: new Date()
           };
 
-          if (shouldUpdate) {
-            await db.insert(submitted_payments).values({ bubble_id: paymentId, ...vals })
-              .onConflictDoUpdate({ target: submitted_payments.bubble_id, set: vals });
-          }
+          // FORCE UPSERT - Always update because parent invoice is newer
+          await db.insert(submitted_payments).values({ bubble_id: paymentId, ...vals })
+            .onConflictDoUpdate({ target: submitted_payments.bubble_id, set: vals });
           results.syncedSubmittedPayments++;
         } catch (err2) {
           results.errors.push(`Payment ${paymentId} (tried both tables): ${err2}`);
@@ -797,20 +758,10 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
       }
     }
 
-    // 3e. Fetch and sync SEDA registrations
-    for (const sedaId of sedaIds) {
+    // 3e. Fetch and sync SEDA registrations (FORCE SYNC - linked to newer invoices)
+    for (const sedaId of sedaIdsToSync) {
       try {
         const seda = await fetchBubbleRecordByTypeName('seda_registration', sedaId);
-
-        // Check if record exists and compare timestamps
-        const existingRecord = await db.query.sedaRegistration.findFirst({
-          where: eq(sedaRegistration.bubble_id, sedaId)
-        });
-
-        const bubbleModifiedDate = new Date(seda["Modified Date"]);
-        const shouldUpdate = !existingRecord ||
-          !existingRecord.last_synced_at ||
-          bubbleModifiedDate > new Date(existingRecord.last_synced_at);
 
         const vals = {
           reg_status: seda["Reg Status"],
@@ -825,36 +776,32 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
           tnb_bill_1: seda["TNB Bill 1"],
           tnb_bill_2: seda["TNB Bill 2"],
           tnb_bill_3: seda["TNB Bill 3"],
-          updated_at: bubbleModifiedDate,
+          updated_at: new Date(seda["Modified Date"]),
           last_synced_at: new Date()
         };
 
-        if (shouldUpdate) {
-          await db.insert(sedaRegistration).values({ bubble_id: sedaId, ...vals })
-            .onConflictDoUpdate({ target: sedaRegistration.bubble_id, set: vals });
-        }
+        // FORCE UPSERT - Always update because parent invoice is newer
+        await db.insert(sedaRegistration).values({ bubble_id: sedaId, ...vals })
+          .onConflictDoUpdate({ target: sedaRegistration.bubble_id, set: vals });
         results.syncedSedas++;
       } catch (err) {
         results.errors.push(`SEDA ${sedaId}: ${err}`);
       }
     }
 
-    // Step 4: Sync the invoices themselves
+    // Step 4: Sync the invoices themselves (only if newer)
     logSyncActivity(`Step 4: Syncing invoices...`, 'INFO');
 
     for (const inv of bubbleInvoices) {
       try {
-        // Check if record exists and compare timestamps
-        const existingRecord = await db.query.invoices.findFirst({
-          where: eq(invoices.bubble_id, inv._id)
-        });
+        const isNewer = invoicesNeedingFullSync.get(inv._id);
+
+        if (!isNewer) {
+          // Skip if invoice is not newer (we already counted it in step 2)
+          continue;
+        }
 
         const bubbleModifiedDate = new Date(inv["Modified Date"]);
-        // For invoices, compare with updated_at since we don't have last_synced_at
-        const shouldUpdate = !existingRecord ||
-          !existingRecord.updated_at ||
-          bubbleModifiedDate > new Date(existingRecord.updated_at);
-
         const vals = {
           invoice_id: inv["Invoice ID"] || inv.invoice_id || null,
           invoice_number: inv["Invoice Number"] || inv.invoice_number || (inv["Invoice ID"] ? inv["Invoice ID"].toString() : null),
@@ -871,20 +818,24 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
           updated_at: bubbleModifiedDate,
         };
 
-        if (shouldUpdate) {
-          await db.insert(invoices).values({ bubble_id: inv._id, ...vals })
-            .onConflictDoUpdate({ target: invoices.bubble_id, set: vals });
-        }
+        // Always update because we confirmed invoice is newer in step 2
+        await db.insert(invoices).values({ bubble_id: inv._id, ...vals })
+          .onConflictDoUpdate({ target: invoices.bubble_id, set: vals });
         results.syncedInvoices++;
       } catch (err) {
         results.errors.push(`Invoice ${inv._id}: ${err}`);
       }
     }
 
-    // Step 5: Sync invoice items for each invoice
-    logSyncActivity(`Step 5: Syncing invoice items...`, 'INFO');
+    // Step 5: Sync invoice items (only for newer invoices - part of complete invoice data)
+    logSyncActivity(`Step 5: Syncing invoice items for newer invoices...`, 'INFO');
 
     for (const inv of bubbleInvoices) {
+      const isNewer = invoicesNeedingFullSync.get(inv._id);
+
+      // Only sync items for invoices that are newer (complete data package)
+      if (!isNewer) continue;
+
       try {
         // Fetch items for this invoice
         const itemConstraints = [{
@@ -905,6 +856,7 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
             sort_order: item["Sort Order"],
             created_at: new Date(item["Created Date"])
           };
+          // FORCE UPSERT - Part of complete invoice data package
           await db.insert(invoice_new_items).values({ bubble_id: item._id, ...vals })
             .onConflictDoUpdate({ target: invoice_new_items.bubble_id, set: vals });
           results.syncedItems++;
