@@ -147,7 +147,7 @@ export default function SedaListPage() {
               </span>
             )}
           </h1>
-          <p className="text-gray-600">Manage invoices needing SEDA approval (payment > 0%)</p>
+          <p className="text-gray-600">Manage invoices needing SEDA approval (payment &gt; 0%)</p>
         </div>
       </div>
 
