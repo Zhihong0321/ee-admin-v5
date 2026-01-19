@@ -1192,21 +1192,27 @@ export async function syncSedaRegistrations(dateFrom: string, dateTo?: string) {
 }
 
 /**
- * Fast ID-List Sync - Sync specific Invoice and SEDA IDs
+ * Optimized Fast ID-List Sync with Modified Dates
  *
- * Ultra-fast sync for specific IDs generated from Bubble ERP.
- * Instead of fetching all records and filtering by date,
- * this directly fetches only the IDs provided.
+ * Parses CSV format with type, id, modified_date columns.
+ * Checks PostgreSQL first - only fetches from Bubble if newer.
+ * This dramatically reduces API calls when most records are already up-to-date.
  *
- * @param invoiceIds - List of Invoice bubble_ids to sync (one per line or comma-separated)
- * @param sedaIds - List of SEDA bubble_ids to sync (one per line or comma-separated)
+ * CSV Format:
+ * type,id,modified_date
+ * invoice,1647839483923x8394832,2026-01-19T10:30:00Z
+ * seda,1647839483926x8394835,2026-01-19T09:15:00Z
+ *
+ * @param csvData - CSV string with type, id, modified_date columns
  */
-export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
-  logSyncActivity(`Fast ID-List Sync: ${invoiceIds.length} invoices, ${sedaIds.length} SEDAs`, 'INFO');
+export async function syncByIdList(csvData: string) {
+  logSyncActivity(`Optimized Fast ID-List Sync starting...`, 'INFO');
 
   const results = {
     syncedInvoices: 0,
     syncedSedas: 0,
+    skippedInvoices: 0,
+    skippedSedas: 0,
     syncedCustomers: 0,
     syncedAgents: 0,
     syncedUsers: 0,
@@ -1216,22 +1222,114 @@ export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
   };
 
   try {
+    // ============================================================================
+    // STEP 1: Parse CSV and Check Local Data
+    // ============================================================================
+    logSyncActivity(`Step 1: Parsing CSV and checking local data...`, 'INFO');
+
+    const lines = csvData.trim().split('\n');
+    const headerLine = lines[0].toLowerCase();
+
+    // Check if CSV has headers
+    const hasHeader = headerLine.includes('type') || headerLine.includes('id') || headerLine.includes('modified');
+    const startIndex = hasHeader ? 1 : 0;
+
+    interface RecordToSync {
+      type: 'invoice' | 'seda';
+      id: string;
+      modifiedDate: Date;
+    }
+
+    const recordsToSync: RecordToSync[] = [];
+    const invoiceIdsToFetch: string[] = [];
+    const sedaIdsToFetch: string[] = [];
+
+    for (let i = startIndex; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      // Parse CSV line (handle comma or tab separator)
+      const parts = line.split(/[,\\t]+/);
+      if (parts.length < 2) continue;
+
+      const type = parts[0].trim().toLowerCase();
+      const id = parts[1].trim();
+      const modifiedDateStr = parts[2]?.trim() || '';
+
+      if (type !== 'invoice' && type !== 'seda') continue;
+      if (!id) continue;
+
+      const modifiedDate = new Date(modifiedDateStr);
+      if (isNaN(modifiedDate.getTime())) {
+        logSyncActivity(`Invalid date for ${type} ${id}, skipping`, 'INFO');
+        continue;
+      }
+
+      recordsToSync.push({ type: type as 'invoice' | 'seda', id, modifiedDate });
+    }
+
+    logSyncActivity(`Parsed ${recordsToSync.length} records from CSV`, 'INFO');
+
+    // Check local data and decide which records to fetch
+    for (const record of recordsToSync) {
+      if (record.type === 'invoice') {
+        const existing = await db.query.invoices.findFirst({
+          where: eq(invoices.bubble_id, record.id)
+        });
+
+        // Fetch if: doesn't exist OR Bubble is newer
+        // Note: invoices table doesn't have last_synced_at, use updated_at instead
+        const shouldFetch = !existing ||
+          !existing.updated_at ||
+          record.modifiedDate > new Date(existing.updated_at);
+
+        if (shouldFetch) {
+          invoiceIdsToFetch.push(record.id);
+        } else {
+          results.skippedInvoices++;
+        }
+      } else if (record.type === 'seda') {
+        const existing = await db.query.sedaRegistration.findFirst({
+          where: eq(sedaRegistration.bubble_id, record.id)
+        });
+
+        const shouldFetch = !existing ||
+          !existing.last_synced_at ||
+          record.modifiedDate > new Date(existing.last_synced_at);
+
+        if (shouldFetch) {
+          sedaIdsToFetch.push(record.id);
+        } else {
+          results.skippedSedas++;
+        }
+      }
+    }
+
+    logSyncActivity(`After checking local data:`, 'INFO');
+    logSyncActivity(`  Invoices: ${invoiceIdsToFetch.length} to fetch, ${results.skippedInvoices} skipped`, 'INFO');
+    logSyncActivity(`  SEDAs: ${sedaIdsToFetch.length} to fetch, ${results.skippedSedas} skipped`, 'INFO');
+
+    if (invoiceIdsToFetch.length === 0 && sedaIdsToFetch.length === 0) {
+      logSyncActivity(`All records up-to-date! Nothing to sync.`, 'INFO');
+      return { success: true, results };
+    }
+
     // Track unique related IDs we need to fetch
     const customerIds = new Set<string>();
     const agentIds = new Set<string>();
     const paymentIds = new Set<string>();
 
     // ============================================================================
-    // STEP 1: Fetch and Sync Invoices by ID
+    // STEP 2: Fetch and Sync Invoices by ID (only newer ones)
     // ============================================================================
-    if (invoiceIds.length > 0) {
-      logSyncActivity(`Step 1: Syncing ${invoiceIds.length} invoices by ID...`, 'INFO');
+    if (invoiceIdsToFetch.length > 0) {
+      logSyncActivity(`Step 2: Fetching ${invoiceIdsToFetch.length} newer invoices from Bubble...`, 'INFO');
 
       // Fetch invoices in batches
       const batchSize = 100;
-      for (let i = 0; i < invoiceIds.length; i += batchSize) {
-        const batch = invoiceIds.slice(i, i + batchSize);
-        logSyncActivity(`Fetching invoice batch ${i / batchSize + 1}...`, 'INFO');
+      for (let i = 0; i < invoiceIdsToFetch.length; i += batchSize) {
+        const batch = invoiceIdsToFetch.slice(i, i + batchSize);
+        logSyncActivity(`Fetching invoice batch ${Math.floor(i / batchSize) + 1}...`, 'INFO');
 
         try {
           const batchInvoices = await Promise.all(
@@ -1248,6 +1346,7 @@ export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
               }
 
               // Upsert invoice
+              const bubbleModifiedDate = new Date(inv["Modified Date"]);
               const vals = {
                 invoice_id: inv["Invoice ID"] || inv.invoice_id || null,
                 invoice_number: inv["Invoice Number"] || inv.invoice_number || null,
@@ -1261,7 +1360,8 @@ export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
                 invoice_date: inv["Invoice Date"] ? new Date(inv["Invoice Date"]) : null,
                 created_at: inv["Created Date"] ? new Date(inv["Created Date"]) : new Date(),
                 created_by: inv["Created By"] || null,
-                updated_at: new Date(inv["Modified Date"]),
+                updated_at: bubbleModifiedDate,
+                last_synced_at: new Date()
               };
 
               await db.insert(invoices).values({ bubble_id: inv._id, ...vals })
@@ -1273,13 +1373,13 @@ export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
             }
           }
         } catch (err) {
-          logSyncActivity(`Error in invoice batch ${i / batchSize + 1}: ${err}`, 'ERROR');
+          logSyncActivity(`Error in invoice batch ${Math.floor(i / batchSize) + 1}: ${err}`, 'ERROR');
         }
       }
 
-      // Sync invoice items
+      // Sync invoice items for synced invoices
       logSyncActivity(`Syncing invoice items...`, 'INFO');
-      for (const invId of invoiceIds) {
+      for (const invId of invoiceIdsToFetch) {
         try {
           const itemConstraints = [{
             key: 'Invoice',
@@ -1310,16 +1410,16 @@ export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
     }
 
     // ============================================================================
-    // STEP 2: Fetch and Sync SEDAs by ID
+    // STEP 3: Fetch and Sync SEDAs by ID (only newer ones)
     // ============================================================================
-    if (sedaIds.length > 0) {
-      logSyncActivity(`Step 2: Syncing ${sedaIds.length} SEDAs by ID...`, 'INFO');
+    if (sedaIdsToFetch.length > 0) {
+      logSyncActivity(`Step 3: Fetching ${sedaIdsToFetch.length} newer SEDAs from Bubble...`, 'INFO');
 
       // Fetch SEDAs in batches
       const batchSize = 100;
-      for (let i = 0; i < sedaIds.length; i += batchSize) {
-        const batch = sedaIds.slice(i, i + batchSize);
-        logSyncActivity(`Fetching SEDA batch ${i / batchSize + 1}...`, 'INFO');
+      for (let i = 0; i < sedaIdsToFetch.length; i += batchSize) {
+        const batch = sedaIdsToFetch.slice(i, i + batchSize);
+        logSyncActivity(`Fetching SEDA batch ${Math.floor(i / batchSize) + 1}...`, 'INFO');
 
         try {
           const batchSedas = await Promise.all(
@@ -1331,6 +1431,7 @@ export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
               // Collect customer from SEDA
               if (seda["Linked Customer"]) customerIds.add(seda["Linked Customer"]);
 
+              const bubbleModifiedDate = new Date(seda["Modified Date"]);
               const vals = {
                 reg_status: seda["Reg Status"],
                 state: seda.State,
@@ -1353,8 +1454,8 @@ export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
                 drawing_pdf_system: seda["Drawing PDF System"],
                 drawing_system_actual: seda["Drawing System Actual"],
                 drawing_engineering_seda_pdf: seda["Drawing Engineering Seda PDF"],
-                modified_date: new Date(seda["Modified Date"]),
-                updated_at: new Date(seda["Modified Date"]),
+                modified_date: bubbleModifiedDate,
+                updated_at: bubbleModifiedDate,
                 last_synced_at: new Date()
               };
 
@@ -1367,15 +1468,15 @@ export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
             }
           }
         } catch (err) {
-          logSyncActivity(`Error in SEDA batch ${i / batchSize + 1}: ${err}`, 'ERROR');
+          logSyncActivity(`Error in SEDA batch ${Math.floor(i / batchSize) + 1}: ${err}`, 'ERROR');
         }
       }
     }
 
     // ============================================================================
-    // STEP 3: Sync Related Data (customers, agents, payments)
+    // STEP 4: Sync Related Data (customers, agents, payments)
     // ============================================================================
-    logSyncActivity(`Step 3: Syncing related data...`, 'INFO');
+    logSyncActivity(`Step 4: Syncing related data...`, 'INFO');
 
     // Customers
     for (const customerId of customerIds) {
@@ -1506,8 +1607,10 @@ export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
       }
     }
 
-    logSyncActivity(`Fast ID-List Sync Complete!`, 'INFO');
-    logSyncActivity(`Invoices: ${results.syncedInvoices}, SEDAs: ${results.syncedSedas}, Customers: ${results.syncedCustomers}, Agents: ${results.syncedAgents}, Payments: ${results.syncedPayments}, Items: ${results.syncedItems}`, 'INFO');
+    logSyncActivity(`Optimized Fast Sync Complete!`, 'INFO');
+    logSyncActivity(`Invoices: ${results.syncedInvoices} synced, ${results.skippedInvoices} skipped`, 'INFO');
+    logSyncActivity(`SEDAs: ${results.syncedSedas} synced, ${results.skippedSedas} skipped`, 'INFO');
+    logSyncActivity(`Related: ${results.syncedCustomers} customers, ${results.syncedAgents} agents, ${results.syncedPayments} payments, ${results.syncedItems} items`, 'INFO');
 
     if (results.errors.length > 0) {
       logSyncActivity(`Errors encountered: ${results.errors.length}`, 'ERROR');
@@ -1516,7 +1619,7 @@ export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
 
     return { success: true, results };
   } catch (error) {
-    logSyncActivity(`Fast ID-List Sync Error: ${String(error)}`, 'ERROR');
+    logSyncActivity(`Optimized Fast Sync Error: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
 }

@@ -859,36 +859,28 @@ export async function runSedaOnlySync(dateFrom: string, dateTo?: string) {
 }
 
 /**
- * Fast ID-List Sync
+ * Fast ID-List Sync (Optimized with CSV)
  *
- * Syncs specific Invoice and SEDA IDs provided as lists.
+ * Syncs specific Invoice and SEDA IDs from CSV with modified dates.
+ * Checks local data first - only fetches from Bubble if newer.
  * Ultra-fast alternative to date range sync.
+ *
+ * CSV Format:
+ * type,id,modified_date
+ * invoice,1647839483923x8394832,2026-01-19T10:30:00Z
+ * seda,1647839483926x8394835,2026-01-19T09:15:00Z
  */
-export async function runIdListSync(invoiceIdList: string, sedaIdList: string) {
-  logSyncActivity(`Fast ID-List Sync Triggered`, 'INFO');
+export async function runIdListSync(csvData: string) {
+  logSyncActivity(`Optimized Fast ID-List Sync Triggered`, 'INFO');
 
   try {
-    // Parse ID lists (handle newlines, commas, spaces)
-    const parseIds = (list: string): string[] => {
-      if (!list || list.trim() === '') return [];
-      return list
-        .split(/[\n,\s]+/)
-        .map(id => id.trim())
-        .filter(id => id.length > 0);
-    };
-
-    const invoiceIds = parseIds(invoiceIdList);
-    const sedaIds = parseIds(sedaIdList);
-
-    logSyncActivity(`Parsed: ${invoiceIds.length} invoice IDs, ${sedaIds.length} SEDA IDs`, 'INFO');
-
     const { syncByIdList } = await import('@/lib/bubble');
-    const result = await syncByIdList(invoiceIds, sedaIds);
+    const result = await syncByIdList(csvData);
 
     if (result.success) {
-      logSyncActivity(`Fast ID-List Sync SUCCESS!`, 'INFO');
+      logSyncActivity(`Optimized Fast ID-List Sync SUCCESS!`, 'INFO');
     } else {
-      logSyncActivity(`Fast ID-List Sync FAILED: ${result.error}`, 'ERROR');
+      logSyncActivity(`Optimized Fast ID-List Sync FAILED: ${result.error}`, 'ERROR');
     }
 
     revalidatePath("/sync");
@@ -897,7 +889,7 @@ export async function runIdListSync(invoiceIdList: string, sedaIdList: string) {
 
     return result;
   } catch (error) {
-    logSyncActivity(`Fast ID-List Sync CRASHED: ${String(error)}`, 'ERROR');
+    logSyncActivity(`Optimized Fast ID-List Sync CRASHED: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
 }

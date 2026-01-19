@@ -25,9 +25,8 @@ export default function SyncPage() {
   const [isSedaSyncing, setIsSedaSyncing] = useState(false);
   const [sedaSyncResults, setSedaSyncResults] = useState<any>(null);
 
-  // Fast ID-List Sync state
-  const [invoiceIdList, setInvoiceIdList] = useState("");
-  const [sedaIdList, setSedaIdList] = useState("");
+  // Fast ID-List Sync state (Optimized with CSV)
+  const [csvIdList, setCsvIdList] = useState("");
   const [isIdListSyncing, setIsIdListSyncing] = useState(false);
   const [idListSyncResults, setIdListSyncResults] = useState<any>(null);
   const [isUpdatingPercentages, setIsUpdatingPercentages] = useState(false);
@@ -354,22 +353,24 @@ export default function SyncPage() {
   };
 
   const handleIdListSync = async () => {
-    if (!invoiceIdList.trim() && !sedaIdList.trim()) {
-      alert("Please paste at least one ID list (Invoices or SEDAs)");
+    if (!csvIdList.trim()) {
+      alert("Please paste CSV data");
       return;
     }
 
-    const invoiceCount = invoiceIdList.trim() ? invoiceIdList.split(/[\n,\s]+/).filter(id => id.trim()).length : 0;
-    const sedaCount = sedaIdList.trim() ? sedaIdList.split(/[\n,\s]+/).filter(id => id.trim()).length : 0;
+    // Count records in CSV
+    const lines = csvIdList.trim().split('\n');
+    const hasHeader = lines[0].toLowerCase().includes('type') || lines[0].toLowerCase().includes('id');
+    const recordCount = hasHeader ? lines.length - 1 : lines.length;
 
-    const confirmMsg = `Sync ${invoiceCount} invoices and ${sedaCount} SEDAs?\n\nThis will:\n• Fetch only the specific IDs you pasted\n• Sync all related data (customers, agents, payments, items)\n• Much faster than full date range sync\n\nContinue?`;
+    const confirmMsg = `Sync ${recordCount} records from CSV?\n\nThis will:\n• Check local data first\n• Only fetch from Bubble if newer\n• Skip records that are already up-to-date\n• Sync all related data (customers, agents, payments, items)\n\nContinue?`;
 
     if (!confirm(confirmMsg)) return;
 
     setIsIdListSyncing(true);
     setIdListSyncResults(null);
     try {
-      const res = await runIdListSync(invoiceIdList, sedaIdList);
+      const res = await runIdListSync(csvIdList);
       setIdListSyncResults(res);
       await loadLogs();
     } catch (error) {
@@ -834,52 +835,41 @@ export default function SyncPage() {
         )}
       </div>
 
-      {/* Fast ID-List Sync Card */}
+      {/* Fast ID-List Sync Card (Optimized with CSV) */}
       <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl shadow-xl overflow-hidden">
         <div className="p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xl font-bold text-white">Fast ID-List Sync</h3>
-              <p className="text-emerald-200 text-sm">Ultra-fast sync for specific IDs from Bubble ERP</p>
+              <h3 className="text-xl font-bold text-white">Optimized ID-List Sync</h3>
+              <p className="text-emerald-200 text-sm">CSV with modified dates - checks local data first</p>
             </div>
             <Zap className="h-8 w-8 text-emerald-300" />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-emerald-200">Invoice IDs (one per line)</label>
-              <textarea
-                className="w-full h-32 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-white/50 placeholder-white/30"
-                placeholder="1647839483923x8394832&#10;1647839483924x8394833&#10;..."
-                value={invoiceIdList}
-                onChange={(e) => setInvoiceIdList(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-emerald-200">SEDA IDs (one per line)</label>
-              <textarea
-                className="w-full h-32 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-white/50 placeholder-white/30"
-                placeholder="1647839483925x8394834&#10;1647839483926x8394835&#10;..."
-                value={sedaIdList}
-                onChange={(e) => setSedaIdList(e.target.value)}
-              />
-            </div>
+          <div>
+            <label className="text-xs font-semibold text-emerald-200">Paste CSV from Bubble ERP</label>
+            <textarea
+              className="w-full h-40 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-white/50 placeholder-white/30"
+              placeholder="type,id,modified_date&#10;invoice,1647839483923x8394832,2026-01-19T10:30:00Z&#10;invoice,1647839483924x8394833,2026-01-19T11:45:00Z&#10;seda,1647839483926x8394835,2026-01-19T09:15:00Z&#10;..."
+              value={csvIdList}
+              onChange={(e) => setCsvIdList(e.target.value)}
+            />
           </div>
 
           <div className="flex items-center gap-2 p-3 bg-white/5 rounded-lg">
             <Activity className="h-4 w-4 text-emerald-300" />
             <p className="text-xs text-emerald-200">
-              Generate ID lists in Bubble ERP → Paste here → Sync only those records
+              Generate CSV in Bubble ERP → Paste here → Syncs only newer records
             </p>
           </div>
 
           <button
             onClick={handleIdListSync}
-            disabled={isIdListSyncing || (!invoiceIdList.trim() && !sedaIdList.trim())}
+            disabled={isIdListSyncing || !csvIdList.trim()}
             className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isIdListSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Zap className="h-5 w-5" />}
-            Fast Sync by ID List
+            Optimized Sync by CSV
           </button>
 
           {/* ID-List Sync Results */}
@@ -887,28 +877,28 @@ export default function SyncPage() {
             <div className="p-4 bg-white/5 rounded-xl space-y-3">
               <div className="flex items-center gap-2 text-green-300">
                 <CheckCircle2 className="h-5 w-5" />
-                <p className="font-bold">Fast Sync Complete!</p>
+                <p className="font-bold">Optimized Sync Complete!</p>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="text-center p-2 bg-white/5 rounded-lg">
                   <p className="text-xl font-bold text-white">{idListSyncResults.results?.syncedInvoices}</p>
-                  <p className="text-[9px] uppercase font-bold text-emerald-300">Invoices</p>
+                  <p className="text-[9px] uppercase font-bold text-emerald-300">Invoices Synced</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{idListSyncResults.results?.skippedInvoices}</p>
+                  <p className="text-[9px] uppercase font-bold text-emerald-300">Invoices Skipped</p>
                 </div>
                 <div className="text-center p-2 bg-white/5 rounded-lg">
                   <p className="text-xl font-bold text-white">{idListSyncResults.results?.syncedSedas}</p>
-                  <p className="text-[9px] uppercase font-bold text-emerald-300">SEDA</p>
+                  <p className="text-[9px] uppercase font-bold text-emerald-300">SEDA Synced</p>
                 </div>
                 <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{idListSyncResults.results?.syncedItems}</p>
-                  <p className="text-[9px] uppercase font-bold text-emerald-300">Items</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{idListSyncResults.results?.syncedPayments}</p>
-                  <p className="text-[9px] uppercase font-bold text-emerald-300">Payments</p>
+                  <p className="text-xl font-bold text-white">{idListSyncResults.results?.skippedSedas}</p>
+                  <p className="text-[9px] uppercase font-bold text-emerald-300">SEDA Skipped</p>
                 </div>
               </div>
-              <div className="text-xs text-emerald-200 text-center">
-                Also synced: {idListSyncResults.results?.syncedCustomers} customers, {idListSyncResults.results?.syncedAgents} agents
+              <div className="text-xs text-emerald-200 text-center pt-2 border-t border-white/10">
+                Also synced: {idListSyncResults.results?.syncedItems} items, {idListSyncResults.results?.syncedPayments} payments, {idListSyncResults.results?.syncedCustomers} customers, {idListSyncResults.results?.syncedAgents} agents
               </div>
               {idListSyncResults.results?.errors && idListSyncResults.results.errors.length > 0 && (
                 <div className="p-2 bg-red-500/20 rounded-lg text-red-300 text-xs font-mono">
@@ -931,9 +921,9 @@ export default function SyncPage() {
           <div className="p-4 bg-black/20 border-t border-white/5">
             <div className="flex items-center gap-3">
               <Loader2 className="h-5 w-5 animate-spin text-emerald-300" />
-              <p className="font-bold text-white">Fast syncing by ID list...</p>
+              <p className="font-bold text-white">Optimized sync running...</p>
             </div>
-            <p className="text-sm text-emerald-200 mt-1">Check logs below for progress</p>
+            <p className="text-sm text-emerald-200 mt-1">Checking local data & fetching only newer records</p>
           </div>
         )}
       </div>
