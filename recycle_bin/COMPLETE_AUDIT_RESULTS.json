@@ -1,0 +1,5848 @@
+{
+  "invoice": {
+    "tableKey": "invoice",
+    "postgres": "invoice",
+    "bubble": "invoice",
+    "pgColumns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('invoice_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bubble_id",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "visit",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "eligible_amount_description",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_seda_registration",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "normal_commission",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_agent",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "performance_tier_month",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "full_payment_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "modified_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "need_approval",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_package",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "locked_package",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_customer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "panel_qty",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "dealercode",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_agreement",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "performance_tier_year",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "invoice_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_payment_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "approval_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "1st_payment_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "commission_paid",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "paid",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "amount_eligible_for_comm",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "2nd_payment",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_payment",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "invoice_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "1st_payment",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "logs",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_stock_transaction",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "stamp_cash_price",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "stock_status_inv",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_invoice_item",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "perf_tier_commission",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "linked_agent_monthly_perf",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "how_you_win",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "stock_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_average_tnb",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "estimated_saving",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_roof_image",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "state",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_notification",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_follow_up",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "case_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "referrer_name",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_signature",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "signature_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "estimated_new_bill_amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "effective_epp",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "lead_source",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "strategic_va",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "hide_payment_terms",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "premium_electrical_job",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "panel_rating",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "custom_proposal",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "package_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "request_urgent_submission",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_voucher",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "approved_toberemove",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "user_manual_pdf",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_payment_plan",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_saving_report",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_lead_from_customer",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "achieved_monthly_anp",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "1st_payment__",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "2nd_payment__",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "stock_status__",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "invoice_number",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "is_latest",
+        "type": "boolean",
+        "nullable": true,
+        "default": "true",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "package_id",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "discount_percent",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "voucher_code",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "total_amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "paid_amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "balance_due",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "sent_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "viewed_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "paid_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_token",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_expires_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_enabled",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "package_name_snapshot",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "template_id",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "agent_markup",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_access_count",
+        "type": "integer",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "root_id",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "parent_id",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_notes",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "internal_notes",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "discount_fixed",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_old_invoice",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "migration_status",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_name_snapshot",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_email_snapshot",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_phone_snapshot",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_address_snapshot",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "bubbleFields": [
+      "Performance Tier Month",
+      "Stamp Cash Price",
+      "Performance Tier Year",
+      "Linked Stock Transaction",
+      "Modified Date",
+      "Created By",
+      "1st Payment Date",
+      "Percent of Total Amount",
+      "visit",
+      "Eligible Amount Description",
+      "Normal Commission",
+      "Linked Agreement",
+      "Amount Eligible for Comm",
+      "Version",
+      "_id",
+      "1st Payment %",
+      "Logs",
+      "Stock Status INV",
+      "Last Payment Date",
+      "Approval Status",
+      "Paid?",
+      "Invoice ID",
+      "Panel Qty",
+      "Type",
+      "2nd Payment %",
+      "Amount",
+      "Invoice Date",
+      "Created Date",
+      "Linked Package",
+      "Commission Paid?",
+      "Linked Agent",
+      "Linked Payment",
+      "Full Payment Date",
+      "Need Approval",
+      "Linked SEDA registration",
+      "Dealercode",
+      "Locked Package?",
+      "Linked Customer",
+      "Linked Invoice Item"
+    ],
+    "mappings": [
+      {
+        "bubbleField": "Performance Tier Month",
+        "pgColumn": "performance_tier_month",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Stamp Cash Price",
+        "pgColumn": "stamp_cash_price",
+        "pgType": "numeric",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Performance Tier Year",
+        "pgColumn": "performance_tier_year",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Stock Transaction",
+        "pgColumn": "linked_stock_transaction",
+        "pgType": "ARRAY",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Modified Date",
+        "pgColumn": "modified_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Created By",
+        "pgColumn": "created_by",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "1st Payment Date",
+        "pgColumn": "1st_payment_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "visit",
+        "pgColumn": "visit",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Eligible Amount Description",
+        "pgColumn": "eligible_amount_description",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Normal Commission",
+        "pgColumn": "normal_commission",
+        "pgType": "numeric",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Agreement",
+        "pgColumn": "linked_agreement",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Amount Eligible for Comm",
+        "pgColumn": "amount_eligible_for_comm",
+        "pgType": "numeric",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Version",
+        "pgColumn": "version",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "_id",
+        "pgColumn": "bubble_id",
+        "type": "primary_key"
+      },
+      {
+        "bubbleField": "1st Payment %",
+        "pgColumn": "1st_payment",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Logs",
+        "pgColumn": "logs",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Stock Status INV",
+        "pgColumn": "stock_status_inv",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Last Payment Date",
+        "pgColumn": "last_payment_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Approval Status",
+        "pgColumn": "approval_status",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Paid?",
+        "pgColumn": "paid",
+        "pgType": "boolean",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Invoice ID",
+        "pgColumn": "invoice_id",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Panel Qty",
+        "pgColumn": "panel_qty",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Type",
+        "pgColumn": "type",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "2nd Payment %",
+        "pgColumn": "2nd_payment",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Amount",
+        "pgColumn": "amount",
+        "pgType": "numeric",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Invoice Date",
+        "pgColumn": "invoice_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Created Date",
+        "pgColumn": "created_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Package",
+        "pgColumn": "linked_package",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Commission Paid?",
+        "pgColumn": "commission_paid",
+        "pgType": "boolean",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Agent",
+        "pgColumn": "linked_agent",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Payment",
+        "pgColumn": "linked_payment",
+        "pgType": "ARRAY",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Full Payment Date",
+        "pgColumn": "full_payment_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Need Approval",
+        "pgColumn": "need_approval",
+        "pgType": "boolean",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked SEDA registration",
+        "pgColumn": "linked_seda_registration",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Dealercode",
+        "pgColumn": "dealercode",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Locked Package?",
+        "pgColumn": "locked_package",
+        "pgType": "boolean",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Customer",
+        "pgColumn": "linked_customer",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Invoice Item",
+        "pgColumn": "linked_invoice_item",
+        "pgType": "ARRAY",
+        "confidence": "high"
+      }
+    ],
+    "unmappedBubble": [
+      "Percent of Total Amount"
+    ],
+    "unmappedPostgres": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('invoice_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "perf_tier_commission",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "linked_agent_monthly_perf",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "how_you_win",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "stock_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_average_tnb",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "estimated_saving",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_roof_image",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "state",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_notification",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_follow_up",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "case_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "referrer_name",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_signature",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "signature_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "estimated_new_bill_amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "effective_epp",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "lead_source",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "strategic_va",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "hide_payment_terms",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "premium_electrical_job",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "panel_rating",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "custom_proposal",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "package_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "request_urgent_submission",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_voucher",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "approved_toberemove",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "user_manual_pdf",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_payment_plan",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_saving_report",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_lead_from_customer",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "achieved_monthly_anp",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "1st_payment__",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "2nd_payment__",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "stock_status__",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "invoice_number",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "is_latest",
+        "type": "boolean",
+        "nullable": true,
+        "default": "true",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "package_id",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "discount_percent",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "voucher_code",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "total_amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "paid_amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "balance_due",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "sent_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "viewed_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "paid_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_token",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_expires_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_enabled",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "package_name_snapshot",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "template_id",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "agent_markup",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_access_count",
+        "type": "integer",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "root_id",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "parent_id",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_notes",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "internal_notes",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "discount_fixed",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_old_invoice",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "migration_status",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_name_snapshot",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_email_snapshot",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_phone_snapshot",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_address_snapshot",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "complete": true,
+    "coverage": 97.4
+  },
+  "customer": {
+    "tableKey": "customer",
+    "postgres": "customer",
+    "bubble": "Customer_Profile",
+    "pgColumns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('customer_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "customer_id",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "phone",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "address",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "city",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "state",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "postcode",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_number",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_seda_registration",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_old_customer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "nullable": true,
+        "default": "1",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "updated_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "bubbleFields": [
+      "Address",
+      "Contact",
+      "Modified Date",
+      "_id",
+      "Status",
+      "State",
+      "Linked Agent",
+      "Created Date",
+      "Created By",
+      "Name",
+      "Whatsapp"
+    ],
+    "mappings": [
+      {
+        "bubbleField": "Address",
+        "pgColumn": "address",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "State",
+        "pgColumn": "state",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Created By",
+        "pgColumn": "created_by",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Name",
+        "pgColumn": "name",
+        "pgType": "text",
+        "confidence": "high"
+      }
+    ],
+    "unmappedBubble": [
+      "Contact",
+      "Modified Date",
+      "Status",
+      "Linked Agent",
+      "Created Date",
+      "Whatsapp"
+    ],
+    "unmappedPostgres": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('customer_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "customer_id",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "phone",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "city",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "postcode",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_number",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_seda_registration",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_old_customer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "nullable": true,
+        "default": "1",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "updated_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "complete": true,
+    "coverage": 36.4
+  },
+  "agent": {
+    "tableKey": "agent",
+    "postgres": "agent",
+    "bubble": "agent",
+    "pgColumns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('agent_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bubble_id",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "modified_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_user_login",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "current_annual_sales",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "contact",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_update_annual_sales",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "slug",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "agent_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "commission",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "annual_collection",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "intro_youtube",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tree_seed",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "banker",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "bankin_account",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "introducer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_front",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_back",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "address",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "bubbleFields": [
+      "Linked User Login",
+      "Agent Type",
+      "Commission",
+      "TREE SEED",
+      "Created Date",
+      "Current Annual Sales",
+      "Contact",
+      "Slug",
+      "Annual Collection",
+      "Name",
+      "Intro Youtube",
+      "_id",
+      "Modified Date",
+      "Last Update Annual Sales"
+    ],
+    "mappings": [
+      {
+        "bubbleField": "Linked User Login",
+        "pgColumn": "linked_user_login",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Agent Type",
+        "pgColumn": "agent_type",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Commission",
+        "pgColumn": "commission",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "TREE SEED",
+        "pgColumn": "tree_seed",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Created Date",
+        "pgColumn": "created_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Current Annual Sales",
+        "pgColumn": "current_annual_sales",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Contact",
+        "pgColumn": "contact",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Slug",
+        "pgColumn": "slug",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Annual Collection",
+        "pgColumn": "annual_collection",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Name",
+        "pgColumn": "name",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Intro Youtube",
+        "pgColumn": "intro_youtube",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "_id",
+        "pgColumn": "bubble_id",
+        "type": "primary_key"
+      },
+      {
+        "bubbleField": "Modified Date",
+        "pgColumn": "modified_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Last Update Annual Sales",
+        "pgColumn": "last_update_annual_sales",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      }
+    ],
+    "unmappedBubble": [],
+    "unmappedPostgres": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('agent_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "banker",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "bankin_account",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "introducer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_front",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_back",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "address",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "complete": true,
+    "coverage": 100
+  },
+  "user": {
+    "tableKey": "user",
+    "postgres": "user",
+    "bubble": "user",
+    "pgColumns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('user_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bubble_id",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "check_in_report_today",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "dealership",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_agent_profile",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "authentication",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "access_level",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "user_signed_up",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "profile_picture",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "modified_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "agent_code",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "bubbleFields": [
+      "user_signed_up",
+      "authentication",
+      "Access Level",
+      "_id",
+      "Dealership",
+      "Profile Picture",
+      "Modified Date",
+      "check in report today",
+      "Linked Agent Profile",
+      "agent_code",
+      "Created Date"
+    ],
+    "mappings": [
+      {
+        "bubbleField": "user_signed_up",
+        "pgColumn": "user_signed_up",
+        "pgType": "boolean",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "authentication",
+        "pgColumn": "authentication",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Access Level",
+        "pgColumn": "access_level",
+        "pgType": "ARRAY",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "_id",
+        "pgColumn": "bubble_id",
+        "type": "primary_key"
+      },
+      {
+        "bubbleField": "Dealership",
+        "pgColumn": "dealership",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Profile Picture",
+        "pgColumn": "profile_picture",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Modified Date",
+        "pgColumn": "modified_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "check in report today",
+        "pgColumn": "check_in_report_today",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Agent Profile",
+        "pgColumn": "linked_agent_profile",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "agent_code",
+        "pgColumn": "agent_code",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Created Date",
+        "pgColumn": "created_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      }
+    ],
+    "unmappedBubble": [],
+    "unmappedPostgres": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('user_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "complete": true,
+    "coverage": 100
+  },
+  "payment": {
+    "tableKey": "payment",
+    "postgres": "payment",
+    "bubble": "payment",
+    "pgColumns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('payment_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bubble_id",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "payment_method",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "modified_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_agent",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "remark",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "payment_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_invoice",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_customer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "payment_index",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "attachment",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "verified_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "edit_history",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "issuer_bank",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "epp_month",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "payment_method_v2",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "terminal",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "bank_charges",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "epp_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "bubbleFields": [
+      "Remark",
+      "Payment Method",
+      "Modified Date",
+      "_id",
+      "Payment Date",
+      "Created Date",
+      "Created By",
+      "Linked Agent",
+      "Amount"
+    ],
+    "mappings": [
+      {
+        "bubbleField": "Remark",
+        "pgColumn": "remark",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Payment Method",
+        "pgColumn": "payment_method",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Modified Date",
+        "pgColumn": "modified_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "_id",
+        "pgColumn": "bubble_id",
+        "type": "primary_key"
+      },
+      {
+        "bubbleField": "Payment Date",
+        "pgColumn": "payment_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Created Date",
+        "pgColumn": "created_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Created By",
+        "pgColumn": "created_by",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Agent",
+        "pgColumn": "linked_agent",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Amount",
+        "pgColumn": "amount",
+        "pgType": "numeric",
+        "confidence": "high"
+      }
+    ],
+    "unmappedBubble": [],
+    "unmappedPostgres": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('payment_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_invoice",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_customer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "payment_index",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "attachment",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "verified_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "edit_history",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "issuer_bank",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "epp_month",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "payment_method_v2",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "terminal",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "bank_charges",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "epp_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "complete": true,
+    "coverage": 100
+  },
+  "submitted_payment": {
+    "tableKey": "submitted_payment",
+    "postgres": "submitted_payment",
+    "bubble": "submit_payment",
+    "pgColumns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('submitted_payment_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bubble_id",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "payment_method",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "modified_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_agent",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "remark",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "payment_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_invoice",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_customer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "payment_index",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "attachment",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "verified_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "edit_history",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "issuer_bank",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "epp_month",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "payment_method_v2",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "terminal",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "bank_charges",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "epp_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "nullable": true,
+        "default": "'pending'::character varying",
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "bubbleFields": [
+      "PAYMENT DATE",
+      "Issuer Bank",
+      "Modified Date",
+      "Created Date",
+      "Linked Installment",
+      "_id",
+      "Linked Agent",
+      "Created By",
+      "Linked Customer",
+      "Linked Invoice",
+      "Amount",
+      "Terminal",
+      "Attachment",
+      "Payment Method V2"
+    ],
+    "mappings": [
+      {
+        "bubbleField": "PAYMENT DATE",
+        "pgColumn": "payment_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Issuer Bank",
+        "pgColumn": "issuer_bank",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Modified Date",
+        "pgColumn": "modified_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Created Date",
+        "pgColumn": "created_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "_id",
+        "pgColumn": "bubble_id",
+        "type": "primary_key"
+      },
+      {
+        "bubbleField": "Linked Agent",
+        "pgColumn": "linked_agent",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Created By",
+        "pgColumn": "created_by",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Customer",
+        "pgColumn": "linked_customer",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Invoice",
+        "pgColumn": "linked_invoice",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Amount",
+        "pgColumn": "amount",
+        "pgType": "numeric",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Terminal",
+        "pgColumn": "terminal",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Attachment",
+        "pgColumn": "attachment",
+        "pgType": "ARRAY",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Payment Method V2",
+        "pgColumn": "payment_method_v2",
+        "pgType": "text",
+        "confidence": "high"
+      }
+    ],
+    "unmappedBubble": [
+      "Linked Installment"
+    ],
+    "unmappedPostgres": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('submitted_payment_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "payment_method",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "remark",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "payment_index",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "verified_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "edit_history",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "epp_month",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bank_charges",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "epp_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "nullable": true,
+        "default": "'pending'::character varying",
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "complete": true,
+    "coverage": 92.9
+  },
+  "seda_registration": {
+    "tableKey": "seda_registration",
+    "postgres": "seda_registration",
+    "bubble": "seda_registration",
+    "pgColumns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('seda_registration_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bubble_id",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "reg_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "drawing_system_submitted",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "modified_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "state",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "redex_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "roof_images",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "sunpeak_hours",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "system_size_in_form_kwp",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "agent",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "project_price",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "system_size",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "city",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_customer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "inverter_kwac",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "slug",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "estimated_monthly_saving",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "average_tnb",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "price_category",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "g_electric_folder_link",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "g_roof_folder_link",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "installation_address",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_invoice",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_signature",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_copy_back",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_copy_front",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_bill_3",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_bill_1",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_meter",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "e_contact_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_bill_2",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "drawing_pdf_system",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "e_contact_name",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "seda_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "nem_application_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "e_contact_relationship",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "request_drawing_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "phase_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "special_remark",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_account_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "nem_cert",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "property_ownership_prove",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "inverter_serial_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_meter_install_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_meter_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "first_completion_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "e_contact_mykad",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "mykad_pdf",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "nem_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "e_email",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "redex_remark",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "site_images",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "company_registration_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "drawing_system_actual",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "check_tnb_bill_and_meter_image",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "check_mykad",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "check_ownership",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "check_fill_in_detail",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "drawing_engineering_seda_pdf",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "postcode",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "bubbleFields": [
+      "System Size in FORM kWp",
+      "CITY",
+      "Created Date",
+      "Agent",
+      "Roof Images",
+      "Modified Date",
+      "_id",
+      "Project Price",
+      "System Size",
+      "STATE",
+      "Created By",
+      "Linked Customer",
+      "??SunPeak Hours",
+      "Drawing (SYSTEM) Submitted",
+      "Redex-Status",
+      "Reg Status"
+    ],
+    "mappings": [
+      {
+        "bubbleField": "System Size in FORM kWp",
+        "pgColumn": "system_size_in_form_kwp",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "CITY",
+        "pgColumn": "city",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Created Date",
+        "pgColumn": "created_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Agent",
+        "pgColumn": "agent",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Roof Images",
+        "pgColumn": "roof_images",
+        "pgType": "ARRAY",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Modified Date",
+        "pgColumn": "modified_date",
+        "pgType": "timestamp with time zone",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "_id",
+        "pgColumn": "bubble_id",
+        "type": "primary_key"
+      },
+      {
+        "bubbleField": "Project Price",
+        "pgColumn": "project_price",
+        "pgType": "numeric",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "System Size",
+        "pgColumn": "system_size",
+        "pgType": "integer",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "STATE",
+        "pgColumn": "state",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Created By",
+        "pgColumn": "created_by",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Linked Customer",
+        "pgColumn": "linked_customer",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "??SunPeak Hours",
+        "pgColumn": "sunpeak_hours",
+        "pgType": "numeric",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Drawing (SYSTEM) Submitted",
+        "pgColumn": "drawing_system_submitted",
+        "pgType": "boolean",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Redex-Status",
+        "pgColumn": "redex_status",
+        "pgType": "text",
+        "confidence": "high"
+      },
+      {
+        "bubbleField": "Reg Status",
+        "pgColumn": "reg_status",
+        "pgType": "text",
+        "confidence": "high"
+      }
+    ],
+    "unmappedBubble": [],
+    "unmappedPostgres": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('seda_registration_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "inverter_kwac",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "slug",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "estimated_monthly_saving",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "average_tnb",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "price_category",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "g_electric_folder_link",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "g_roof_folder_link",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "installation_address",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_invoice",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_signature",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "email",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_copy_back",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_copy_front",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_bill_3",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_bill_1",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_meter",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "e_contact_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_bill_2",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "drawing_pdf_system",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "e_contact_name",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "seda_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "nem_application_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "e_contact_relationship",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "ic_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "request_drawing_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "phase_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "special_remark",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_account_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "nem_cert",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "property_ownership_prove",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "inverter_serial_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_meter_install_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "tnb_meter_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "first_completion_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "e_contact_mykad",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "mykad_pdf",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "nem_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "e_email",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "redex_remark",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "site_images",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "company_registration_no",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "drawing_system_actual",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "check_tnb_bill_and_meter_image",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "check_mykad",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "check_ownership",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "check_fill_in_detail",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "drawing_engineering_seda_pdf",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "postcode",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "complete": true,
+    "coverage": 100
+  },
+  "invoice_item": {
+    "tableKey": "invoice_item",
+    "postgres": "invoice_item",
+    "bubble": null,
+    "pgColumns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('invoice_item_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bubble_id",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "modified_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "qty",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "unit_price",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "is_a_package",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "inv_item_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_package",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "epp",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "linked_invoice",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "sort",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "linked_voucher",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "voucher_remark",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "bubbleFields": [],
+    "mappings": [],
+    "unmappedBubble": [],
+    "unmappedPostgres": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('invoice_item_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bubble_id",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "modified_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "qty",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "unit_price",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "is_a_package",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "inv_item_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_package",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "epp",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "linked_invoice",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "sort",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "linked_voucher",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "voucher_remark",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "complete": false
+  },
+  "invoice_template": {
+    "tableKey": "invoice_template",
+    "postgres": "invoice_template",
+    "bubble": null,
+    "pgColumns": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('invoice_template_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bubble_id",
+        "type": "character varying",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "template_name",
+        "type": "character varying",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "company_name",
+        "type": "character varying",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "company_address",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "company_phone",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "company_email",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "sst_registration_no",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "bank_name",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "bank_account_no",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "bank_account_name",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "logo_url",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "terms_and_conditions",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "active",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "is_default",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_by",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "disclaimer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "apply_sst",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "bubbleFields": [],
+    "mappings": [],
+    "unmappedBubble": [],
+    "unmappedPostgres": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('invoice_template_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bubble_id",
+        "type": "character varying",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "template_name",
+        "type": "character varying",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "company_name",
+        "type": "character varying",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "company_address",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "company_phone",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "company_email",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "sst_registration_no",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "bank_name",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "bank_account_no",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "bank_account_name",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "logo_url",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "terms_and_conditions",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "active",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "is_default",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_by",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "disclaimer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "apply_sst",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "complete": false
+  }
+}

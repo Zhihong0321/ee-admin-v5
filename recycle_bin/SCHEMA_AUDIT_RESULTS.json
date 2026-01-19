@@ -1,0 +1,1394 @@
+{
+  "timestamp": "2026-01-19T11:16:09.255Z",
+  "postgres": {
+    "invoice_table": [
+      {
+        "name": "id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('invoice_id_seq'::regclass)",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "bubble_id",
+        "type": "text",
+        "nullable": false,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_synced_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": "now()",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "visit",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "eligible_amount_description",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_seda_registration",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "normal_commission",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_agent",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "performance_tier_month",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "full_payment_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "modified_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "need_approval",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_package",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "locked_package",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_customer",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "panel_qty",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "dealercode",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_agreement",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "performance_tier_year",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "invoice_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "last_payment_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "approval_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "1st_payment_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "commission_paid",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "paid",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "amount_eligible_for_comm",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "2nd_payment",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "created_by",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_payment",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "invoice_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "1st_payment",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "logs",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_stock_transaction",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "stamp_cash_price",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "created_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "stock_status_inv",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_invoice_item",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "perf_tier_commission",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "linked_agent_monthly_perf",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "how_you_win",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "stock_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_average_tnb",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "estimated_saving",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_roof_image",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "state",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_notification",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_follow_up",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "case_status",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "referrer_name",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_signature",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "signature_date",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "estimated_new_bill_amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "effective_epp",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "lead_source",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "strategic_va",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "hide_payment_terms",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "premium_electrical_job",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "panel_rating",
+        "type": "integer",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "custom_proposal",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "package_type",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "request_urgent_submission",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_voucher",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "approved_toberemove",
+        "type": "boolean",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "user_manual_pdf",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_payment_plan",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_saving_report",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_lead_from_customer",
+        "type": "ARRAY",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "achieved_monthly_anp",
+        "type": "numeric",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "1st_payment__",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "2nd_payment__",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "stock_status__",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "invoice_number",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "status",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "is_latest",
+        "type": "boolean",
+        "nullable": true,
+        "default": "true",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "package_id",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "discount_percent",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "voucher_code",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "total_amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "paid_amount",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "balance_due",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "sent_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "viewed_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "paid_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_token",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_expires_at",
+        "type": "timestamp with time zone",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_enabled",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "package_name_snapshot",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "template_id",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "agent_markup",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "share_access_count",
+        "type": "integer",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": 32,
+        "scale": 0
+      },
+      {
+        "name": "root_id",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "parent_id",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_notes",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "internal_notes",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "discount_fixed",
+        "type": "numeric",
+        "nullable": true,
+        "default": "0",
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "linked_old_invoice",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "migration_status",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_name_snapshot",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_email_snapshot",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 255,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_phone_snapshot",
+        "type": "character varying",
+        "nullable": true,
+        "default": null,
+        "maxLength": 50,
+        "precision": null,
+        "scale": null
+      },
+      {
+        "name": "customer_address_snapshot",
+        "type": "text",
+        "nullable": true,
+        "default": null,
+        "maxLength": null,
+        "precision": null,
+        "scale": null
+      }
+    ],
+    "invoice_item_table": {
+      "exists": true,
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('invoice_item_id_seq'::regclass)",
+          "maxLength": null,
+          "precision": 32,
+          "scale": 0
+        },
+        {
+          "name": "bubble_id",
+          "type": "text",
+          "nullable": false,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "last_synced_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": "now()",
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "modified_date",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "qty",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": 32,
+          "scale": 0
+        },
+        {
+          "name": "amount",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "unit_price",
+          "type": "numeric",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "created_by",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "created_date",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "is_a_package",
+          "type": "boolean",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "inv_item_type",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "linked_package",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "epp",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": 32,
+          "scale": 0
+        },
+        {
+          "name": "linked_invoice",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "sort",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": 32,
+          "scale": 0
+        },
+        {
+          "name": "linked_voucher",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "voucher_remark",
+          "type": "text",
+          "nullable": true,
+          "default": null,
+          "maxLength": null,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rowCount": 15961,
+      "sample": {
+        "id": 1,
+        "bubble_id": "1700904295630x105745080383176700",
+        "last_synced_at": "2025-09-12T06:18:12.379Z",
+        "created_at": "2025-09-12T06:18:12.379Z",
+        "updated_at": "2025-09-12T06:18:12.379Z",
+        "description": "20X Jinko\nTiger Neo N-type 72HL4-(V) TOPCon\nBi-Facial",
+        "modified_date": "2023-11-25T09:24:55.060Z",
+        "qty": 1,
+        "amount": "217022",
+        "unit_price": "217022",
+        "created_by": "1694840898359x952314974070402000",
+        "created_date": "2023-11-25T09:24:55.059Z",
+        "is_a_package": true,
+        "inv_item_type": null,
+        "linked_package": null,
+        "epp": null,
+        "linked_invoice": null,
+        "sort": null,
+        "linked_voucher": null,
+        "voucher_remark": null
+      }
+    }
+  },
+  "bubble": {
+    "sample_invoice": {
+      "Logs": "\nMark Paid Comm @ 4% of RM43200 by shuyee_216@hotmail.com, date : 5/22/24",
+      "Amount": 43200,
+      "Linked Invoice Item": [
+        "1709201440413x252997278305091600",
+        "1709201442624x156087094070738940"
+      ],
+      "Performance Tier Month": 12,
+      "Eligible Amount Description": "Stamped Package Cash Price : RM43250\nMarkup : \nDiscount/Adjustment : \nSPECIAL DISCOUNT, (RM-2861.25)\nVoucher Deductible :\n\nAdmin Adjustment :\n-----------------------\nFinal Eligible Amount : RM40388.75\nlast Update : Jan 7, 2025 6:03 am",
+      "Created By": "1695894230041x154962290574647280",
+      "Linked Customer": "1708327127141x614925258866556900",
+      "Linked SEDA registration": "1714626720125x743028445059743700",
+      "Stock Status INV": "New | Pending",
+      "Amount Eligible for Comm": 40388.75,
+      "Locked Package?": true,
+      "Performance Tier Year": 2024,
+      "Approval Status": "No Approval Needed",
+      "2nd Payment %": 65,
+      "Modified Date": "2025-11-06T02:39:28.959Z",
+      "Stamp Cash Price": 43250,
+      "Linked Agreement": "1728263024955x699704585671934000",
+      "1st Payment %": 5,
+      "_id": "1708327130811x106027240349761540",
+      "Paid?": true,
+      "Linked Package": "1703838599182x577289078879551500",
+      "Linked Payment": [
+        "1709034256426x511625793173979140",
+        "1709034355289x819674773345009700",
+        "1709563187508x675426879819481100"
+      ],
+      "Type": "PV CUSTOMER",
+      "Full Payment Date": "2024-03-03T16:00:00.000Z",
+      "Version": 4,
+      "Commission Paid?": true,
+      "Dealercode": "ETERNALGY",
+      "Panel Qty": 26,
+      "Normal Commission": 1817.49375,
+      "Invoice Date": "2024-03-04T14:38:27.880Z",
+      "Percent of Total Amount": 1,
+      "1st Payment Date": "2023-12-18T16:00:00.000Z",
+      "visit": 11,
+      "Linked Agent": "1694841837042x277767932428681200",
+      "Need Approval": false,
+      "Linked Stock Transaction": [
+        "1713153951572x751807099755036700",
+        "1713153959497x754298312481833000"
+      ],
+      "Invoice ID": 1000001,
+      "Created Date": "2024-02-19T07:18:47.091Z",
+      "Last Payment Date": "2024-03-03T16:00:00.000Z"
+    },
+    "all_fields": [
+      "1st Payment %",
+      "1st Payment Date",
+      "2nd Payment %",
+      "Amount",
+      "Amount Eligible for Comm",
+      "Approval Status",
+      "Commission Paid?",
+      "Created By",
+      "Created Date",
+      "Dealercode",
+      "Eligible Amount Description",
+      "Full Payment Date",
+      "Invoice Date",
+      "Invoice ID",
+      "Last Payment Date",
+      "Linked Agent",
+      "Linked Agreement",
+      "Linked Customer",
+      "Linked Invoice Item",
+      "Linked Package",
+      "Linked Payment",
+      "Linked SEDA registration",
+      "Linked Stock Transaction",
+      "Locked Package?",
+      "Logs",
+      "Modified Date",
+      "Need Approval",
+      "Normal Commission",
+      "Paid?",
+      "Panel Qty",
+      "Percent of Total Amount",
+      "Performance Tier Month",
+      "Performance Tier Year",
+      "Stamp Cash Price",
+      "Stock Status INV",
+      "Type",
+      "Version",
+      "_id",
+      "visit"
+    ]
+  },
+  "mapping": {
+    "missing_in_postgres": [
+      "1st Payment %",
+      "1st Payment Date",
+      "2nd Payment %",
+      "Amount Eligible for Comm",
+      "Approval Status",
+      "Commission Paid?",
+      "Dealercode",
+      "Eligible Amount Description",
+      "Full Payment Date",
+      "Last Payment Date",
+      "Linked Agreement",
+      "Linked Package",
+      "Linked SEDA registration",
+      "Linked Stock Transaction",
+      "Locked Package?",
+      "Logs",
+      "Need Approval",
+      "Normal Commission",
+      "Paid?",
+      "Panel Qty",
+      "Percent of Total Amount",
+      "Performance Tier Month",
+      "Performance Tier Year",
+      "Stamp Cash Price",
+      "Stock Status INV",
+      "Type",
+      "Version"
+    ],
+    "missing_in_bubble_mapping": [
+      "last_synced_at",
+      "visit",
+      "eligible_amount_description",
+      "normal_commission",
+      "performance_tier_month",
+      "full_payment_date",
+      "modified_date",
+      "need_approval",
+      "linked_package",
+      "locked_package",
+      "panel_qty",
+      "dealercode",
+      "linked_agreement",
+      "performance_tier_year",
+      "type",
+      "last_payment_date",
+      "approval_status",
+      "1st_payment_date",
+      "commission_paid",
+      "paid",
+      "version",
+      "amount_eligible_for_comm",
+      "2nd_payment",
+      "1st_payment",
+      "logs",
+      "linked_stock_transaction",
+      "stamp_cash_price",
+      "created_date",
+      "stock_status_inv",
+      "perf_tier_commission",
+      "linked_agent_monthly_perf",
+      "how_you_win",
+      "stock_status",
+      "customer_average_tnb",
+      "estimated_saving",
+      "linked_roof_image",
+      "description",
+      "state",
+      "linked_notification",
+      "linked_follow_up",
+      "case_status",
+      "referrer_name",
+      "customer_signature",
+      "signature_date",
+      "estimated_new_bill_amount",
+      "effective_epp",
+      "lead_source",
+      "strategic_va",
+      "hide_payment_terms",
+      "premium_electrical_job",
+      "panel_rating",
+      "custom_proposal",
+      "package_type",
+      "request_urgent_submission",
+      "linked_voucher",
+      "approved_toberemove",
+      "user_manual_pdf",
+      "linked_payment_plan",
+      "linked_saving_report",
+      "linked_lead_from_customer",
+      "achieved_monthly_anp",
+      "1st_payment__",
+      "2nd_payment__",
+      "stock_status__",
+      "package_id",
+      "discount_percent",
+      "voucher_code",
+      "paid_amount",
+      "balance_due",
+      "sent_at",
+      "viewed_at",
+      "paid_at",
+      "share_expires_at",
+      "share_enabled",
+      "package_name_snapshot",
+      "template_id",
+      "agent_markup",
+      "share_access_count",
+      "root_id",
+      "parent_id",
+      "customer_notes",
+      "internal_notes",
+      "discount_fixed",
+      "linked_old_invoice",
+      "migration_status",
+      "customer_name_snapshot",
+      "customer_email_snapshot",
+      "customer_phone_snapshot",
+      "customer_address_snapshot"
+    ]
+  }
+}
