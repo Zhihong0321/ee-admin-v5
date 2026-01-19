@@ -1324,3 +1324,36 @@ export async function patchSedaCustomerLinks() {
     return { success: false, error: String(error) };
   }
 }
+
+export async function syncInvoiceItemLinks(dateFrom?: string, dateTo?: string) {
+  logSyncActivity(`Starting DEDICATED Invoice Item Link Sync...`, 'INFO');
+  if (dateFrom) {
+    logSyncActivity(`Filter: invoices created ${dateFrom} to ${dateTo || 'present'}`, 'INFO');
+  }
+
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/sync/invoice-items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dateFrom, dateTo })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      logSyncActivity(`✓ Invoice Item Link Sync SUCCESS: ${result.results.updatedCount} invoices updated, ${result.results.totalItems} total items`, 'INFO');
+      logSyncActivity(`Avg items per invoice: ${result.results.avgItemsPerInvoice}, Duration: ${result.results.duration}s`, 'INFO');
+    } else {
+      logSyncActivity(`✗ Invoice Item Link Sync FAILED: ${result.error}`, 'ERROR');
+    }
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+
+    return result;
+  } catch (error) {
+    logSyncActivity(`Invoice Item Link Sync CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
+

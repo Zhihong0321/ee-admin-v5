@@ -6,7 +6,7 @@ import {
   UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
   Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag, Link, Globe
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, patchChineseFilenames, clearSyncLogs, runSedaOnlySync, runIdListSync } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, patchChineseFilenames, clearSyncLogs, runSedaOnlySync, runIdListSync, syncInvoiceItemLinks } from "./actions";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
@@ -29,6 +29,12 @@ export default function SyncPage() {
   const [csvIdList, setCsvIdList] = useState("");
   const [isIdListSyncing, setIsIdListSyncing] = useState(false);
   const [idListSyncResults, setIdListSyncResults] = useState<any>(null);
+
+  // Dedicated Invoice Item Sync state
+  const [itemSyncDateFrom, setItemSyncDateFrom] = useState("");
+  const [isItemSyncing, setIsItemSyncing] = useState(false);
+  const [itemSyncResults, setItemSyncResults] = useState<any>(null);
+
   const [isUpdatingPercentages, setIsUpdatingPercentages] = useState(false);
   const [isPatchingCreators, setIsPatchingCreators] = useState(false);
   const [isDeletingDemo, setIsDeletingDemo] = useState(false);
@@ -366,6 +372,26 @@ export default function SyncPage() {
       setSedaSyncResults({ success: false, error: String(error) });
     } finally {
       setIsSedaSyncing(false);
+    }
+  };
+
+  const handleInvoiceItemSync = async () => {
+    const confirmMsg = itemSyncDateFrom
+      ? `Link invoice items from invoice_item table to invoices (created ${itemSyncDateFrom} onwards)?\n\nThis will:\n• Populate invoice.linked_invoice_item with FK bubble_ids\n• From existing invoice_item records in Postgres\n• FAST - no Bubble API calls!\n\nContinue?`
+      : `Link ALL invoice items from invoice_item table to ALL invoices?\n\nThis will:\n• Populate invoice.linked_invoice_item with FK bubble_ids\n• From existing invoice_item records in Postgres\n• FAST - no Bubble API calls!\n\nContinue?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setIsItemSyncing(true);
+    setItemSyncResults(null);
+    try {
+      const res = await syncInvoiceItemLinks(itemSyncDateFrom || undefined);
+      setItemSyncResults(res);
+      await loadLogs();
+    } catch (error) {
+      setItemSyncResults({ success: false, error: String(error) });
+    } finally {
+      setIsItemSyncing(false);
     }
   };
 
@@ -764,6 +790,75 @@ export default function SyncPage() {
             <p className="text-sm text-blue-200 mt-2">This may take a few minutes. Please check the logs below for progress.</p>
           </div>
         )}
+      </div>
+
+      {/* Invoice Item Link Sync Card */}
+      <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl shadow-xl overflow-hidden">
+        <div className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-bold text-white">🔗 Invoice Item Link Sync</h3>
+              <p className="text-green-200 text-sm">Populates invoice.linked_invoice_item from existing invoice_item table (FAST - no Bubble API!)</p>
+            </div>
+            <Link className="h-8 w-8 text-green-300" />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-green-200">Created From (optional - leave empty for ALL invoices)</label>
+            <input
+              type="date"
+              className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+              value={itemSyncDateFrom}
+              onChange={(e) => setItemSyncDateFrom(e.target.value)}
+            />
+          </div>
+
+          <button
+            onClick={handleInvoiceItemSync}
+            disabled={isItemSyncing}
+            className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isItemSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Zap className="h-5 w-5" />}
+            Link Invoice Items Now
+          </button>
+
+          {/* Invoice Item Sync Results */}
+          {itemSyncResults && itemSyncResults.success && (
+            <div className="p-4 bg-white/5 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-green-300">
+                <CheckCircle2 className="h-5 w-5" />
+                <p className="font-bold">Link Complete!</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{itemSyncResults.results?.updatedCount}</p>
+                  <p className="text-[10px] uppercase font-bold text-green-300">Invoices Updated</p>
+                </div>
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{itemSyncResults.results?.totalItems}</p>
+                  <p className="text-[10px] uppercase font-bold text-green-300">Total Items</p>
+                </div>
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{itemSyncResults.results?.duration}s</p>
+                  <p className="text-[10px] uppercase font-bold text-green-300">Duration</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!itemSyncResults.success && itemSyncResults && (
+            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
+              {itemSyncResults.error}
+            </div>
+          )}
+
+          {isItemSyncing && (
+            <div className="p-3 bg-white/5 rounded-lg text-center">
+              <Loader2 className="h-5 w-5 animate-spin text-green-400 mx-auto mb-2" />
+              <p className="text-sm text-green-200">Linking invoice items... (Fast!)</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* SEDA-Only Sync Card */}
