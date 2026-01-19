@@ -490,7 +490,11 @@ async function fetchBubbleRecordsWithConstraints(typeName: string, constraints: 
       const res = await fetch(url, { headers });
 
       if (!res.ok) {
-        throw new Error(`Failed to fetch ${typeName}: ${res.statusText}`);
+        // Don't log 404 as error - it just means no records found
+        if (res.status !== 404) {
+          console.error(`Error fetching ${typeName} batch: ${res.statusText}`);
+        }
+        break;
       }
 
       const data = await res.json();
@@ -505,7 +509,10 @@ async function fetchBubbleRecordsWithConstraints(typeName: string, constraints: 
 
       cursor += records.length;
     } catch (err) {
-      console.error(`Error fetching ${typeName} batch:`, err);
+      // Only log unexpected errors, not 404s (no records found)
+      if (!String(err).includes('Not Found')) {
+        console.error(`Error fetching ${typeName} batch:`, err);
+      }
       break;
     }
   }
@@ -803,6 +810,11 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
         }];
         const bubbleUsers = await fetchBubbleRecordsWithConstraints('user', userConstraints);
 
+        // Skip if no users found for this agent (not an error, just no linked user)
+        if (!bubbleUsers || bubbleUsers.length === 0) {
+          continue;
+        }
+
         for (const user of bubbleUsers) {
           const vals = {
             email: user.authentication?.email?.email,
@@ -822,7 +834,10 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
           results.syncedUsers++;
         }
       } catch (err) {
-        results.errors.push(`User for agent ${agentId}: ${err}`);
+        // Only log real errors, not "not found" which is expected for agents without users
+        if (!String(err).includes('Not Found')) {
+          results.errors.push(`User for agent ${agentId}: ${err}`);
+        }
       }
     }
 
