@@ -185,13 +185,13 @@ export default function SedaListPage() {
         </div>
         <div className="card bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
           <div className="text-3xl font-bold text-orange-900">
-            {data.reduce((sum, g) => sum + g.invoices.filter(i => !i.seda_bubble_id).length, 0)}
+            {data.reduce((sum, g) => sum + g.invoices.filter(i => !i.linked_seda_registration).length, 0)}
           </div>
           <div className="text-sm text-orange-700 mt-1">Without SEDA</div>
         </div>
         <div className="card bg-gradient-to-br from-green-50 to-green-100 border-green-200">
           <div className="text-3xl font-bold text-green-900">
-            {data.reduce((sum, g) => sum + g.invoices.filter(i => i.seda_bubble_id).length, 0)}
+            {data.reduce((sum, g) => sum + g.invoices.filter(i => i.linked_seda_registration).length, 0)}
           </div>
           <div className="text-sm text-green-700 mt-1">With SEDA</div>
         </div>
@@ -293,7 +293,7 @@ export default function SedaListPage() {
                               </div>
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap">
-                              {invoice.seda_bubble_id ? (
+                              {invoice.linked_seda_registration ? (
                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                   {invoice.seda_status || "Not Set"}
                                 </span>
@@ -315,9 +315,9 @@ export default function SedaListPage() {
                                 >
                                   <Receipt className="h-4 w-4" />
                                 </a>
-                                {invoice.seda_bubble_id ? (
+                                {invoice.linked_seda_registration ? (
                                   <a
-                                    href={`/seda/${invoice.seda_bubble_id}`}
+                                    href={`/seda/${invoice.linked_seda_registration}`}
                                     className="text-primary-600 hover:text-primary-700 p-1 hover:bg-primary-50 rounded"
                                     title="View SEDA"
                                   >
