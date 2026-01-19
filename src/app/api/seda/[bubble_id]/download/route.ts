@@ -68,6 +68,9 @@ export async function GET(
     // Extract all file URLs with new names
     const files = extractAllFiles(seda, customerName);
 
+    console.log(`Found ${files.length} files for download`);
+    files.forEach(f => console.log(`  - ${f.newName}: ${f.url}`));
+
     if (files.length === 0) {
       return NextResponse.json(
         { error: "No documents found for this SEDA registration" },
@@ -77,16 +80,31 @@ export async function GET(
 
     // Create ZIP file
     const zip = new JSZip();
+    let successCount = 0;
+    let failCount = 0;
 
     // Add all files to ZIP
     for (const file of files) {
       try {
+        console.log(`Downloading: ${file.newName} from ${file.url}`);
         const fileBuffer = await downloadFile(file.url);
         zip.file(file.newName, fileBuffer);
+        successCount++;
+        console.log(`✓ Successfully added: ${file.newName} (${fileBuffer.length} bytes)`);
       } catch (error) {
-        console.error(`Failed to download file: ${file.url}`, error);
+        failCount++;
+        console.error(`✗ Failed to download file: ${file.url}`, error);
         // Continue with other files even if one fails
       }
+    }
+
+    console.log(`Download complete: ${successCount} succeeded, ${failCount} failed`);
+
+    if (successCount === 0) {
+      return NextResponse.json(
+        { error: "Failed to download any files. All files are missing or inaccessible." },
+        { status: 500 }
+      );
     }
 
     // Generate ZIP buffer

@@ -105,7 +105,11 @@ export function generateFileName(
  * Handles both local /api/files/ and external URLs
  */
 export async function downloadFile(url: string): Promise<Buffer> {
-  if (!url) throw new Error("Invalid URL");
+  if (!url || url.trim() === "") {
+    throw new Error("Invalid URL: URL is empty");
+  }
+
+  console.log(`[downloadFile] Attempting to download: ${url}`);
 
   // Handle local /api/files/ URLs
   if (url.startsWith("/api/files/") || url.startsWith("/storage/")) {
@@ -113,22 +117,34 @@ export async function downloadFile(url: string): Promise<Buffer> {
     const localPath = url.replace("/api/files/", "").replace("/storage/", "");
     const fullPath = path.join(process.cwd(), "storage", localPath);
 
+    console.log(`[downloadFile] Local file path: ${fullPath}`);
+
     // Check if file exists
     if (!fs.existsSync(fullPath)) {
       throw new Error(`File not found: ${fullPath}`);
     }
 
-    return fs.readFileSync(fullPath);
+    const buffer = fs.readFileSync(fullPath);
+    console.log(`[downloadFile] Successfully read local file: ${buffer.length} bytes`);
+    return buffer;
   }
 
   // Handle external URLs (Bubble.io, etc.)
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to download file: ${response.statusText}`);
-  }
+  try {
+    console.log(`[downloadFile] Fetching external URL: ${url}`);
+    const response = await fetch(url);
 
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    console.log(`[downloadFile] Successfully downloaded external file: ${buffer.length} bytes`);
+    return buffer;
+  } catch (error: any) {
+    throw new Error(`Failed to download external file: ${error.message}`);
+  }
 }
 
 /**
