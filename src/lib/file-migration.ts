@@ -70,7 +70,7 @@ const FILE_FIELDS_CONFIG: FileFieldConfig[] = [
       { fieldName: 'nem_cert', fieldType: 'single', subfolder: 'seda/certificates' },
       { fieldName: 'mykad_pdf', fieldType: 'single', subfolder: 'seda/mykad' },
       { fieldName: 'property_ownership_prove', fieldType: 'single', subfolder: 'seda/ownership' },
-      { fieldName: 'check_tnb_bill_and_meter_image', fieldType: 'single', subfolder: 'seda/checks' },
+      // Note: check_tnb_bill_and_meter_image is a boolean field, not a file URL
       { fieldName: 'roof_images', fieldType: 'array', subfolder: 'seda/roof_images' },
       { fieldName: 'site_images', fieldType: 'array', subfolder: 'seda/site_images' },
       { fieldName: 'drawing_pdf_system', fieldType: 'array', subfolder: 'seda/drawings' },
