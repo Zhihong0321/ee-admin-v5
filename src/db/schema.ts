@@ -52,41 +52,25 @@ export const invoices = pgTable('invoice', {
   bubble_id: text('bubble_id'),
   invoice_id: integer('invoice_id'),
   invoice_number: text('invoice_number'),
-  customer_id: integer('customer_id'),
-  agent_id: text('agent_id'),
   total_amount: numeric('total_amount'),
-  subtotal: numeric('subtotal'),
-  sst_rate: numeric('sst_rate'),
-  sst_amount: numeric('sst_amount'),
-  discount_amount: numeric('discount_amount'),
-  voucher_amount: numeric('voucher_amount'),
-  percent_of_total_amount: numeric('percent_of_total_amount'),
   invoice_date: timestamp('invoice_date', { withTimezone: true }),
-  due_date: timestamp('due_date', { withTimezone: true }),
   status: text('status'),
   is_latest: boolean('is_latest').default(true),
   share_token: text('share_token'),
-  
-  // Snapshots
-  customer_name_snapshot: text('customer_name_snapshot'),
-  customer_address_snapshot: text('customer_address_snapshot'),
-  customer_phone_snapshot: text('customer_phone_snapshot'),
-  customer_email_snapshot: text('customer_email_snapshot'),
-  agent_name_snapshot: text('agent_name_snapshot'),
-
-  // Linked records
-  linked_customer: text('linked_customer'),
-  linked_agent: text('linked_agent'), // This links to agents.bubble_id
-  linked_payment: text('linked_payment').array(), // ARRAY of payment bubble_ids
-  linked_seda_registration: text('linked_seda_registration'), // Links to SEDA registration
   linked_invoice_item: text('linked_invoice_item').array(), // ARRAY of invoice item bubble_ids
+
+  // Linked records (Bubble relationships)
+  linked_customer: text('linked_customer'), // Customer bubble_id
+  linked_agent: text('linked_agent'), // Agent bubble_id
+  linked_payment: text('linked_payment').array(), // ARRAY of payment bubble_ids
+  linked_seda_registration: text('linked_seda_registration'), // SEDA registration bubble_id
 
   // Legacy Columns (kept for backward compatibility)
   amount: numeric('amount'),
   dealercode: text('dealercode'),
   approval_status: text('approval_status'),
   case_status: text('case_status'),
-  
+
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }),
   updated_at: timestamp('updated_at', { withTimezone: true }),

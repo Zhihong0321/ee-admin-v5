@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, agents, users, invoice_new_items, invoice_templates, customers } from "@/db/schema";
+import { invoices, agents, users, invoice_templates, customers } from "@/db/schema";
 import { ilike, or, sql, desc, eq, and } from "drizzle-orm";
 import { getInvoiceHtml } from "@/lib/invoice-renderer";
 import { revalidatePath } from "next/cache";
@@ -46,28 +46,28 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
     } else {
       // v2 - Modern Invoices (Consolidated)
       const data = await db.execute(sql`
-        SELECT 
-          i.id, 
-          i.invoice_number, 
-          i.total_amount, 
-          i.invoice_date, 
-          i.customer_name_snapshot,
-          COALESCE(a1.name, i.agent_name_snapshot) as agent_name,
-          i.percent_of_total_amount
+        SELECT
+          i.id,
+          i.invoice_number,
+          i.total_amount,
+          i.invoice_date,
+          c.name as customer_name,
+          COALESCE(a.name, i.linked_agent) as agent_name
         FROM invoice i
-        LEFT JOIN agent a1 ON i.agent_id = a1.bubble_id
+        LEFT JOIN customer c ON c.customer_id = i.linked_customer
+        LEFT JOIN agent a ON a.bubble_id = i.linked_agent
         WHERE i.is_latest = true
-        ${search ? sql`AND (i.customer_name_snapshot ILIKE ${`%${search}%`} OR i.invoice_number ILIKE ${`%${search}%`} OR a1.name ILIKE ${`%${search}%`} OR i.agent_name_snapshot ILIKE ${`%${search}%`})` : sql``}
+        ${search ? sql`AND (c.name ILIKE ${`%${search}%`} OR i.invoice_number ILIKE ${`%${search}%`} OR a.name ILIKE ${`%${search}%`})` : sql``}
         ORDER BY i.created_at DESC
         LIMIT 50
       `);
-      
+
       const processedData = data.rows.map((row: any) => ({
         id: row.id,
         invoice_number: row.invoice_number,
         total_amount: row.total_amount,
         invoice_date: row.invoice_date,
-        customer_name_snapshot: row.customer_name_snapshot,
+        customer_name_snapshot: row.customer_name || "N/A",
         agent_name: row.agent_name || "N/A"
       }));
 
@@ -90,10 +90,7 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
     if (!invoice) return null;
 
     if (version === "v2" || invoice.invoice_number) {
-      const items = await db.query.invoice_new_items.findMany({
-        where: eq(invoice_new_items.invoice_id, invoice.bubble_id as string),
-        orderBy: [desc(invoice_new_items.sort_order)],
-      });
+      const items: any[] = [];
 
       const template = await db.query.invoice_templates.findFirst({
         where: invoice.template_id 
@@ -194,106 +191,6 @@ export async function generateInvoicePdf(id: number, version: "v1" | "v2") {
   } catch (error) {
     console.error("Failed to generate PDF:", error);
     throw error;
-  }
-}
-
-/**
- * Backfills customer_name_snapshot and agent_name_snapshot for existing invoices
- * IMPORTANT: This ONLY works for invoices with ERP V2 format linked_customer (cust_xxxx)
- * Old invoices with Bubble format UIDs (123192380482982x123892138901238) won't match
- * because customers table only has ERP V2 format UIDs.
- * For old invoices, re-sync from Bubble will fix customer names.
- */
-export async function backfillInvoiceNames() {
-  console.log("Starting backfill of invoice names...");
-
-  try {
-    const allInvoices = await db.select({
-      id: invoices.id,
-      bubble_id: invoices.bubble_id,
-      invoice_number: invoices.invoice_number,
-      linked_customer: invoices.linked_customer,
-      linked_agent: invoices.linked_agent,
-      customer_name_snapshot: invoices.customer_name_snapshot,
-      agent_name_snapshot: invoices.agent_name_snapshot
-    }).from(invoices);
-
-    console.log(`Found ${allInvoices.length} invoices to check`);
-
-    let updatedCount = 0;
-    let customerMissingCount = 0;
-    let customerFormatMismatchCount = 0;
-    let agentMissingCount = 0;
-
-    for (const invoice of allInvoices) {
-      const updates: any = {};
-
-      if (!invoice.customer_name_snapshot || invoice.customer_name_snapshot.trim() === '') {
-        if (invoice.linked_customer) {
-          if (invoice.linked_customer.startsWith('cust_')) {
-            const customer = await db.query.customers.findFirst({
-              where: eq(customers.customer_id, invoice.linked_customer)
-            });
-
-            if (customer && customer.name) {
-              updates.customer_name_snapshot = customer.name;
-              console.log(`Invoice ${invoice.invoice_number || invoice.id}: Found customer "${customer.name}"`);
-            } else {
-              customerMissingCount++;
-            }
-          } else {
-            customerFormatMismatchCount++;
-            console.log(`Invoice ${invoice.invoice_number || invoice.id}: Bubble format customer_id, skipping`);
-          }
-        } else {
-          customerMissingCount++;
-        }
-      }
-
-      if (!invoice.agent_name_snapshot || invoice.agent_name_snapshot.trim() === '') {
-        if (invoice.linked_agent) {
-          const agent = await db.query.agents.findFirst({
-            where: eq(agents.bubble_id, invoice.linked_agent)
-          });
-
-          if (agent && agent.name) {
-            updates.agent_name_snapshot = agent.name;
-            console.log(`Invoice ${invoice.invoice_number || invoice.id}: Found agent "${agent.name}"`);
-          } else {
-            agentMissingCount++;
-          }
-        } else {
-          agentMissingCount++;
-        }
-      }
-
-      if (Object.keys(updates).length > 0) {
-        await db.update(invoices)
-          .set(updates)
-          .where(eq(invoices.id, invoice.id));
-        updatedCount++;
-      }
-    }
-
-    console.log("Backfill complete:", {
-      updated: updatedCount,
-      missingCustomers: customerMissingCount,
-      formatMismatchBubble: customerFormatMismatchCount,
-      missingAgents: agentMissingCount
-    });
-
-    revalidatePath("/invoices");
-    return {
-      success: true,
-      updated: updatedCount,
-      missingCustomers: customerMissingCount,
-      formatMismatchBubble: customerFormatMismatchCount,
-      missingAgents: agentMissingCount,
-      message: `${updatedCount} invoices updated. ${customerFormatMismatchCount} invoices have Bubble format UIDs and need re-sync from Bubble.`
-    };
-  } catch (error) {
-    console.error("Error during backfill:", error);
-    return { success: false, error: String(error) };
   }
 }
 
