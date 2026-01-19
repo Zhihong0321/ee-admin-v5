@@ -314,6 +314,30 @@ export const submitted_payments = pgTable('submitted_payment', {
   edit_history: text('edit_history'),
 });
 
+// Invoice Items Table (CRITICAL: Was missing from schema!)
+export const invoice_items = pgTable('invoice_item', {
+  id: serial('id').primaryKey(),
+  bubble_id: text('bubble_id').notNull(),
+  last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  description: text('description'),
+  modified_date: timestamp('modified_date', { withTimezone: true }),
+  qty: integer('qty'),
+  amount: numeric('amount'),
+  unit_price: numeric('unit_price'),
+  created_by: text('created_by'),
+  created_date: timestamp('created_date', { withTimezone: true }),
+  is_a_package: boolean('is_a_package'),
+  inv_item_type: text('inv_item_type'),
+  linked_package: text('linked_package'),
+  epp: integer('epp'),
+  linked_invoice: text('linked_invoice'),
+  sort: integer('sort'),
+  linked_voucher: text('linked_voucher'),
+  voucher_remark: text('voucher_remark'),
+});
+
 // Schema Descriptions Table - for storing column descriptions for documentation
 export const schema_descriptions = pgTable('schema_descriptions', {
   id: serial('id').primaryKey(),

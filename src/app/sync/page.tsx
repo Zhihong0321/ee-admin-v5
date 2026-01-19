@@ -6,7 +6,7 @@ import {
   UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
   Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag, Link, Globe
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, patchChineseFilenames, clearSyncLogs, runSedaOnlySync, runIdListSync, syncInvoiceItemLinks } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, patchChineseFilenames, clearSyncLogs, runSedaOnlySync, runIdListSync, syncInvoiceItemLinks, runIntegritySync, runIntegrityBatchSync } from "./actions";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
@@ -35,6 +35,17 @@ export default function SyncPage() {
   const [isItemSyncing, setIsItemSyncing] = useState(false);
   const [itemSyncResults, setItemSyncResults] = useState<any>(null);
 
+  // Integrity Sync state
+  const [integrityInvoiceId, setIntegrityInvoiceId] = useState("");
+  const [isIntegritySyncing, setIsIntegritySyncing] = useState(false);
+  const [integritySyncResults, setIntegritySyncResults] = useState<any>(null);
+
+  // Integrity Batch Sync state
+  const [integrityBatchDateFrom, setIntegrityBatchDateFrom] = useState("");
+  const [integrityBatchDateTo, setIntegrityBatchDateTo] = useState("");
+  const [isIntegrityBatchSyncing, setIsIntegrityBatchSyncing] = useState(false);
+  const [integrityBatchResults, setIntegrityBatchResults] = useState<any>(null);
+
   const [isUpdatingPercentages, setIsUpdatingPercentages] = useState(false);
   const [isPatchingCreators, setIsPatchingCreators] = useState(false);
   const [isDeletingDemo, setIsDeletingDemo] = useState(false);
@@ -62,6 +73,13 @@ export default function SyncPage() {
   const [migrationDateFilter, setMigrationDateFilter] = useState<string>(''); // Date filter for migration
 
   const loadLogs = async () => {
+    // Check if auth token exists before making server action call
+    const hasAuthToken = document.cookie.includes('auth_token=');
+    if (!hasAuthToken) {
+      console.log('[loadLogs] No auth token found, skipping fetch');
+      return;
+    }
+
     console.log('[loadLogs] Fetching logs...');
     try {
       const latestLogs = await fetchSyncLogs();
@@ -69,7 +87,13 @@ export default function SyncPage() {
       setLogs(latestLogs);
     } catch (error) {
       console.error('[loadLogs] Failed:', error);
-      setLogs([`Error loading logs: ${String(error)}`]);
+      // Don't set error state on auth failures - this is expected during redirect
+      const errorMsg = String(error);
+      if (errorMsg.includes('fetch') || errorMsg.includes('Failed to fetch')) {
+        console.log('[loadLogs] Auth redirect in progress, will retry after auth');
+        return;
+      }
+      setLogs([`Error loading logs: ${errorMsg}`]);
     }
   };
 
@@ -420,6 +444,54 @@ export default function SyncPage() {
       setIdListSyncResults({ success: false, error: String(error) });
     } finally {
       setIsIdListSyncing(false);
+    }
+  };
+
+  const handleIntegritySync = async () => {
+    if (!integrityInvoiceId.trim()) {
+      alert("Please enter an Invoice Bubble ID");
+      return;
+    }
+
+    const confirmMsg = `Run INTEGRITY SYNC for invoice ${integrityInvoiceId}?\n\nThis will:\n• Sync invoice with ALL dependencies (agent, customer, user, payments, items, SEDA)\n• Use complete field mappings (zero data loss)\n• Respect dependency order\n• Provide detailed progress tracking\n\nThis is the NEW integrity-first sync method.\n\nContinue?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setIsIntegritySyncing(true);
+    setIntegritySyncResults(null);
+    try {
+      const res = await runIntegritySync(integrityInvoiceId.trim(), { force: true });
+      setIntegritySyncResults(res);
+      await loadLogs();
+    } catch (error) {
+      setIntegritySyncResults({ success: false, error: String(error) });
+    } finally {
+      setIsIntegritySyncing(false);
+    }
+  };
+
+  const handleIntegrityBatchSync = async () => {
+    if (!integrityBatchDateFrom) {
+      alert("Please select a 'From' date for the sync range");
+      return;
+    }
+
+    const confirmMsg = integrityBatchDateTo
+      ? `Run INTEGRITY BATCH SYNC from ${integrityBatchDateFrom} to ${integrityBatchDateTo}?\n\nThis will:\n• Sync ALL invoices in date range with complete dependencies\n• Use NEW integrity-first method (zero data loss)\n• Skip up-to-date invoices automatically\n• Provide detailed progress tracking\n\nContinue?`
+      : `Run INTEGRITY BATCH SYNC from ${integrityBatchDateFrom} to current date?\n\nThis will:\n• Sync ALL invoices in date range with complete dependencies\n• Use NEW integrity-first method (zero data loss)\n• Skip up-to-date invoices automatically\n• Provide detailed progress tracking\n\nContinue?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setIsIntegrityBatchSyncing(true);
+    setIntegrityBatchResults(null);
+    try {
+      const res = await runIntegrityBatchSync(integrityBatchDateFrom, integrityBatchDateTo || undefined);
+      setIntegrityBatchResults(res);
+      await loadLogs();
+    } catch (error) {
+      setIntegrityBatchResults({ success: false, error: String(error) });
+    } finally {
+      setIsIntegrityBatchSyncing(false);
     }
   };
 
@@ -1040,6 +1112,199 @@ export default function SyncPage() {
             <p className="text-sm text-emerald-200 mt-1">Checking local data & fetching only newer records</p>
           </div>
         )}
+      </div>
+
+      {/* INTEGRITY SYNC SECTION - NEW! */}
+      <div className="card overflow-hidden bg-gradient-to-br from-amber-600 via-yellow-600 to-amber-700 text-white shadow-elevation-lg">
+        <div className="p-6 border-b border-white/10">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-md">
+              <ShieldCheck className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold">🛡️ INTEGRITY SYNC (NEW!)</h3>
+              <p className="text-amber-100 text-sm font-semibold">Zero Data Loss • Complete Field Mappings • Dependency-Aware</p>
+            </div>
+          </div>
+          <p className="text-amber-200 text-xs mt-2">
+            This is the NEW integrity-first sync method that solves data loss issues. Use for critical invoices or testing.
+          </p>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Single Invoice Integrity Sync */}
+          <div className="space-y-3">
+            <h4 className="font-bold text-amber-100 flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Test Single Invoice
+            </h4>
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                type="text"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/50"
+                placeholder="Enter Invoice Bubble ID (e.g., 1708327130811x106027240349761540)"
+                value={integrityInvoiceId}
+                onChange={(e) => setIntegrityInvoiceId(e.target.value)}
+                disabled={isIntegritySyncing}
+              />
+              <button
+                onClick={handleIntegritySync}
+                disabled={isIntegritySyncing || !integrityInvoiceId.trim()}
+                className="w-full py-3 bg-white/20 hover:bg-white/30 border border-white/30 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isIntegritySyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+                Run Integrity Sync
+              </button>
+            </div>
+          </div>
+
+          {/* Integrity Sync Results */}
+          {integritySyncResults?.success && (
+            <div className="p-4 bg-white/5 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-green-300">
+                <CheckCircle2 className="h-5 w-5" />
+                <p className="font-bold">Integrity Sync Complete!</p>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-xs">
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.agent || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Agent</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.customer || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Customer</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.user || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">User</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.payments || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Payments</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.invoice_items || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Items</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.seda || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">SEDA</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.invoice || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Invoice</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integritySyncResults.errors?.length || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Errors</p>
+                </div>
+              </div>
+              {integritySyncResults.errors && integritySyncResults.errors.length > 0 && (
+                <div className="p-2 bg-red-500/20 rounded-lg text-red-300 text-xs font-mono">
+                  {integritySyncResults.errors.length} error(s) - check logs
+                </div>
+              )}
+            </div>
+          )}
+
+          {integritySyncResults && !integritySyncResults.success && integritySyncResults.error && (
+            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
+              {integritySyncResults.error}
+            </div>
+          )}
+
+          {/* Batch Sync */}
+          <div className="pt-4 border-t border-white/10 space-y-3">
+            <h4 className="font-bold text-amber-100 flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Batch Sync by Date Range
+            </h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-amber-200">From Date *</label>
+                <input
+                  type="date"
+                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+                  value={integrityBatchDateFrom}
+                  onChange={(e) => setIntegrityBatchDateFrom(e.target.value)}
+                  disabled={isIntegrityBatchSyncing}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-amber-200">To Date (optional)</label>
+                <input
+                  type="date"
+                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+                  value={integrityBatchDateTo}
+                  onChange={(e) => setIntegrityBatchDateTo(e.target.value)}
+                  disabled={isIntegrityBatchSyncing}
+                />
+              </div>
+            </div>
+            <button
+              onClick={handleIntegrityBatchSync}
+              disabled={isIntegrityBatchSyncing || !integrityBatchDateFrom}
+              className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isIntegrityBatchSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
+              Run Batch Integrity Sync
+            </button>
+          </div>
+
+          {/* Batch Results */}
+          {integrityBatchResults?.success && (
+            <div className="p-4 bg-white/5 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-green-300">
+                <CheckCircle2 className="h-5 w-5" />
+                <p className="font-bold">Batch Sync Complete!</p>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-xs">
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integrityBatchResults.results?.total || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Total</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integrityBatchResults.results?.synced || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Synced</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integrityBatchResults.results?.skipped || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Skipped</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integrityBatchResults.results?.failed || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Failed</p>
+                </div>
+              </div>
+              {integrityBatchResults.results?.errors && integrityBatchResults.results.errors.length > 0 && (
+                <div className="p-2 bg-red-500/20 rounded-lg text-red-300 text-xs font-mono">
+                  {integrityBatchResults.results.errors.length} error(s) - check logs
+                </div>
+              )}
+            </div>
+          )}
+
+          {integrityBatchResults && !integrityBatchResults.success && integrityBatchResults.error && (
+            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
+              {integrityBatchResults.error}
+            </div>
+          )}
+
+          {/* Progress Indicators */}
+          {isIntegritySyncing && (
+            <div className="p-3 bg-white/5 rounded-lg text-center">
+              <Loader2 className="h-5 w-5 animate-spin text-amber-300 mx-auto mb-2" />
+              <p className="text-sm text-amber-200">Running integrity sync... (check logs below for progress)</p>
+            </div>
+          )}
+
+          {isIntegrityBatchSyncing && (
+            <div className="p-3 bg-white/5 rounded-lg text-center">
+              <Loader2 className="h-5 w-5 animate-spin text-amber-300 mx-auto mb-2" />
+              <p className="text-sm text-amber-200">Running batch integrity sync... (check logs below for progress)</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12">

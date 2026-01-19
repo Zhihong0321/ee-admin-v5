@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { invoices, payments, submitted_payments, agents, users, sedaRegistration, invoice_templates, customers } from "@/db/schema";
 import { syncCompleteInvoicePackage, syncInvoicePackageWithRelations } from "@/lib/bubble";
+import { syncInvoiceWithFullIntegrity, syncBatchInvoicesWithIntegrity } from "@/lib/integrity-sync";
 import { revalidatePath } from "next/cache";
 import { logSyncActivity, getLatestLogs, clearLogs } from "@/lib/logger";
 import { eq, sql, and, or, isNull, isNotNull, inArray } from "drizzle-orm";
@@ -1354,6 +1355,157 @@ export async function syncInvoiceItemLinks(dateFrom?: string, dateTo?: string) {
   } catch (error) {
     logSyncActivity(`Invoice Item Link Sync CRASHED: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * INTEGRITY SYNC: Single Invoice with All Dependencies
+ *
+ * This is the NEW integrity-first sync function that:
+ * 1. Uses complete field mappings (zero data loss)
+ * 2. Respects dependency order (syncs relations first)
+ * 3. Implements MERGE logic (preserves local-only fields)
+ * 4. Tracks progress and errors in detail
+ * 5. Returns comprehensive statistics
+ *
+ * Use this for:
+ * - Syncing critical invoices that must be 100% accurate
+ * - Testing sync functionality
+ * - Fixing broken invoice data
+ *
+ * @param invoiceBubbleId - The Bubble ID of the invoice to sync
+ * @param options.force - Skip timestamp check and force sync (default: false)
+ */
+export async function runIntegritySync(invoiceBubbleId: string, options?: { force?: boolean }) {
+  logSyncActivity(`Integrity Sync triggered for invoice ${invoiceBubbleId}`, 'INFO');
+
+  try {
+    const result = await syncInvoiceWithFullIntegrity(invoiceBubbleId, {
+      force: options?.force || false,
+      onProgress: (step, message) => {
+        logSyncActivity(`[${step}] ${message}`, 'INFO');
+      }
+    });
+
+    if (result.success) {
+      logSyncActivity(`✅ Integrity Sync SUCCESS!`, 'INFO');
+      logSyncActivity(`Stats: Agent=${result.stats.agent}, Customer=${result.stats.customer}, User=${result.stats.user}, Payments=${result.stats.payments}, Submitted_Payments=${result.stats.submitted_payments}, Items=${result.stats.invoice_items}, SEDA=${result.stats.seda}, Invoice=${result.stats.invoice}`, 'INFO');
+
+      if (result.errors.length > 0) {
+        logSyncActivity(`⚠️  ${result.errors.length} error(s) occurred:`, 'ERROR');
+        result.errors.forEach((err, idx) => {
+          logSyncActivity(`  ${idx + 1}. ${err}`, 'ERROR');
+        });
+      }
+
+      // Auto-patch links after successful sync
+      logSyncActivity(`Running automatic link patching...`, 'INFO');
+
+      // Patch 1: Restore Invoice→SEDA links from SEDA.linked_invoice array
+      const invoiceLinkResult = await restoreInvoiceSedaLinks();
+      logSyncActivity(`Invoice→SEDA links restored: ${invoiceLinkResult.linked || 0} linked`, 'INFO');
+
+      // Patch 2: Fix SEDA→Customer links from Invoice.linked_customer
+      const sedaCustomerResult = await patchSedaCustomerLinks();
+      logSyncActivity(`SEDA→Customer links patched: ${sedaCustomerResult.patched || 0} patched`, 'INFO');
+    } else {
+      logSyncActivity(`❌ Integrity Sync FAILED`, 'ERROR');
+      result.errors.forEach((err, idx) => {
+        logSyncActivity(`  ${idx + 1}. ${err}`, 'ERROR');
+      });
+    }
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+    revalidatePath("/customers");
+    revalidatePath("/seda");
+
+    return result;
+  } catch (error) {
+    logSyncActivity(`Integrity Sync CRASHED: ${String(error)}`, 'ERROR');
+    return {
+      success: false,
+      invoiceId: invoiceBubbleId,
+      steps: [],
+      errors: [String(error)],
+      stats: {
+        agent: 0,
+        customer: 0,
+        user: 0,
+        payments: 0,
+        submitted_payments: 0,
+        invoice_items: 0,
+        seda: 0,
+        invoice: 0
+      }
+    };
+  }
+}
+
+/**
+ * INTEGRITY SYNC: Batch Invoice Sync with Date Range
+ *
+ * Syncs multiple invoices using the integrity-first approach.
+ * This is the recommended method for bulk syncs.
+ *
+ * @param dateFrom - Start date (ISO string)
+ * @param dateTo - Optional end date (ISO string)
+ */
+export async function runIntegrityBatchSync(dateFrom: string, dateTo?: string) {
+  logSyncActivity(`Integrity Batch Sync: ${dateFrom} to ${dateTo || 'present'}`, 'INFO');
+
+  try {
+    const result = await syncBatchInvoicesWithIntegrity(dateFrom, dateTo, {
+      onProgress: (current, total, message) => {
+        logSyncActivity(`[${current}/${total}] ${message}`, 'INFO');
+      }
+    });
+
+    if (result.success) {
+      logSyncActivity(`✅ Batch Sync SUCCESS!`, 'INFO');
+      logSyncActivity(`Total: ${result.results.total}, Synced: ${result.results.synced}, Skipped: ${result.results.skipped}, Failed: ${result.results.failed}`, 'INFO');
+
+      if (result.results.errors.length > 0) {
+        logSyncActivity(`⚠️  ${result.results.errors.length} error(s) occurred:`, 'ERROR');
+        result.results.errors.slice(0, 10).forEach((err) => {
+          logSyncActivity(`  • ${err}`, 'ERROR');
+        });
+        if (result.results.errors.length > 10) {
+          logSyncActivity(`  ... and ${result.results.errors.length - 10} more errors`, 'ERROR');
+        }
+      }
+
+      // Auto-patch links after successful sync
+      logSyncActivity(`Running automatic link patching...`, 'INFO');
+
+      // Patch 1: Restore Invoice→SEDA links from SEDA.linked_invoice array
+      const invoiceLinkResult = await restoreInvoiceSedaLinks();
+      logSyncActivity(`Invoice→SEDA links restored: ${invoiceLinkResult.linked || 0} linked`, 'INFO');
+
+      // Patch 2: Fix SEDA→Customer links from Invoice.linked_customer
+      const sedaCustomerResult = await patchSedaCustomerLinks();
+      logSyncActivity(`SEDA→Customer links patched: ${sedaCustomerResult.patched || 0} patched`, 'INFO');
+    } else {
+      logSyncActivity(`❌ Batch Sync FAILED: ${result.results.errors.join(', ')}`, 'ERROR');
+    }
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+    revalidatePath("/customers");
+
+    return result;
+  } catch (error) {
+    logSyncActivity(`Integrity Batch Sync CRASHED: ${String(error)}`, 'ERROR');
+    return {
+      success: false,
+      results: {
+        total: 0,
+        synced: 0,
+        skipped: 0,
+        failed: 0,
+        errors: [String(error)]
+      }
+    };
   }
 }
 
