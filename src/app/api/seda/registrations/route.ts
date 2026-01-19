@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
         ic_no: sedaRegistration.ic_no,
         email: sedaRegistration.email,
         customer_name: customers.name,
+        modified_date: sedaRegistration.modified_date,
+        updated_at: sedaRegistration.updated_at,
       })
       .from(sedaRegistration)
       .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))

@@ -31,3 +31,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# development utility scripts
+compare_all_fields.js
+find_tables.js
+query_all_versions.js
+query_invoice_version.js
+query_invoices.js
+query_latest_chat.js
+schema-invoice-*.json
