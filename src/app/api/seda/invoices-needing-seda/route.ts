@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { invoices, sedaRegistration, agents, customers, users } from "@/db/schema";
+import { invoices, sedaRegistration, agents, customers } from "@/db/schema";
 import { desc, or, and, sql, gt, lt, eq, isNull } from "drizzle-orm";
 
 /**
@@ -37,13 +37,12 @@ export async function GET(request: NextRequest) {
         seda_updated_at: sedaRegistration.updated_at,
         seda_installation_address: sedaRegistration.installation_address,
 
-        // Agent name via user table (invoice.linked_agent is user.bubble_id)
+        // Agent name (invoice.linked_agent → agents.bubble_id)
         agent_name: agents.name,
       })
       .from(invoices)
       .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
-      .leftJoin(users, eq(invoices.linked_agent, users.bubble_id))
-      .leftJoin(agents, eq(users.linked_agent_profile, agents.bubble_id))
+      .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
       .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
       .where(
         and(
