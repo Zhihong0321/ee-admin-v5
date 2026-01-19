@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sedaRegistration, customers } from "@/db/schema";
-import { desc, ne, eq } from "drizzle-orm";
+import { desc, ne, eq, sql } from "drizzle-orm";
 
 /**
  * GET /api/seda/registrations
@@ -29,13 +29,15 @@ export async function GET(request: NextRequest) {
         ic_no: sedaRegistration.ic_no,
         email: sedaRegistration.email,
         customer_name: customers.name,
+        agent: sedaRegistration.agent,
         modified_date: sedaRegistration.modified_date,
         updated_at: sedaRegistration.updated_at,
+        created_date: sedaRegistration.created_date,
       })
       .from(sedaRegistration)
       .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))
       .where(ne(sedaRegistration.reg_status, "Deleted"))
-      .orderBy(desc(sedaRegistration.created_date))
+      .orderBy(desc(sql`COALESCE(${sedaRegistration.modified_date}, ${sedaRegistration.updated_at}, ${sedaRegistration.created_date})`))
       .limit(100);
 
     console.log("Fetched SEDA records:", allSeda.length);

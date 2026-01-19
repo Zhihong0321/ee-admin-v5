@@ -15,6 +15,7 @@ interface SedaRegistration {
   seda_status: string | null;
   email: string | null;
   ic_no: string | null;
+  agent: string | null;
   modified_date: string | null;
   updated_at: string | null;
 }
@@ -147,6 +148,7 @@ export default function SedaListPage() {
               <tr>
                 <th>Customer</th>
                 <th>Installation Address</th>
+                <th>Agent</th>
                 <th>SEDA Status</th>
                 <th>Last Modified</th>
                 <th>Actions</th>
@@ -155,14 +157,14 @@ export default function SedaListPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
+                  <td colSpan={6} className="px-6 py-16 text-center">
                     <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-600" />
                     <p className="mt-4 text-gray-600">Loading SEDA registrations...</p>
                   </td>
                 </tr>
               ) : registrations.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
+                  <td colSpan={6} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="p-4 bg-gray-100 rounded-full">
                         <FileText className="h-8 w-8 text-gray-400" />
@@ -193,6 +195,11 @@ export default function SedaListPage() {
                     <td>
                       <div className="text-gray-700 max-w-xs truncate">
                         {seda.installation_address || "N/A"}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="text-sm text-gray-600">
+                        {seda.agent || "N/A"}
                       </div>
                     </td>
                     <td>
