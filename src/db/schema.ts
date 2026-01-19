@@ -158,6 +158,35 @@ export const customer_history = pgTable('customer_history', {
   change_operation: text('change_operation'), // 'UPDATE' or 'DELETE'
 });
 
+// Customer Snapshot Table - Automatic snapshots on UPDATE/DELETE
+export const customer_snapshots = pgTable('customer_snapshot', {
+  snapshot_id: serial('snapshot_id').primaryKey(),
+  customer_id: integer('customer_id').references(() => customers.id, { onDelete: 'cascade' }).notNull(),
+  // Snapshot of all customer fields
+  customer_id_text: text('customer_id_text'), // Original customer.customer_id
+  name: text('name'),
+  email: text('email'),
+  phone: text('phone'),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  postcode: text('postcode'),
+  ic_number: text('ic_number'),
+  linked_seda_registration: text('linked_seda_registration'),
+  linked_old_customer: text('linked_old_customer'),
+  notes: text('notes'),
+  version: integer('version'),
+  updated_by: text('updated_by'),
+  created_by: text('created_by'),
+  created_at: timestamp('created_at'),
+  updated_at: timestamp('updated_at'),
+  last_synced_at: timestamp('last_synced_at'),
+  // Snapshot metadata
+  snapshot_operation: text('snapshot_operation').notNull(), // 'UPDATE' or 'DELETE'
+  snapshot_created_at: timestamp('snapshot_created_at').defaultNow().notNull(),
+  snapshot_created_by: text('snapshot_created_by'),
+});
+
 // SEDA Registration Table
 export const sedaRegistration = pgTable('seda_registration', {
   id: serial('id').primaryKey(),
