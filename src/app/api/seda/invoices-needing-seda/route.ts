@@ -11,9 +11,10 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const searchValue = searchParams.get("search");
+    const filter = searchParams.get("filter"); // "all", "without-seda", "with-seda"
     const searchQuery = searchValue ? searchValue.toLowerCase() : "";
 
-    console.log("Invoices needing SEDA API called with:", { searchQuery });
+    console.log("Invoices needing SEDA API called with:", { searchQuery, filter });
 
     // Fetch invoices with partial payments and their linked SEDA registrations
     const allInvoices = await db
@@ -44,18 +45,39 @@ export async function GET(request: NextRequest) {
       .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
       .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
       .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
-      .where(
-        and(
+      .where((query) => {
+        // Base condition: partial payment (0-100%)
+        const conditions = [
           gt(invoices.percent_of_total_amount, '0'),
-          lt(invoices.percent_of_total_amount, '100'),
-          // Filter by SEDA status: null, empty string, or doesn't exist
-          or(
-            isNull(sedaRegistration.seda_status),
-            eq(sedaRegistration.seda_status, ''),
-            eq(sedaRegistration.seda_status, 'null')
-          )
-        )
-      )
+          lt(invoices.percent_of_total_amount, '100')
+        ];
+
+        // Add filter based on SEDA status
+        if (filter === 'without-seda') {
+          // Only invoices without SEDA or SEDA with null/empty status
+          conditions.push(
+            or(
+              isNull(sedaRegistration.bubble_id),
+              isNull(sedaRegistration.seda_status),
+              eq(sedaRegistration.seda_status, ''),
+              eq(sedaRegistration.seda_status, 'null')
+            )
+          );
+        } else if (filter === 'with-seda') {
+          // Only invoices with SEDA that has status set
+          conditions.push(
+            and(
+              sql`${sedaRegistration.bubble_id} IS NOT NULL`,
+              sql`${sedaRegistration.seda_status} IS NOT NULL`,
+              sql`${sedaRegistration.seda_status} != ''`,
+              sql`${sedaRegistration.seda_status} != 'null'`
+            )
+          );
+        }
+        // If filter is 'all' or not specified, don't add SEDA filter (show all)
+
+        return and(...conditions);
+      })
       .orderBy(
         desc(sql`COALESCE(${sedaRegistration.modified_date}, ${sedaRegistration.updated_at})`)
       )

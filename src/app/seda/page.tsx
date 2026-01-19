@@ -26,12 +26,13 @@ interface InvoiceNeedingSeda {
 export default function SedaListPage() {
   const [invoices, setInvoices] = useState<InvoiceNeedingSeda[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("all"); // "all", "without-seda", "with-seda"
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
   useEffect(() => {
     fetchData();
-  }, [search]);
+  }, [search, filter]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -39,6 +40,9 @@ export default function SedaListPage() {
       const params = new URLSearchParams();
       if (search) {
         params.append("search", search);
+      }
+      if (filter !== "all") {
+        params.append("filter", filter);
       }
 
       const response = await fetch(`/api/seda/invoices-needing-seda?${params}`);
@@ -107,6 +111,32 @@ export default function SedaListPage() {
             {invoices.filter(i => i.seda_bubble_id).length}
           </div>
           <div className="text-sm text-green-700 mt-1">With SEDA Started</div>
+        </div>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+        <div className="flex items-center gap-1">
+          {[
+            { value: "all", label: "All" },
+            { value: "without-seda", label: "Without SEDA" },
+            { value: "with-seda", label: "With SEDA" }
+          ].map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setFilter(tab.value)}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                filter === tab.value
+                  ? "bg-primary-600 text-white shadow-sm"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              }`}
+            >
+              {tab.label}
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-200">
+                {invoices.length}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
