@@ -322,6 +322,12 @@ export function mapInvoiceFields(bubbleInvoice: any): Record<string, any> {
     mapped[config.column] = convertBubbleValue(bubbleValue, config.type);
   }
 
+  // SPECIAL CASE: If Bubble has "Amount" but not "Total Amount", copy Amount to total_amount
+  // This is needed because Bubble stores the invoice total in "Amount" field
+  if (bubbleInvoice['Amount'] !== undefined && bubbleInvoice['Total Amount'] === undefined) {
+    mapped.total_amount = convertBubbleValue(bubbleInvoice['Amount'], 'numeric');
+  }
+
   // Track unmapped fields
   for (const field of Object.keys(bubbleInvoice)) {
     if (!INVOICE_FIELD_MAPPING[field] && field !== '_id') {
