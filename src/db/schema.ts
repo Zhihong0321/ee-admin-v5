@@ -104,21 +104,6 @@ export const invoice_snapshots = pgTable('invoice_snapshot', {
   created_by: text('created_by'),
 });
 
-// New Invoice Item Table
-export const invoice_new_items = pgTable('invoice_new_item', {
-  id: serial('id').primaryKey(),
-  bubble_id: text('bubble_id'),
-  invoice_id: text('invoice_id'), // This links to invoices.bubble_id
-  description: text('description'),
-  qty: numeric('qty'),
-  unit_price: numeric('unit_price'),
-  total_price: numeric('total_price'),
-  item_type: text('item_type'),
-  sort_order: integer('sort_order'),
-  created_at: timestamp('created_at', { withTimezone: true }),
-  last_synced_at: timestamp('last_synced_at'),
-});
-
 // Customer Table
 export const customers = pgTable('customer', {
   id: serial('id').primaryKey(),

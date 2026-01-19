@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { users, agents, payments, submitted_payments, customers, invoices, invoice_new_items, sedaRegistration, invoice_templates } from "@/db/schema";
+import { users, agents, payments, submitted_payments, customers, invoices, sedaRegistration, invoice_templates } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { syncFilesByCategory } from "@/app/manage-company/storage-actions";
 import { logSyncActivity } from "./logger";
@@ -176,7 +176,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
   logSyncActivity(`Sync Engine: Starting sync (DateFrom: ${dateFrom || 'ALL'}, FileSync: ${triggerFileSync})`, 'INFO');
 
   const results = {
-    syncedCustomers: 0, syncedInvoices: 0, syncedItems: 0,
+    syncedCustomers: 0, syncedInvoices: 0,
     syncedPayments: 0, syncedSubmittedPayments: 0, syncedSedas: 0, syncedUsers: 0, syncedAgents: 0,
     syncedTemplates: 0,
     errors: [] as string[]
@@ -236,15 +236,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       updated_at: new Date(b["Modified Date"]),
     }), results);
 
-    // 5. Sync Invoice Items
-    await syncTable('invoice_new_item', invoice_new_items, invoice_new_items.bubble_id, (b) => ({
-      invoice_id: b.Invoice, description: b.Description, qty: b.Qty,
-      unit_price: b["Unit Price"], total_price: b["Total Price"],
-      item_type: b["Item Type"], sort_order: b["Sort Order"],
-      created_at: new Date(b["Created Date"])
-    }), results);
-
-    // 6. Sync SEDA
+    // 5. Sync SEDA
     await syncTable('seda_registration', sedaRegistration, sedaRegistration.bubble_id, (b) => ({
       state: b.State, city: b.City, agent: b.Agent,
       project_price: b["Project Price"], linked_customer: b["Linked Customer"],
@@ -546,7 +538,6 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
     syncedUsers: 0,
     syncedPayments: 0,
     syncedSubmittedPayments: 0,
-    syncedItems: 0,
     syncedSedas: 0,
     syncedTemplates: 0,
     errors: [] as string[]
@@ -1012,47 +1003,8 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
       }
     }
 
-    // Step 5: Sync invoice items (only for newer invoices - part of complete invoice data)
-    logSyncActivity(`Step 5: Syncing invoice items for newer invoices...`, 'INFO');
-
-    for (const inv of bubbleInvoices) {
-      const isNewer = invoicesNeedingFullSync.get(inv._id);
-
-      // Only sync items for invoices that are newer (complete data package)
-      if (!isNewer) continue;
-
-      try {
-        // Fetch items for this invoice
-        const itemConstraints = [{
-          key: 'Invoice',
-          constraint: 'equals',
-          value: inv._id
-        }];
-        const items = await fetchBubbleRecordsWithConstraints('invoice_new_item', itemConstraints);
-
-        for (const item of items) {
-          const vals = {
-            invoice_id: item.Invoice,
-            description: item.Description,
-            qty: item.Qty,
-            unit_price: item["Unit Price"],
-            total_price: item["Total Price"],
-            item_type: item["Item Type"],
-            sort_order: item["Sort Order"],
-            created_at: new Date(item["Created Date"])
-          };
-          // FORCE UPSERT - Part of complete invoice data package
-          await db.insert(invoice_new_items).values({ bubble_id: item._id, ...vals })
-            .onConflictDoUpdate({ target: invoice_new_items.bubble_id, set: vals });
-          results.syncedItems++;
-        }
-      } catch (err) {
-        results.errors.push(`Items for invoice ${inv._id}: ${err}`);
-      }
-    }
-
-    // Step 6: Sync invoice templates (fetch all for completeness)
-    logSyncActivity(`Step 6: Syncing invoice templates...`, 'INFO');
+    // Step 5: Sync invoice templates (fetch all for completeness)
+    logSyncActivity(`Step 5: Syncing invoice templates...`, 'INFO');
 
     let cursor = 0;
     while (true) {
@@ -1103,7 +1055,7 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
       });
     }
 
-    logSyncActivity(`Full Invoice Sync Complete: ${results.syncedInvoices} invoices, ${results.syncedCustomers} customers, ${results.syncedAgents} agents, ${results.syncedPayments + results.syncedSubmittedPayments} payments, ${results.syncedItems} items, ${results.syncedSedas} SEDA, ${results.syncedTemplates} templates`, 'INFO');
+    logSyncActivity(`Full Invoice Sync Complete: ${results.syncedInvoices} invoices, ${results.syncedCustomers} customers, ${results.syncedAgents} agents, ${results.syncedPayments + results.syncedSubmittedPayments} payments, ${results.syncedSedas} SEDA, ${results.syncedTemplates} templates`, 'INFO');
 
     if (results.errors.length > 0) {
       logSyncActivity(`Errors encountered: ${results.errors.length}`, 'ERROR');
@@ -1426,37 +1378,6 @@ export async function syncByIdList(csvData: string) {
           logSyncActivity(`Error in invoice batch ${Math.floor(i / batchSize) + 1}: ${err}`, 'ERROR');
         }
       }
-
-      // Sync invoice items for synced invoices
-      logSyncActivity(`Syncing invoice items...`, 'INFO');
-      for (const invId of invoiceIdsToFetch) {
-        try {
-          const itemConstraints = [{
-            key: 'Invoice',
-            constraint: 'equals',
-            value: invId
-          }];
-          const items = await fetchBubbleRecordsWithConstraints('invoice_new_item', itemConstraints);
-
-          for (const item of items) {
-            const vals = {
-              invoice_id: item.Invoice,
-              description: item.Description,
-              qty: item.Qty,
-              unit_price: item["Unit Price"],
-              total_price: item["Total Price"],
-              item_type: item["Item Type"],
-              sort_order: item["Sort Order"],
-              created_at: new Date(item["Created Date"])
-            };
-            await db.insert(invoice_new_items).values({ bubble_id: item._id, ...vals })
-              .onConflictDoUpdate({ target: invoice_new_items.bubble_id, set: vals });
-            results.syncedItems++;
-          }
-        } catch (err) {
-          results.errors.push(`Items for invoice ${invId}: ${err}`);
-        }
-      }
     }
 
     // ============================================================================
@@ -1660,7 +1581,7 @@ export async function syncByIdList(csvData: string) {
     logSyncActivity(`Optimized Fast Sync Complete!`, 'INFO');
     logSyncActivity(`Invoices: ${results.syncedInvoices} synced, ${results.skippedInvoices} skipped`, 'INFO');
     logSyncActivity(`SEDAs: ${results.syncedSedas} synced, ${results.skippedSedas} skipped`, 'INFO');
-    logSyncActivity(`Related: ${results.syncedCustomers} customers, ${results.syncedAgents} agents, ${results.syncedPayments} payments, ${results.syncedItems} items`, 'INFO');
+    logSyncActivity(`Related: ${results.syncedCustomers} customers, ${results.syncedAgents} agents, ${results.syncedPayments} payments`, 'INFO');
 
     if (results.errors.length > 0) {
       logSyncActivity(`Errors encountered: ${results.errors.length}`, 'ERROR');
