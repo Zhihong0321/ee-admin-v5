@@ -1059,3 +1059,119 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
     return { success: false, error: String(error) };
   }
 }
+
+/**
+ * SEDA Registration-Only Sync with Date Range
+ *
+ * Syncs ONLY SEDA registrations within a date range.
+ * Overwrites local data if Bubble is newer.
+ *
+ * Use case: SEDA registrations have frequent updates (status changes, document uploads)
+ * and need to be synced independently of invoices.
+ */
+export async function syncSedaRegistrations(dateFrom: string, dateTo?: string) {
+  logSyncActivity(`SEDA Sync: Starting (DateFrom: ${dateFrom}, DateTo: ${dateTo || 'current'})`, 'INFO');
+
+  const results = {
+    syncedSedas: 0,
+    skippedSedas: 0,
+    errors: [] as string[]
+  };
+
+  try {
+    // Step 1: Fetch SEDA registrations from Bubble
+    logSyncActivity(`Step 1: Fetching SEDA registrations from ${dateFrom} to ${dateTo || 'current'}...`, 'INFO');
+
+    // NOTE: Bubble API does NOT support constraints on 'Modified Date' field
+    // We must fetch ALL and filter locally
+    const fromDate = new Date(dateFrom);
+    const toDate = dateTo ? new Date(dateTo) : new Date();
+
+    logSyncActivity(`Fetching all SEDA registrations from Bubble...`, 'INFO');
+    const allSedas = await fetchBubbleRecordsWithConstraints('seda_registration', []);
+    logSyncActivity(`Fetched ${allSedas.length} total SEDA registrations from Bubble`, 'INFO');
+
+    // Filter locally by Modified Date
+    const bubbleSedas = allSedas.filter(seda => {
+      const modifiedDate = new Date(seda["Modified Date"]);
+      return modifiedDate >= fromDate && modifiedDate <= toDate;
+    });
+
+    logSyncActivity(`After filtering by Modified Date: ${bubbleSedas.length} SEDA registrations in range`, 'INFO');
+
+    if (bubbleSedas.length === 0) {
+      logSyncActivity(`No SEDA registrations found in the specified date range`, 'INFO');
+      return { success: true, results };
+    }
+
+    // Step 2: Sync each SEDA registration
+    logSyncActivity(`Step 2: Syncing SEDA registrations...`, 'INFO');
+
+    for (const seda of bubbleSedas) {
+      try {
+        // Check if record exists and compare timestamps
+        const existingRecord = await db.query.sedaRegistration.findFirst({
+          where: eq(sedaRegistration.bubble_id, seda._id)
+        });
+
+        const bubbleModifiedDate = new Date(seda["Modified Date"]);
+        const shouldUpdate = !existingRecord ||
+          !existingRecord.last_synced_at ||
+          bubbleModifiedDate > new Date(existingRecord.last_synced_at);
+
+        if (shouldUpdate) {
+          const vals = {
+            reg_status: seda["Reg Status"],
+            state: seda.State,
+            city: seda.City,
+            agent: seda.Agent,
+            project_price: seda["Project Price"],
+            linked_customer: seda["Linked Customer"],
+            customer_signature: seda["Customer Signature"],
+            ic_copy_front: seda["IC Copy Front"],
+            ic_copy_back: seda["IC Copy Back"],
+            tnb_bill_1: seda["TNB Bill 1"],
+            tnb_bill_2: seda["TNB Bill 2"],
+            tnb_bill_3: seda["TNB Bill 3"],
+            nem_cert: seda["NEM Cert"],
+            mykad_pdf: seda["Mykad PDF"],
+            property_ownership_prove: seda["Property Ownership Prove"],
+            check_tnb_bill_and_meter_image: seda["Check TNB Bill and Meter Image"],
+            roof_images: seda["Roof Images"],
+            site_images: seda["Site Images"],
+            drawing_pdf_system: seda["Drawing PDF System"],
+            drawing_system_actual: seda["Drawing System Actual"],
+            drawing_engineering_seda_pdf: seda["Drawing Engineering Seda PDF"],
+            modified_date: bubbleModifiedDate,
+            updated_at: bubbleModifiedDate,
+            last_synced_at: new Date()
+          };
+
+          await db.insert(sedaRegistration).values({ bubble_id: seda._id, ...vals })
+            .onConflictDoUpdate({ target: sedaRegistration.bubble_id, set: vals });
+
+          results.syncedSedas++;
+          logSyncActivity(`Synced SEDA ${seda._id}: ${seda["Reg Status"] || 'No status'}`, 'INFO');
+        } else {
+          results.skippedSedas++;
+        }
+
+      } catch (err) {
+        results.errors.push(`SEDA ${seda._id}: ${err}`);
+        logSyncActivity(`Error syncing SEDA ${seda._id}: ${err}`, 'ERROR');
+      }
+    }
+
+    logSyncActivity(`SEDA Sync Complete: ${results.syncedSedas} synced, ${results.skippedSedas} skipped`, 'INFO');
+
+    if (results.errors.length > 0) {
+      logSyncActivity(`Errors encountered: ${results.errors.length}`, 'ERROR');
+      results.errors.slice(0, 5).forEach(e => logSyncActivity(e, 'ERROR'));
+    }
+
+    return { success: true, results };
+  } catch (error) {
+    logSyncActivity(`SEDA Sync Error: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}

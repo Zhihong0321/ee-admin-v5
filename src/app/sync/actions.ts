@@ -828,3 +828,32 @@ export async function clearSyncLogs() {
     return { success: false, error: String(error) };
   }
 }
+
+/**
+ * SEDA Registration-Only Sync
+ *
+ * Syncs SEDA registrations within a date range.
+ * Overwrites local data if Bubble is newer.
+ */
+export async function runSedaOnlySync(dateFrom: string, dateTo?: string) {
+  logSyncActivity(`SEDA-Only Sync Triggered: ${dateFrom} to ${dateTo || 'All'}`, 'INFO');
+
+  try {
+    const { syncSedaRegistrations } = await import('@/lib/bubble');
+    const result = await syncSedaRegistrations(dateFrom, dateTo);
+
+    if (result.success) {
+      logSyncActivity(`SEDA-Only Sync SUCCESS: ${result.results?.syncedSedas} synced, ${result.results?.skippedSedas} skipped`, 'INFO');
+    } else {
+      logSyncActivity(`SEDA-Only Sync FAILED: ${result.error}`, 'ERROR');
+    }
+
+    revalidatePath("/sync");
+    revalidatePath("/seda");
+
+    return result;
+  } catch (error) {
+    logSyncActivity(`SEDA-Only Sync CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}

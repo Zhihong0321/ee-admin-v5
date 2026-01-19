@@ -6,7 +6,7 @@ import {
   UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
   Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag, Link, Globe
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, clearSyncLogs } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, clearSyncLogs, runSedaOnlySync } from "./actions";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
@@ -18,6 +18,12 @@ export default function SyncPage() {
   const [fullSyncDateTo, setFullSyncDateTo] = useState("");
   const [isFullSyncing, setIsFullSyncing] = useState(false);
   const [fullSyncResults, setFullSyncResults] = useState<any>(null);
+
+  // SEDA-Only Sync state
+  const [sedaSyncDateFrom, setSedaSyncDateFrom] = useState("");
+  const [sedaSyncDateTo, setSedaSyncDateTo] = useState("");
+  const [isSedaSyncing, setIsSedaSyncing] = useState(false);
+  const [sedaSyncResults, setSedaSyncResults] = useState<any>(null);
   const [isUpdatingPercentages, setIsUpdatingPercentages] = useState(false);
   const [isPatchingCreators, setIsPatchingCreators] = useState(false);
   const [isDeletingDemo, setIsDeletingDemo] = useState(false);
@@ -313,6 +319,31 @@ export default function SyncPage() {
       setFullSyncResults({ success: false, error: String(error) });
     } finally {
       setIsFullSyncing(false);
+    }
+  };
+
+  const handleSedaOnlySync = async () => {
+    if (!sedaSyncDateFrom) {
+      alert("Please select a 'From' date for the sync range");
+      return;
+    }
+
+    const confirmMsg = sedaSyncDateTo
+      ? `Sync SEDA registrations from ${sedaSyncDateFrom} to ${sedaSyncDateTo}?\n\nThis will:\n• Sync SEDA registrations modified in date range\n• Overwrite local data if Bubble is newer\n• Include all fields (status, documents, images)\n\nContinue?`
+      : `Sync SEDA registrations from ${sedaSyncDateFrom} to current date?\n\nThis will:\n• Sync SEDA registrations modified in date range\n• Overwrite local data if Bubble is newer\n• Include all fields (status, documents, images)\n\nContinue?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setIsSedaSyncing(true);
+    setSedaSyncResults(null);
+    try {
+      const res = await runSedaOnlySync(sedaSyncDateFrom, sedaSyncDateTo || undefined);
+      setSedaSyncResults(res);
+      await loadLogs();
+    } catch (error) {
+      setSedaSyncResults({ success: false, error: String(error) });
+    } finally {
+      setIsSedaSyncing(false);
     }
   };
 
@@ -681,6 +712,92 @@ export default function SyncPage() {
               <p className="font-bold text-white">Syncing invoices and all related data...</p>
             </div>
             <p className="text-sm text-blue-200 mt-2">This may take a few minutes. Please check the logs below for progress.</p>
+          </div>
+        )}
+      </div>
+
+      {/* SEDA-Only Sync Card */}
+      <div className="bg-gradient-to-br from-purple-600 to-indigo-700 rounded-2xl shadow-xl overflow-hidden">
+        <div className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-bold text-white">SEDA Registration Sync</h3>
+              <p className="text-purple-200 text-sm">Quick sync for SEDA registrations with frequent updates</p>
+            </div>
+            <FileText className="h-8 w-8 text-purple-300" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-purple-200">From Date *</label>
+              <input
+                type="date"
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+                value={sedaSyncDateFrom}
+                onChange={(e) => setSedaSyncDateFrom(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-purple-200">To Date (optional)</label>
+              <input
+                type="date"
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+                value={sedaSyncDateTo}
+                onChange={(e) => setSedaSyncDateTo(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleSedaOnlySync}
+            disabled={isSedaSyncing || !sedaSyncDateFrom}
+            className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSedaSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
+            Sync SEDA Registrations
+          </button>
+
+          {/* SEDA Sync Results */}
+          {sedaSyncResults && sedaSyncResults.success && (
+            <div className="p-4 bg-white/5 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-green-300">
+                <CheckCircle2 className="h-5 w-5" />
+                <p className="font-bold">Sync Complete!</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{sedaSyncResults.results?.syncedSedas}</p>
+                  <p className="text-[10px] uppercase font-bold text-purple-300">Synced</p>
+                </div>
+                <div className="text-center p-3 bg-white/5 rounded-lg">
+                  <p className="text-2xl font-bold text-white">{sedaSyncResults.results?.skippedSedas}</p>
+                  <p className="text-[10px] uppercase font-bold text-purple-300">Skipped</p>
+                </div>
+              </div>
+              {sedaSyncResults.results?.errors && sedaSyncResults.results.errors.length > 0 && (
+                <div className="p-2 bg-red-500/20 rounded-lg text-red-300 text-xs font-mono">
+                  {sedaSyncResults.results.errors.length} errors
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SEDA Sync Error */}
+          {!sedaSyncResults?.success && sedaSyncResults?.error && (
+            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
+              {sedaSyncResults.error}
+            </div>
+          )}
+        </div>
+
+        {/* SEDA Sync Progress */}
+        {isSedaSyncing && (
+          <div className="p-4 bg-black/20 border-t border-white/5">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-purple-300" />
+              <p className="font-bold text-white">Syncing SEDA registrations...</p>
+            </div>
+            <p className="text-sm text-purple-200 mt-1">Check logs below for progress</p>
           </div>
         )}
       </div>
