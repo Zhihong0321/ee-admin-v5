@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { invoices, sedaRegistration } from "@/db/schema";
-import { gt, sql, or, eq, and } from "drizzle-orm";
+import { gt, sql, or, eq, and, isNull } from "drizzle-orm";
 
 /**
  * GET /api/seda/attention-count
