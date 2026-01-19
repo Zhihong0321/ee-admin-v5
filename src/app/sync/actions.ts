@@ -857,3 +857,47 @@ export async function runSedaOnlySync(dateFrom: string, dateTo?: string) {
     return { success: false, error: String(error) };
   }
 }
+
+/**
+ * Fast ID-List Sync
+ *
+ * Syncs specific Invoice and SEDA IDs provided as lists.
+ * Ultra-fast alternative to date range sync.
+ */
+export async function runIdListSync(invoiceIdList: string, sedaIdList: string) {
+  logSyncActivity(`Fast ID-List Sync Triggered`, 'INFO');
+
+  try {
+    // Parse ID lists (handle newlines, commas, spaces)
+    const parseIds = (list: string): string[] => {
+      if (!list || list.trim() === '') return [];
+      return list
+        .split(/[\n,\s]+/)
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+    };
+
+    const invoiceIds = parseIds(invoiceIdList);
+    const sedaIds = parseIds(sedaIdList);
+
+    logSyncActivity(`Parsed: ${invoiceIds.length} invoice IDs, ${sedaIds.length} SEDA IDs`, 'INFO');
+
+    const { syncByIdList } = await import('@/lib/bubble');
+    const result = await syncByIdList(invoiceIds, sedaIds);
+
+    if (result.success) {
+      logSyncActivity(`Fast ID-List Sync SUCCESS!`, 'INFO');
+    } else {
+      logSyncActivity(`Fast ID-List Sync FAILED: ${result.error}`, 'ERROR');
+    }
+
+    revalidatePath("/sync");
+    revalidatePath("/seda");
+    revalidatePath("/invoices");
+
+    return result;
+  } catch (error) {
+    logSyncActivity(`Fast ID-List Sync CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}

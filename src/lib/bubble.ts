@@ -1190,3 +1190,333 @@ export async function syncSedaRegistrations(dateFrom: string, dateTo?: string) {
     return { success: false, error: String(error) };
   }
 }
+
+/**
+ * Fast ID-List Sync - Sync specific Invoice and SEDA IDs
+ *
+ * Ultra-fast sync for specific IDs generated from Bubble ERP.
+ * Instead of fetching all records and filtering by date,
+ * this directly fetches only the IDs provided.
+ *
+ * @param invoiceIds - List of Invoice bubble_ids to sync (one per line or comma-separated)
+ * @param sedaIds - List of SEDA bubble_ids to sync (one per line or comma-separated)
+ */
+export async function syncByIdList(invoiceIds: string[], sedaIds: string[]) {
+  logSyncActivity(`Fast ID-List Sync: ${invoiceIds.length} invoices, ${sedaIds.length} SEDAs`, 'INFO');
+
+  const results = {
+    syncedInvoices: 0,
+    syncedSedas: 0,
+    syncedCustomers: 0,
+    syncedAgents: 0,
+    syncedUsers: 0,
+    syncedPayments: 0,
+    syncedItems: 0,
+    errors: [] as string[]
+  };
+
+  try {
+    // Track unique related IDs we need to fetch
+    const customerIds = new Set<string>();
+    const agentIds = new Set<string>();
+    const paymentIds = new Set<string>();
+
+    // ============================================================================
+    // STEP 1: Fetch and Sync Invoices by ID
+    // ============================================================================
+    if (invoiceIds.length > 0) {
+      logSyncActivity(`Step 1: Syncing ${invoiceIds.length} invoices by ID...`, 'INFO');
+
+      // Fetch invoices in batches
+      const batchSize = 100;
+      for (let i = 0; i < invoiceIds.length; i += batchSize) {
+        const batch = invoiceIds.slice(i, i + batchSize);
+        logSyncActivity(`Fetching invoice batch ${i / batchSize + 1}...`, 'INFO');
+
+        try {
+          const batchInvoices = await Promise.all(
+            batch.map(id => fetchBubbleRecordByTypeName('invoice', id))
+          );
+
+          for (const inv of batchInvoices) {
+            try {
+              // Collect related IDs
+              if (inv["Linked Customer"]) customerIds.add(inv["Linked Customer"]);
+              if (inv["Linked Agent"]) agentIds.add(inv["Linked Agent"]);
+              if (inv["Linked Payment"]) {
+                (inv["Linked Payment"] as string[]).forEach(p => paymentIds.add(p));
+              }
+
+              // Upsert invoice
+              const vals = {
+                invoice_id: inv["Invoice ID"] || inv.invoice_id || null,
+                invoice_number: inv["Invoice Number"] || inv.invoice_number || null,
+                linked_customer: inv["Linked Customer"] || null,
+                linked_agent: inv["Linked Agent"] || null,
+                linked_payment: inv["Linked Payment"] || null,
+                linked_seda_registration: inv["Linked SEDA Registration"] || null,
+                amount: inv.Amount ? inv.Amount.toString() : null,
+                total_amount: inv["Total Amount"] || null,
+                status: inv.Status || 'draft',
+                invoice_date: inv["Invoice Date"] ? new Date(inv["Invoice Date"]) : null,
+                created_at: inv["Created Date"] ? new Date(inv["Created Date"]) : new Date(),
+                created_by: inv["Created By"] || null,
+                updated_at: new Date(inv["Modified Date"]),
+              };
+
+              await db.insert(invoices).values({ bubble_id: inv._id, ...vals })
+                .onConflictDoUpdate({ target: invoices.bubble_id, set: vals });
+              results.syncedInvoices++;
+
+            } catch (err) {
+              results.errors.push(`Invoice ${inv._id}: ${err}`);
+            }
+          }
+        } catch (err) {
+          logSyncActivity(`Error in invoice batch ${i / batchSize + 1}: ${err}`, 'ERROR');
+        }
+      }
+
+      // Sync invoice items
+      logSyncActivity(`Syncing invoice items...`, 'INFO');
+      for (const invId of invoiceIds) {
+        try {
+          const itemConstraints = [{
+            key: 'Invoice',
+            constraint: 'equals',
+            value: invId
+          }];
+          const items = await fetchBubbleRecordsWithConstraints('invoice_new_item', itemConstraints);
+
+          for (const item of items) {
+            const vals = {
+              invoice_id: item.Invoice,
+              description: item.Description,
+              qty: item.Qty,
+              unit_price: item["Unit Price"],
+              total_price: item["Total Price"],
+              item_type: item["Item Type"],
+              sort_order: item["Sort Order"],
+              created_at: new Date(item["Created Date"])
+            };
+            await db.insert(invoice_new_items).values({ bubble_id: item._id, ...vals })
+              .onConflictDoUpdate({ target: invoice_new_items.bubble_id, set: vals });
+            results.syncedItems++;
+          }
+        } catch (err) {
+          results.errors.push(`Items for invoice ${invId}: ${err}`);
+        }
+      }
+    }
+
+    // ============================================================================
+    // STEP 2: Fetch and Sync SEDAs by ID
+    // ============================================================================
+    if (sedaIds.length > 0) {
+      logSyncActivity(`Step 2: Syncing ${sedaIds.length} SEDAs by ID...`, 'INFO');
+
+      // Fetch SEDAs in batches
+      const batchSize = 100;
+      for (let i = 0; i < sedaIds.length; i += batchSize) {
+        const batch = sedaIds.slice(i, i + batchSize);
+        logSyncActivity(`Fetching SEDA batch ${i / batchSize + 1}...`, 'INFO');
+
+        try {
+          const batchSedas = await Promise.all(
+            batch.map(id => fetchBubbleRecordByTypeName('seda_registration', id))
+          );
+
+          for (const seda of batchSedas) {
+            try {
+              // Collect customer from SEDA
+              if (seda["Linked Customer"]) customerIds.add(seda["Linked Customer"]);
+
+              const vals = {
+                reg_status: seda["Reg Status"],
+                state: seda.State,
+                city: seda.City,
+                agent: seda.Agent,
+                project_price: seda["Project Price"],
+                linked_customer: seda["Linked Customer"],
+                customer_signature: seda["Customer Signature"],
+                ic_copy_front: seda["IC Copy Front"],
+                ic_copy_back: seda["IC Copy Back"],
+                tnb_bill_1: seda["TNB Bill 1"],
+                tnb_bill_2: seda["TNB Bill 2"],
+                tnb_bill_3: seda["TNB Bill 3"],
+                nem_cert: seda["NEM Cert"],
+                mykad_pdf: seda["Mykad PDF"],
+                property_ownership_prove: seda["Property Ownership Prove"],
+                check_tnb_bill_and_meter_image: seda["Check TNB Bill and Meter Image"],
+                roof_images: seda["Roof Images"],
+                site_images: seda["Site Images"],
+                drawing_pdf_system: seda["Drawing PDF System"],
+                drawing_system_actual: seda["Drawing System Actual"],
+                drawing_engineering_seda_pdf: seda["Drawing Engineering Seda PDF"],
+                modified_date: new Date(seda["Modified Date"]),
+                updated_at: new Date(seda["Modified Date"]),
+                last_synced_at: new Date()
+              };
+
+              await db.insert(sedaRegistration).values({ bubble_id: seda._id, ...vals })
+                .onConflictDoUpdate({ target: sedaRegistration.bubble_id, set: vals });
+              results.syncedSedas++;
+
+            } catch (err) {
+              results.errors.push(`SEDA ${seda._id}: ${err}`);
+            }
+          }
+        } catch (err) {
+          logSyncActivity(`Error in SEDA batch ${i / batchSize + 1}: ${err}`, 'ERROR');
+        }
+      }
+    }
+
+    // ============================================================================
+    // STEP 3: Sync Related Data (customers, agents, payments)
+    // ============================================================================
+    logSyncActivity(`Step 3: Syncing related data...`, 'INFO');
+
+    // Customers
+    for (const customerId of customerIds) {
+      try {
+        const customer = await fetchBubbleRecordByTypeName('Customer_Profile', customerId);
+        const vals = {
+          name: customer.Name || customer.name || "",
+          email: customer.Email || customer.email || null,
+          phone: customer.Contact || customer.Whatsapp || customer.phone || null,
+          address: customer.Address || customer.address || null,
+          city: customer.City || customer.city || null,
+          state: customer.State || customer.state || null,
+          postcode: customer.Postcode || customer.postcode || null,
+          ic_number: customer["IC Number"] || customer.ic_number || null,
+          updated_at: new Date(customer["Modified Date"]),
+          last_synced_at: new Date()
+        };
+        await db.insert(customers).values({ customer_id: customerId, ...vals })
+          .onConflictDoUpdate({ target: customers.customer_id, set: vals });
+        results.syncedCustomers++;
+      } catch (err) {
+        results.errors.push(`Customer ${customerId}: ${err}`);
+      }
+    }
+
+    // Agents
+    for (const agentId of agentIds) {
+      try {
+        const agent = await fetchBubbleRecordByTypeName('agent', agentId);
+        const vals = {
+          name: agent.Name,
+          email: agent.email,
+          contact: agent.Contact,
+          agent_type: agent["Agent Type"],
+          address: agent.Address,
+          bankin_account: agent.bankin_account,
+          banker: agent.banker,
+          updated_at: new Date(agent["Modified Date"]),
+          last_synced_at: new Date()
+        };
+        await db.insert(agents).values({ bubble_id: agentId, ...vals })
+          .onConflictDoUpdate({ target: agents.bubble_id, set: vals });
+        results.syncedAgents++;
+      } catch (err) {
+        results.errors.push(`Agent ${agentId}: ${err}`);
+      }
+    }
+
+    // Users linked to agents
+    for (const agentId of agentIds) {
+      try {
+        const userConstraints = [{
+          key: 'Linked Agent Profile',
+          constraint: 'equals',
+          value: agentId
+        }];
+        const bubbleUsers = await fetchBubbleRecordsWithConstraints('user', userConstraints);
+
+        if (!bubbleUsers || bubbleUsers.length === 0) continue;
+
+        for (const user of bubbleUsers) {
+          const vals = {
+            email: user.authentication?.email?.email,
+            linked_agent_profile: user["Linked Agent Profile"],
+            agent_code: user.agent_code,
+            dealership: user.Dealership,
+            profile_picture: user["Profile Picture"],
+            user_signed_up: user.user_signed_up,
+            access_level: user["Access Level"] || [],
+            updated_at: new Date(user["Modified Date"]),
+            last_synced_at: new Date()
+          };
+          await db.insert(users).values({ bubble_id: user._id, ...vals })
+            .onConflictDoUpdate({ target: users.bubble_id, set: vals });
+          results.syncedUsers++;
+        }
+      } catch (err) {
+        if (!String(err).includes('Not Found')) {
+          results.errors.push(`User for agent ${agentId}: ${err}`);
+        }
+      }
+    }
+
+    // Payments
+    for (const paymentId of paymentIds) {
+      try {
+        const payment = await fetchBubbleRecordByTypeName('payment', paymentId);
+        const vals = {
+          amount: payment.Amount?.toString(),
+          payment_date: payment["Payment Date"] ? new Date(payment["Payment Date"]) : null,
+          payment_method: payment["Payment Method"],
+          remark: payment.Remark,
+          linked_agent: payment["Linked Agent"],
+          linked_customer: payment["Linked Customer"],
+          linked_invoice: payment["Linked Invoice"],
+          created_by: payment["Created By"],
+          created_date: payment["Created Date"] ? new Date(payment["Created Date"]) : null,
+          modified_date: new Date(payment["Modified Date"]),
+          last_synced_at: new Date()
+        };
+        await db.insert(payments).values({ bubble_id: paymentId, ...vals })
+          .onConflictDoUpdate({ target: payments.bubble_id, set: vals });
+        results.syncedPayments++;
+      } catch (err) {
+        // Try submitted_payments
+        try {
+          const submittedPayment = await fetchBubbleRecordByTypeName('submit_payment', paymentId);
+          const vals = {
+            amount: submittedPayment.Amount?.toString(),
+            payment_date: submittedPayment["Payment Date"] ? new Date(submittedPayment["Payment Date"]) : null,
+            payment_method: submittedPayment["Payment Method"],
+            remark: submittedPayment.Remark,
+            linked_agent: submittedPayment["Linked Agent"],
+            linked_customer: submittedPayment["Linked Customer"],
+            linked_invoice: submittedPayment["Linked Invoice"],
+            created_by: submittedPayment["Created By"],
+            created_date: submittedPayment["Created Date"] ? new Date(submittedPayment["Created Date"]) : null,
+            modified_date: new Date(submittedPayment["Modified Date"]),
+            status: submittedPayment.Status || 'pending',
+            last_synced_at: new Date()
+          };
+          await db.insert(submitted_payments).values({ bubble_id: paymentId, ...vals })
+            .onConflictDoUpdate({ target: submitted_payments.bubble_id, set: vals });
+          results.syncedPayments++;
+        } catch (err2) {
+          results.errors.push(`Payment ${paymentId}: ${err}`);
+        }
+      }
+    }
+
+    logSyncActivity(`Fast ID-List Sync Complete!`, 'INFO');
+    logSyncActivity(`Invoices: ${results.syncedInvoices}, SEDAs: ${results.syncedSedas}, Customers: ${results.syncedCustomers}, Agents: ${results.syncedAgents}, Payments: ${results.syncedPayments}, Items: ${results.syncedItems}`, 'INFO');
+
+    if (results.errors.length > 0) {
+      logSyncActivity(`Errors encountered: ${results.errors.length}`, 'ERROR');
+      results.errors.slice(0, 5).forEach(e => logSyncActivity(e, 'ERROR'));
+    }
+
+    return { success: true, results };
+  } catch (error) {
+    logSyncActivity(`Fast ID-List Sync Error: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
