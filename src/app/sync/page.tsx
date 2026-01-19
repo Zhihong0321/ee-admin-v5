@@ -728,57 +728,59 @@ export default function SyncPage() {
         </div>
 
         {/* Full Sync Results */}
-        {fullSyncResults && (
+        {fullSyncResults?.success ? (
           <div className="p-6 bg-black/20 border-b border-white/5">
-            <div className={`flex items-center gap-3 mb-4 ${fullSyncResults.success ? 'text-green-400' : 'text-red-400'}`}>
-              {fullSyncResults.success ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-              <p className="font-bold">{fullSyncResults.success ? 'Sync Completed Successfully' : 'Sync Failed'}</p>
+            <div className="flex items-center gap-3 mb-4 text-green-400">
+              <CheckCircle2 className="h-5 w-5" />
+              <p className="font-bold">Sync Completed Successfully</p>
             </div>
 
-            {fullSyncResults.success && (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedInvoices}</p>
-                  <p className="text-[10px] uppercase font-bold text-blue-300">Invoices</p>
-                </div>
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedCustomers}</p>
-                  <p className="text-[10px] uppercase font-bold text-blue-300">Customers</p>
-                </div>
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedAgents}</p>
-                  <p className="text-[10px] uppercase font-bold text-blue-300">Agents</p>
-                </div>
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedUsers}</p>
-                  <p className="text-[10px] uppercase font-bold text-blue-300">Users</p>
-                </div>
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedPayments + fullSyncResults.results?.syncedSubmittedPayments}</p>
-                  <p className="text-[10px] uppercase font-bold text-blue-300">Payments</p>
-                </div>
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedItems}</p>
-                  <p className="text-[10px] uppercase font-bold text-blue-300">Items</p>
-                </div>
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedSedas}</p>
-                  <p className="text-[10px] uppercase font-bold text-blue-300">SEDA</p>
-                </div>
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedTemplates}</p>
-                  <p className="text-[10px] uppercase font-bold text-blue-300">Templates</p>
-                </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+              <div className="text-center p-3 bg-white/5 rounded-lg">
+                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedInvoices}</p>
+                <p className="text-[10px] uppercase font-bold text-blue-300">Invoices</p>
               </div>
-            )}
-
-            {!fullSyncResults.success && (
-              <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
-                {fullSyncResults.error}
+              <div className="text-center p-3 bg-white/5 rounded-lg">
+                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedCustomers}</p>
+                <p className="text-[10px] uppercase font-bold text-blue-300">Customers</p>
               </div>
-            )}
+              <div className="text-center p-3 bg-white/5 rounded-lg">
+                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedAgents}</p>
+                <p className="text-[10px] uppercase font-bold text-blue-300">Agents</p>
+              </div>
+              <div className="text-center p-3 bg-white/5 rounded-lg">
+                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedUsers}</p>
+                <p className="text-[10px] uppercase font-bold text-blue-300">Users</p>
+              </div>
+              <div className="text-center p-3 bg-white/5 rounded-lg">
+                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedPayments + fullSyncResults.results?.syncedSubmittedPayments}</p>
+                <p className="text-[10px] uppercase font-bold text-blue-300">Payments</p>
+              </div>
+              <div className="text-center p-3 bg-white/5 rounded-lg">
+                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedItems}</p>
+                <p className="text-[10px] uppercase font-bold text-blue-300">Items</p>
+              </div>
+              <div className="text-center p-3 bg-white/5 rounded-lg">
+                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedSedas}</p>
+                <p className="text-[10px] uppercase font-bold text-blue-300">SEDA</p>
+              </div>
+              <div className="text-center p-3 bg-white/5 rounded-lg">
+                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedTemplates}</p>
+                <p className="text-[10px] uppercase font-bold text-blue-300">Templates</p>
+              </div>
+            </div>
           </div>
-        )}
+        ) : fullSyncResults && !fullSyncResults.success ? (
+          <div className="p-6 bg-black/20 border-b border-white/5">
+            <div className="flex items-center gap-3 mb-4 text-red-400">
+              <XCircle className="h-5 w-5" />
+              <p className="font-bold">Sync Failed</p>
+            </div>
+            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
+              {fullSyncResults.error}
+            </div>
+          </div>
+        ) : null}
 
         {/* Full Sync Progress */}
         {isFullSyncing && (
@@ -823,7 +825,7 @@ export default function SyncPage() {
           </button>
 
           {/* Invoice Item Sync Results */}
-          {itemSyncResults && itemSyncResults.success && (
+          {itemSyncResults?.success && (
             <div className="p-4 bg-white/5 rounded-xl space-y-3">
               <div className="flex items-center gap-2 text-green-300">
                 <CheckCircle2 className="h-5 w-5" />
@@ -846,7 +848,7 @@ export default function SyncPage() {
             </div>
           )}
 
-          {!itemSyncResults.success && itemSyncResults && (
+          {itemSyncResults && !itemSyncResults.success && (
             <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
               {itemSyncResults.error}
             </div>
@@ -903,7 +905,7 @@ export default function SyncPage() {
           </button>
 
           {/* SEDA Sync Results */}
-          {sedaSyncResults && sedaSyncResults.success && (
+          {sedaSyncResults?.success && (
             <div className="p-4 bg-white/5 rounded-xl space-y-3">
               <div className="flex items-center gap-2 text-green-300">
                 <CheckCircle2 className="h-5 w-5" />
