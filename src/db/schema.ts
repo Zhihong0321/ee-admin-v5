@@ -115,6 +115,7 @@ export const invoice_new_items = pgTable('invoice_new_item', {
   item_type: text('item_type'),
   sort_order: integer('sort_order'),
   created_at: timestamp('created_at', { withTimezone: true }),
+  last_synced_at: timestamp('last_synced_at'),
 });
 
 // Customer Table

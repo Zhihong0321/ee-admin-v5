@@ -19,7 +19,6 @@ interface InvoiceNeedingSeda {
   invoice_updated_at: string | null;
   seda_bubble_id: string | null;
   seda_status: string | null;
-  seda_reg_status: string | null;
   seda_modified_date: string | null;
   seda_updated_at: string | null;
   seda_installation_address: string | null;
@@ -162,12 +161,6 @@ export default function SedaListPage() {
       id: "seda-status",
       label: "By SEDA Status",
       description: "All SEDA grouped by approval status",
-      icon: Eye
-    },
-    {
-      id: "reg-status",
-      label: "By Reg Status",
-      description: "All SEDA grouped by registration status",
       icon: Eye
     },
   ];
