@@ -79,9 +79,9 @@ export async function GET(request: NextRequest) {
         return baseConditions;
       })
       .orderBy(
-        desc(sql`COALESCE(${sedaRegistration.modified_date}, ${sedaRegistration.updated_at})`)
+        desc(sql`COALESCE(${sedaRegistration.modified_date}, ${sedaRegistration.updated_at})`),
+        desc(invoices.updated_at)
       )
-      .orderBy(desc(invoices.updated_at))
       .limit(100);
 
     console.log("Fetched invoices needing SEDA:", allInvoices.length);
