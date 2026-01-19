@@ -17,6 +17,17 @@ export async function runManualSync(dateFrom?: string, dateTo?: string, syncFile
 
     if (result.success) {
       logSyncActivity(`Manual Sync SUCCESS: ${result.results?.syncedInvoices} invoices, ${result.results?.syncedCustomers} customers`, 'INFO');
+
+      // Auto-patch links after successful sync
+      logSyncActivity(`Running automatic link patching...`, 'INFO');
+
+      // Patch 1: Restore Invoice→SEDA links from SEDA.linked_invoice array
+      const invoiceLinkResult = await restoreInvoiceSedaLinks();
+      logSyncActivity(`Invoice→SEDA links restored: ${invoiceLinkResult.linked || 0} linked`, 'INFO');
+
+      // Patch 2: Fix SEDA→Customer links from Invoice.linked_customer
+      const sedaCustomerResult = await patchSedaCustomerLinks();
+      logSyncActivity(`SEDA→Customer links patched: ${sedaCustomerResult.patched || 0} patched`, 'INFO');
     } else {
       logSyncActivity(`Manual Sync FAILED: ${result.error}`, 'ERROR');
     }
@@ -602,6 +613,17 @@ export async function runFullInvoiceSync(dateFrom: string, dateTo?: string, sess
 
     if (result.success) {
       logSyncActivity(`Full Invoice Sync SUCCESS: ${result.results?.syncedInvoices} invoices with all relations`, 'INFO');
+
+      // Auto-patch links after successful sync
+      logSyncActivity(`Running automatic link patching...`, 'INFO');
+
+      // Patch 1: Restore Invoice→SEDA links from SEDA.linked_invoice array
+      const invoiceLinkResult = await restoreInvoiceSedaLinks();
+      logSyncActivity(`Invoice→SEDA links restored: ${invoiceLinkResult.linked || 0} linked`, 'INFO');
+
+      // Patch 2: Fix SEDA→Customer links from Invoice.linked_customer
+      const sedaCustomerResult = await patchSedaCustomerLinks();
+      logSyncActivity(`SEDA→Customer links patched: ${sedaCustomerResult.patched || 0} patched`, 'INFO');
     } else {
       logSyncActivity(`Full Invoice Sync FAILED: ${result.error}`, 'ERROR');
     }
@@ -844,6 +866,17 @@ export async function runSedaOnlySync(dateFrom: string, dateTo?: string) {
 
     if (result.success) {
       logSyncActivity(`SEDA-Only Sync SUCCESS: ${result.results?.syncedSedas} synced, ${result.results?.skippedSedas} skipped`, 'INFO');
+
+      // Auto-patch links after successful sync
+      logSyncActivity(`Running automatic link patching...`, 'INFO');
+
+      // Patch 1: Restore Invoice→SEDA links from SEDA.linked_invoice array
+      const invoiceLinkResult = await restoreInvoiceSedaLinks();
+      logSyncActivity(`Invoice→SEDA links restored: ${invoiceLinkResult.linked || 0} linked`, 'INFO');
+
+      // Patch 2: Fix SEDA→Customer links from Invoice.linked_customer
+      const sedaCustomerResult = await patchSedaCustomerLinks();
+      logSyncActivity(`SEDA→Customer links patched: ${sedaCustomerResult.patched || 0} patched`, 'INFO');
     } else {
       logSyncActivity(`SEDA-Only Sync FAILED: ${result.error}`, 'ERROR');
     }
@@ -879,6 +912,17 @@ export async function runIdListSync(csvData: string) {
 
     if (result.success) {
       logSyncActivity(`Optimized Fast ID-List Sync SUCCESS!`, 'INFO');
+
+      // Auto-patch links after successful sync
+      logSyncActivity(`Running automatic link patching...`, 'INFO');
+
+      // Patch 1: Restore Invoice→SEDA links from SEDA.linked_invoice array
+      const invoiceLinkResult = await restoreInvoiceSedaLinks();
+      logSyncActivity(`Invoice→SEDA links restored: ${invoiceLinkResult.linked || 0} linked`, 'INFO');
+
+      // Patch 2: Fix SEDA→Customer links from Invoice.linked_customer
+      const sedaCustomerResult = await patchSedaCustomerLinks();
+      logSyncActivity(`SEDA→Customer links patched: ${sedaCustomerResult.patched || 0} patched`, 'INFO');
     } else {
       logSyncActivity(`Optimized Fast ID-List Sync FAILED: ${result.error}`, 'ERROR');
     }
@@ -890,6 +934,89 @@ export async function runIdListSync(csvData: string) {
     return result;
   } catch (error) {
     logSyncActivity(`Optimized Fast ID-List Sync CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Patch SEDA Customer Links
+ *
+ * Fixes SEDA registrations with missing linked_customer by looking at
+ * their linked invoice's customer.
+ *
+ * This is called automatically after every sync to ensure data integrity.
+ */
+export async function patchSedaCustomerLinks() {
+  logSyncActivity(`Starting 'Patch SEDA Customer Links' job...`, 'INFO');
+
+  try {
+    // Find SEDAs with missing linked_customer that have linked invoices
+    const sedasNeedingPatch = await db
+      .select({
+        seda_bubble_id: sedaRegistration.bubble_id,
+        seda_id: sedaRegistration.id,
+      })
+      .from(sedaRegistration)
+      .innerJoin(invoices, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
+      .where(
+        and(
+          sql`${sedaRegistration.linked_customer} IS NULL OR ${sedaRegistration.linked_customer} = ''`,
+          isNotNull(invoices.linked_customer)
+        )
+      );
+
+    if (sedasNeedingPatch.length === 0) {
+      logSyncActivity(`No SEDA registrations need customer link patching`, 'INFO');
+      return { success: true, patched: 0, message: "No SEDA registrations need patching" };
+    }
+
+    logSyncActivity(`Found ${sedasNeedingPatch.length} SEDA registrations needing customer link`, 'INFO');
+
+    let patchedCount = 0;
+    const errors: string[] = [];
+
+    // Update each SEDA with customer from its linked invoice
+    for (const seda of sedasNeedingPatch) {
+      try {
+        // Get the customer from the linked invoice
+        const invoiceWithCustomer = await db
+          .select({
+            linked_customer: invoices.linked_customer,
+          })
+          .from(invoices)
+          .where(eq(invoices.linked_seda_registration, seda.seda_bubble_id!))
+          .limit(1);
+
+        if (invoiceWithCustomer.length > 0 && invoiceWithCustomer[0].linked_customer) {
+          // Update the SEDA with the customer link
+          await db
+            .update(sedaRegistration)
+            .set({ linked_customer: invoiceWithCustomer[0].linked_customer })
+            .where(eq(sedaRegistration.id, seda.seda_id));
+
+          patchedCount++;
+          logSyncActivity(`Patched SEDA ${seda.seda_bubble_id} -> Customer ${invoiceWithCustomer[0].linked_customer}`, 'INFO');
+        }
+      } catch (err) {
+        const errorMsg = `SEDA ${seda.seda_bubble_id}: ${err}`;
+        errors.push(errorMsg);
+        logSyncActivity(`Error patching SEDA: ${errorMsg}`, 'ERROR');
+      }
+    }
+
+    logSyncActivity(`SEDA Customer Link Patch Complete: ${patchedCount} patched, ${errors.length} errors`, 'INFO');
+
+    revalidatePath("/sync");
+    revalidatePath("/seda");
+
+    return {
+      success: true,
+      patched: patchedCount,
+      errors: errors.length,
+      message: `Patched ${patchedCount} SEDA registrations with customer links${errors.length > 0 ? `, ${errors.length} errors` : ''}`
+    };
+  } catch (error) {
+    logSyncActivity(`Patch SEDA Customer Links CRASHED: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
 }
