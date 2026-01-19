@@ -15,6 +15,8 @@ interface SedaRegistration {
   seda_status: string | null;
   email: string | null;
   ic_no: string | null;
+  modified_date: string | null;
+  updated_at: string | null;
 }
 
 interface SedaGroup {
@@ -146,20 +148,21 @@ export default function SedaListPage() {
                 <th>Customer</th>
                 <th>Installation Address</th>
                 <th>SEDA Status</th>
+                <th>Last Modified</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-16 text-center">
+                  <td colSpan={5} className="px-6 py-16 text-center">
                     <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-600" />
                     <p className="mt-4 text-gray-600">Loading SEDA registrations...</p>
                   </td>
                 </tr>
               ) : registrations.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-16 text-center">
+                  <td colSpan={5} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="p-4 bg-gray-100 rounded-full">
                         <FileText className="h-8 w-8 text-gray-400" />
@@ -194,6 +197,27 @@ export default function SedaListPage() {
                     </td>
                     <td>
                       <StatusBadge status={seda.seda_status} type="seda_status" />
+                    </td>
+                    <td>
+                      {seda.modified_date ? (
+                        <div className="text-sm text-gray-600">
+                          {new Date(seda.modified_date).toLocaleDateString('en-GB', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric'
+                          })}
+                        </div>
+                      ) : seda.updated_at ? (
+                        <div className="text-sm text-gray-600">
+                          {new Date(seda.updated_at).toLocaleDateString('en-GB', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric'
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">N/A</span>
+                      )}
                     </td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-2">
