@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, Loader2, FileText, ExternalLink, CheckCircle, XCircle } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, ExternalLink } from "lucide-react";
 import { StatusBadge } from "@/components/seda/status-badge";
 import { StatusDropdown } from "@/components/seda/status-dropdown";
 import { ProgressBar } from "@/components/seda/progress-bar";
@@ -81,36 +81,38 @@ export default function SedaDetailPage() {
     );
   }
 
-  const { seda, checkpoints, completed_count, progress_percentage } = data;
+  const { seda, customer, checkpoints, completed_count, progress_percentage } = data;
 
   return (
-    <div className="space-y-6">
+    <div className="p-8 space-y-6">
       {/* Back Button */}
-      <button
-        onClick={() => router.push("/seda")}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        Back to SEDA List
-      </button>
+      <div>
+        <button
+          onClick={() => router.push("/seda")}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Back to SEDA List
+        </button>
+      </div>
 
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            {seda.customer?.name || seda.customer_name || "Unknown Customer"}
+            {customer?.name || seda.customer_name || "Unknown Customer"}
           </h1>
           <p className="text-gray-600 mt-1">SEDA Registration Details</p>
         </div>
         <DownloadButton
           bubbleId={bubbleId}
-          customerName={seda.customer?.name || seda.customer_name || "Unknown"}
+          customerName={customer?.name || seda.customer_name || "Unknown"}
           size="lg"
         />
       </div>
 
       {/* Progress Section */}
-      <div className="card bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Form Progress</h2>
           <span className="text-lg font-bold text-gray-900">
@@ -126,7 +128,7 @@ export default function SedaDetailPage() {
       </div>
 
       {/* Status Update Section */}
-      <div className="card">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Status Update</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -153,10 +155,10 @@ export default function SedaDetailPage() {
       </div>
 
       {/* Customer Information */}
-      <div className="card">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Customer Information</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <InfoRow label="Name" value={seda.customer?.name || seda.customer_name} />
+          <InfoRow label="Name" value={customer?.name || seda.customer_name} />
           <InfoRow label="Email" value={seda.email} />
           <InfoRow label="IC Number" value={seda.ic_no} />
           <InfoRow label="Emergency Contact Name" value={seda.e_contact_name} />
@@ -167,7 +169,7 @@ export default function SedaDetailPage() {
       </div>
 
       {/* Address & Location */}
-      <div className="card">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Address & Location</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <InfoRow label="Installation Address" value={seda.installation_address} />
@@ -177,7 +179,7 @@ export default function SedaDetailPage() {
       </div>
 
       {/* Solar System Details */}
-      <div className="card">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Solar System Details</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <InfoRow label="System Size" value={seda.system_size} suffix=" kW" />
@@ -189,7 +191,7 @@ export default function SedaDetailPage() {
       </div>
 
       {/* TNB Information */}
-      <div className="card">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">TNB Information</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <InfoRow label="TNB Account No" value={seda.tnb_account_no} />
@@ -202,7 +204,7 @@ export default function SedaDetailPage() {
       </div>
 
       {/* Financial Information */}
-      <div className="card">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Financial Information</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <InfoRow
@@ -232,13 +234,13 @@ export default function SedaDetailPage() {
       </div>
 
       {/* Agent Information */}
-      <div className="card">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Agent Information</h2>
-        <InfoRow label="Agent" value={seda.agent?.name || seda.agent} />
+        <InfoRow label="Agent" value={seda.agent_name || seda.agent} />
       </div>
 
       {/* Documents & Files */}
-      <div className="card">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Documents & Files</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <FileLink label="MyKad PDF" url={seda.mykad_pdf} />
@@ -252,7 +254,7 @@ export default function SedaDetailPage() {
 
       {/* Remarks */}
       {seda.special_remark && (
-        <div className="card">
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Remarks</h2>
           <p className="text-gray-700 whitespace-pre-wrap">{seda.special_remark}</p>
         </div>

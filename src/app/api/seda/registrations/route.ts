@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sedaRegistration } from "@/db/schema";
-import { desc, ne, sql } from "drizzle-orm";
+import { sedaRegistration, customers } from "@/db/schema";
+import { desc, ne, eq } from "drizzle-orm";
 
 /**
  * GET /api/seda/registrations
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
     console.log("SEDA API called with:", { statusFilter, searchQuery });
 
-    // Fetch only necessary fields for list view
+    // Fetch SEDA with customer name via LEFT JOIN
     const allSeda = await db
       .select({
         id: sedaRegistration.id,
@@ -28,9 +28,10 @@ export async function GET(request: NextRequest) {
         state: sedaRegistration.state,
         ic_no: sedaRegistration.ic_no,
         email: sedaRegistration.email,
-        customer_name: sql`NULL`, // Placeholder - will be filled from linked customer
+        customer_name: customers.name,
       })
       .from(sedaRegistration)
+      .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))
       .where(ne(sedaRegistration.reg_status, "Deleted"))
       .orderBy(desc(sedaRegistration.created_date))
       .limit(100);

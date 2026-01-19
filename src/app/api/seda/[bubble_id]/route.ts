@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sedaRegistration } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { sedaRegistration, customers } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 
 interface RouteContext {
   params: Promise<{
@@ -22,14 +22,20 @@ export async function GET(
 
     console.log("Fetching SEDA details for:", bubble_id);
 
-    // SIMPLE QUERY - Just fetch SEDA data, no joins
-    const sedaData = await db
-      .select()
+    // Fetch SEDA data with customer name via LEFT JOIN
+    const result = await db
+      .select({
+        // SEDA fields
+        seda: sedaRegistration,
+        // Customer name
+        customer_name: customers.name,
+      })
       .from(sedaRegistration)
+      .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))
       .where(eq(sedaRegistration.bubble_id, bubble_id))
       .limit(1);
 
-    if (sedaData.length === 0) {
+    if (result.length === 0) {
       console.log("SEDA not found:", bubble_id);
       return NextResponse.json(
         { error: "SEDA registration not found" },
@@ -37,12 +43,12 @@ export async function GET(
       );
     }
 
-    const seda = sedaData[0];
-    console.log("Found SEDA:", seda.bubble_id);
+    const { seda, customer_name } = result[0];
+    console.log("Found SEDA:", seda.bubble_id, "customer:", customer_name);
 
     // Calculate checkpoints inline - no external function calls
     const checkpoints = {
-      name: false, // TODO: fetch from customer
+      name: !!customer_name,
       address: !!seda.installation_address,
       mykad: !!(seda.mykad_pdf || seda.ic_copy_front),
       tnb_bill: !!(seda.tnb_bill_1 && seda.tnb_bill_2 && seda.tnb_bill_3),
@@ -54,10 +60,10 @@ export async function GET(
     const completed_count = Object.values(checkpoints).filter(Boolean).length;
     const progress_percentage = Math.round((completed_count / 7) * 100);
 
-    // Return SIMPLE response
+    // Return response with customer data
     return NextResponse.json({
       seda: seda,
-      customer: null,
+      customer: customer_name ? { name: customer_name } : null,
       agent: null,
       invoice: null,
       payments: [],
