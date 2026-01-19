@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Search, FileText, Loader2, Eye } from "lucide-react";
 import { StatusBadge } from "@/components/seda/status-badge";
 import { ProgressBar } from "@/components/seda/progress-bar";
@@ -18,6 +17,7 @@ interface SedaRegistration {
   agent: string | null;
   modified_date: string | null;
   updated_at: string | null;
+  share_token: string | null;
 }
 
 interface SedaGroup {
@@ -27,7 +27,6 @@ interface SedaGroup {
 }
 
 export default function SedaListPage() {
-  const router = useRouter();
   const [data, setData] = useState<SedaGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
@@ -235,16 +234,15 @@ export default function SedaListPage() {
                           size="sm"
                           showText={false}
                         />
-                        <button
-                          onClick={() => {
-                            console.log("Navigating to:", seda.bubble_id);
-                            router.push(`/seda/${seda.bubble_id}`);
-                          }}
+                        <a
+                          href={`https://calculator.atap.solar/view/${seda.share_token || seda.bubble_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
                         >
                           <Eye className="h-4 w-4" />
                           View
-                        </button>
+                        </a>
                       </div>
                     </td>
                   </tr>

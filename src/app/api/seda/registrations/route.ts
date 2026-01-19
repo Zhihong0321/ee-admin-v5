@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sedaRegistration, customers } from "@/db/schema";
-import { desc, ne, eq, sql } from "drizzle-orm";
+import { sedaRegistration, customers, invoices } from "@/db/schema";
+import { desc, ne, eq, sql, or, arrayContains } from "drizzle-orm";
 
 /**
  * GET /api/seda/registrations
@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         modified_date: sedaRegistration.modified_date,
         updated_at: sedaRegistration.updated_at,
         created_date: sedaRegistration.created_date,
+        linked_invoice: sedaRegistration.linked_invoice,
       })
       .from(sedaRegistration)
       .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))
@@ -42,8 +43,44 @@ export async function GET(request: NextRequest) {
 
     console.log("Fetched SEDA records:", allSeda.length);
 
+    // Fetch share_tokens for linked invoices
+    const linkedInvoiceIds = allSeda
+      .filter(s => s.linked_invoice && s.linked_invoice.length > 0)
+      .flatMap(s => s.linked_invoice || []);
+
+    let shareTokenMap: Record<string, string> = {};
+
+    if (linkedInvoiceIds.length > 0) {
+      const invoiceRecords = await db
+        .select({
+          bubble_id: invoices.bubble_id,
+          share_token: invoices.share_token,
+        })
+        .from(invoices)
+        .where(or(
+          ...linkedInvoiceIds.map(id => eq(invoices.bubble_id, id))
+        ));
+
+      shareTokenMap = Object.fromEntries(
+        invoiceRecords.map(inv => [inv.bubble_id, inv.share_token || ''])
+      );
+    }
+
+    // Enrich SEDA records with share_token (use first linked invoice's share_token)
+    const enrichedSeda = allSeda.map(seda => {
+      let shareToken = null;
+      if (seda.linked_invoice && seda.linked_invoice.length > 0) {
+        const firstLinkedInvoiceId = seda.linked_invoice[0];
+        shareToken = shareTokenMap[firstLinkedInvoiceId] || null;
+      }
+      return {
+        ...seda,
+        share_token: shareToken,
+      };
+    });
+
     // Filter in JavaScript
-    let filtered = allSeda;
+    let filtered = enrichedSeda;
 
     if (statusFilter && statusFilter !== "all") {
       filtered = filtered.filter(s => s.seda_status === statusFilter);
