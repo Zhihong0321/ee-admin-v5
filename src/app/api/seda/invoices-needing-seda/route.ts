@@ -27,15 +27,23 @@ export async function GET(request: NextRequest) {
         isNull(invoices.linked_seda_registration)
       );
     } else if (groupBy === "no-status") {
-      // Invoices with SEDA but no status (urgent)
+      // Invoices WITH SEDA registration but NO status (urgent)
       whereCondition = and(
         gt(invoices.percent_of_total_amount, '0'),
         lt(invoices.percent_of_total_amount, '100'),
+        sql`${invoices.linked_seda_registration} IS NOT NULL`,
         or(
           isNull(sedaRegistration.seda_status),
           eq(sedaRegistration.seda_status, ''),
           eq(sedaRegistration.seda_status, 'null')
         )
+      );
+    } else if (groupBy === "seda-status" || groupBy === "reg-status") {
+      // Only invoices WITH SEDA registration
+      whereCondition = and(
+        gt(invoices.percent_of_total_amount, '0'),
+        lt(invoices.percent_of_total_amount, '100'),
+        sql`${invoices.linked_seda_registration} IS NOT NULL`
       );
     } else {
       // All invoices with partial payment
