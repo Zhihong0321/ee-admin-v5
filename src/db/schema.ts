@@ -79,6 +79,7 @@ export const invoices = pgTable('invoice', {
   linked_agent: text('linked_agent'), // This links to agents.bubble_id
   linked_payment: text('linked_payment').array(), // ARRAY of payment bubble_ids
   linked_seda_registration: text('linked_seda_registration'), // Links to SEDA registration
+  linked_invoice_item: text('linked_invoice_item').array(), // ARRAY of invoice item bubble_ids
 
   // Legacy Columns (kept for backward compatibility)
   amount: numeric('amount'),

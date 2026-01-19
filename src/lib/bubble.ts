@@ -223,10 +223,11 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       linked_agent: b["Linked Agent"] || b.linked_agent || null,
       linked_payment: b["Linked Payment"] || b.linked_payment || null,
       linked_seda_registration: b["Linked SEDA Registration"] || b.linked_seda_registration || null,
+      linked_invoice_item: b["linked_invoice_item"] || b.linked_invoice_item || null,
       amount: b.Amount ? b.Amount.toString() : null,
       total_amount: b["Total Amount"] || b.total_amount || b.Amount || null,
       status: b.Status || b.status || 'draft',
-      
+
       // Fix for missing dates:
       invoice_date: b["Invoice Date"] ? new Date(b["Invoice Date"]) : (b["Created Date"] ? new Date(b["Created Date"]) : null),
       created_at: b["Created Date"] ? new Date(b["Created Date"]) : new Date(), // Fallback to now if missing from Bubble
@@ -245,7 +246,7 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
 
     // 6. Sync SEDA
     await syncTable('seda_registration', sedaRegistration, sedaRegistration.bubble_id, (b) => ({
-      reg_status: b["Reg Status"], state: b.State, city: b.City, agent: b.Agent,
+      state: b.State, city: b.City, agent: b.Agent,
       project_price: b["Project Price"], linked_customer: b["Linked Customer"],
       customer_signature: b["Customer Signature"], ic_copy_front: b["IC Copy Front"],
       ic_copy_back: b["IC Copy Back"], tnb_bill_1: b["TNB Bill 1"],
@@ -947,7 +948,7 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
         const seda = await fetchBubbleRecordByTypeName('seda_registration', sedaId);
 
         const vals = {
-          reg_status: seda["Reg Status"],
+          seda_status: seda["SEDA Status"],
           state: seda.State,
           city: seda.City,
           agent: seda.Agent,
@@ -992,6 +993,7 @@ export async function syncInvoicePackageWithRelations(dateFrom: string, dateTo?:
           linked_agent: inv["Linked Agent"] || inv.linked_agent || null,
           linked_payment: inv["Linked Payment"] || inv.linked_payment || null,
           linked_seda_registration: inv["Linked SEDA Registration"] || inv.linked_seda_registration || null,
+          linked_invoice_item: inv["linked_invoice_item"] || inv.linked_invoice_item || null,
           amount: inv.Amount ? inv.Amount.toString() : null,
           total_amount: inv["Total Amount"] || inv.total_amount || inv.Amount || null,
           status: inv.Status || inv.status || 'draft',
@@ -1183,7 +1185,7 @@ export async function syncSedaRegistrations(dateFrom: string, dateTo?: string) {
 
         if (shouldUpdate) {
           const vals = {
-            reg_status: seda["Reg Status"],
+            seda_status: seda["SEDA Status"],
             state: seda.State,
             city: seda.City,
             agent: seda.Agent,
@@ -1213,7 +1215,7 @@ export async function syncSedaRegistrations(dateFrom: string, dateTo?: string) {
             .onConflictDoUpdate({ target: sedaRegistration.bubble_id, set: vals });
 
           results.syncedSedas++;
-          logSyncActivity(`Synced SEDA ${seda._id}: ${seda["Reg Status"] || 'No status'}`, 'INFO');
+          logSyncActivity(`Synced SEDA ${seda._id}`, 'INFO');
         } else {
           results.skippedSedas++;
         }
@@ -1401,6 +1403,7 @@ export async function syncByIdList(csvData: string) {
                 linked_agent: inv["Linked Agent"] || null,
                 linked_payment: inv["Linked Payment"] || null,
                 linked_seda_registration: inv["Linked SEDA Registration"] || null,
+                linked_invoice_item: inv["linked_invoice_item"] || inv.linked_invoice_item || null,
                 amount: inv.Amount ? inv.Amount.toString() : null,
                 total_amount: inv["Total Amount"] || null,
                 status: inv.Status || 'draft',
@@ -1480,7 +1483,7 @@ export async function syncByIdList(csvData: string) {
 
               const bubbleModifiedDate = new Date(seda["Modified Date"]);
               const vals = {
-                reg_status: seda["Reg Status"],
+                seda_status: seda["SEDA Status"],
                 state: seda.State,
                 city: seda.City,
                 agent: seda.Agent,
