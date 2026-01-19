@@ -130,29 +130,29 @@ export default function SedaListPage() {
       {/* Data Table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="table">
+          <table className="min-w-full divide-y divide-gray-200">
             <thead>
               <tr>
-                <th>Invoice #</th>
-                <th>Customer</th>
-                <th>Agent</th>
-                <th>Payment %</th>
-                <th>SEDA Status</th>
-                <th>Last Modified</th>
-                <th>Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Invoice #</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-36">Payment %</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SEDA Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Last Modified</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center">
+                  <td colSpan={7} className="px-4 py-16 text-center">
                     <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-600" />
                     <p className="mt-4 text-gray-600">Loading invoices...</p>
                   </td>
                 </tr>
               ) : invoices.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center">
+                  <td colSpan={7} className="px-4 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="p-4 bg-gray-100 rounded-full">
                         <Receipt className="h-8 w-8 text-gray-400" />
@@ -171,60 +171,58 @@ export default function SedaListPage() {
                   const percent = getPaymentPercentage(invoice);
                   return (
                     <tr key={invoice.invoice_bubble_id} className="hover:bg-gray-50">
-                      <td>
-                        <div className="font-medium text-gray-900">
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="font-medium text-gray-900 text-sm">
                           {invoice.invoice_number || "N/A"}
                         </div>
                         {invoice.total_amount && (
-                          <div className="text-sm text-gray-500">
+                          <div className="text-xs text-gray-500">
                             RM {parseFloat(invoice.total_amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
                           </div>
                         )}
                       </td>
-                      <td>
+                      <td className="px-4 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
                           {invoice.customer_name || "N/A"}
                         </div>
                       </td>
-                      <td>
+                      <td className="px-4 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-600">
                           {invoice.agent_name || invoice.agent_name_snapshot || "N/A"}
                         </div>
                       </td>
-                      <td>
+                      <td className="px-4 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                          <div className="w-16 bg-gray-200 rounded-full h-2 overflow-hidden flex-shrink-0">
                             <div
                               className={`h-full ${getPaymentColor(percent)} transition-all`}
                               style={{ width: `${percent}%` }}
                             />
                           </div>
                           <span className="text-sm font-medium text-gray-700">
-                            {percent.toFixed(1)}%
+                            {percent.toFixed(0)}%
                           </span>
                         </div>
                       </td>
-                      <td>
+                      <td className="px-4 py-4 whitespace-nowrap">
                         {invoice.seda_bubble_id ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                             {invoice.seda_status || "Not Set"}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            SEDA FORM not created yet
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            SEDA FORM not created
                           </span>
                         )}
                       </td>
-                      <td>
-                        <div className="text-sm text-gray-600">
-                          {formatDate(invoice.seda_modified_date || invoice.seda_updated_at || invoice.invoice_date)}
-                        </div>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {formatDate(invoice.seda_modified_date || invoice.seda_updated_at || invoice.invoice_date)}
                       </td>
-                      <td className="text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="px-4 py-4 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-1">
                           <a
                             href={`/invoice/${invoice.invoice_bubble_id}`}
-                            className="btn-ghost text-blue-600 hover:text-blue-700 flex items-center gap-1.5"
+                            className="text-blue-600 hover:text-blue-700 p-1 hover:bg-blue-50 rounded"
                             title="View Invoice"
                           >
                             <Receipt className="h-4 w-4" />
@@ -232,7 +230,7 @@ export default function SedaListPage() {
                           {invoice.seda_bubble_id ? (
                             <a
                               href={`/seda/${invoice.seda_bubble_id}`}
-                              className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
+                              className="text-primary-600 hover:text-primary-700 p-1 hover:bg-primary-50 rounded"
                               title="View SEDA"
                             >
                               <Eye className="h-4 w-4" />
@@ -242,7 +240,7 @@ export default function SedaListPage() {
                               href={`https://calculator.atap.solar/new?invoice=${invoice.invoice_bubble_id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="btn-ghost text-green-600 hover:text-green-700 flex items-center gap-1.5 text-sm"
+                              className="text-green-600 hover:text-green-700 p-1 hover:bg-green-50 rounded text-xs font-medium"
                               title="Create SEDA"
                             >
                               Create

@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
       .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
       .where(
         and(
-          gt(invoices.percent_of_total_amount, 0),
-          lt(invoices.percent_of_total_amount, 100),
+          gt(invoices.percent_of_total_amount, '0'),
+          lt(invoices.percent_of_total_amount, '100'),
           // Filter by SEDA status: null, empty string, or doesn't exist
           or(
             isNull(sedaRegistration.seda_status),
