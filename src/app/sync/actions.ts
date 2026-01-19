@@ -8,6 +8,8 @@ import { logSyncActivity, getLatestLogs, clearLogs } from "@/lib/logger";
 import { eq, sql, and, or, isNull, isNotNull, inArray } from "drizzle-orm";
 import { createProgressSession } from "@/lib/progress-tracker";
 import { randomUUID } from "crypto";
+import fs from "fs";
+import path from "path";
 
 export async function runManualSync(dateFrom?: string, dateTo?: string, syncFiles = false, sessionId?: string) {
   logSyncActivity(`Manual Sync Triggered: ${dateFrom || 'All'} to ${dateTo || 'All'}, syncFiles: ${syncFiles}`, 'INFO');
@@ -635,6 +637,310 @@ export async function runFullInvoiceSync(dateFrom: string, dateTo?: string, sess
     return result;
   } catch (error) {
     logSyncActivity(`Full Invoice Sync CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Patch Chinese Filenames
+ *
+ * Fixes files with non-ASCII characters (like Chinese) in their filenames.
+ * Renames files on disk to use URL-encoded filenames and updates database URLs.
+ * This ensures files can be accessed reliably regardless of encoding issues.
+ */
+export async function patchChineseFilenames() {
+  logSyncActivity(`Starting 'Patch Chinese Filenames' job...`, 'INFO');
+
+  const STORAGE_ROOT = '/storage';
+  const FILE_BASE_URL = process.env.FILE_BASE_URL || 'https://admin.atap.solar';
+
+  /**
+   * Check if a string contains non-ASCII characters
+   */
+  function hasNonASCII(str: string): boolean {
+    for (let i = 0; i < str.length; i++) {
+      if (str.charCodeAt(i) > 127) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Sanitize filename by URL-encoding non-ASCII characters
+   */
+  function sanitizeFilename(filename: string): string {
+    const ext = path.extname(filename).split('?')[0];
+    const baseName = path.basename(filename, ext).split('?')[0];
+
+    let sanitizedBaseName = '';
+    for (let i = 0; i < baseName.length; i++) {
+      const char = baseName[i];
+      const code = char.charCodeAt(0);
+
+      // Allow: a-z, A-Z, 0-9, space, hyphen, underscore, dot
+      if (
+        (code >= 48 && code <= 57) ||  // 0-9
+        (code >= 65 && code <= 90) ||  // A-Z
+        (code >= 97 && code <= 122) || // a-z
+        code === 32 || code === 45 || code === 46 || code === 95  // space, -, ., _
+      ) {
+        sanitizedBaseName += char;
+      } else {
+        // URL-encode non-ASCII characters
+        sanitizedBaseName += encodeURIComponent(char);
+      }
+    }
+
+    return sanitizedBaseName + ext;
+  }
+
+  /**
+   * Extract filename from a file URL
+   */
+  function getFilenameFromUrl(url: string): string | null {
+    if (!url) return null;
+
+    // Remove base URL and /api/files prefix
+    let relativePath = url.replace(FILE_BASE_URL, '');
+    if (relativePath.startsWith('/api/files/')) {
+      relativePath = relativePath.replace('/api/files/', '');
+    } else if (relativePath.startsWith('/storage/')) {
+      relativePath = relativePath.replace('/storage/', '');
+    }
+
+    return path.basename(relativePath);
+  }
+
+  try {
+    let totalPatched = 0;
+    let totalSkipped = 0;
+
+    // ============================================================================
+    // Define all file fields across all tables
+    // ============================================================================
+    const fileFieldsConfig = [
+      // SEDA Registration - Multiple file fields
+      {
+        table: sedaRegistration,
+        tableName: 'seda_registration',
+        idField: 'id',
+        fields: [
+          { name: 'customer_signature', type: 'single' },
+          { name: 'ic_copy_front', type: 'single' },
+          { name: 'ic_copy_back', type: 'single' },
+          { name: 'tnb_bill_1', type: 'single' },
+          { name: 'tnb_bill_2', type: 'single' },
+          { name: 'tnb_bill_3', type: 'single' },
+          { name: 'nem_cert', type: 'single' },
+          { name: 'mykad_pdf', type: 'single' },
+          { name: 'property_ownership_prove', type: 'single' },
+          { name: 'roof_images', type: 'array' },
+          { name: 'site_images', type: 'array' },
+          { name: 'drawing_pdf_system', type: 'array' },
+          { name: 'drawing_system_actual', type: 'array' },
+          { name: 'drawing_engineering_seda_pdf', type: 'array' },
+        ]
+      },
+      // Users - Profile pictures
+      {
+        table: users,
+        tableName: 'user',
+        idField: 'id',
+        fields: [{ name: 'profile_picture', type: 'single' }]
+      },
+      // Payments - Attachments (array)
+      {
+        table: payments,
+        tableName: 'payment',
+        idField: 'id',
+        fields: [{ name: 'attachment', type: 'array' }]
+      },
+      // Submitted Payments - Attachments (array)
+      {
+        table: submitted_payments,
+        tableName: 'submitted_payment',
+        idField: 'id',
+        fields: [{ name: 'attachment', type: 'array' }]
+      },
+      // Invoice Templates - Logos
+      {
+        table: invoice_templates,
+        tableName: 'invoice_template',
+        idField: 'id',
+        fields: [{ name: 'logo_url', type: 'single' }]
+      },
+    ];
+
+    // ============================================================================
+    // Process each table and field
+    // ============================================================================
+    for (const config of fileFieldsConfig) {
+      logSyncActivity(`Scanning ${config.tableName}...`, 'INFO');
+
+      for (const fieldConfig of config.fields) {
+        const fieldName = fieldConfig.name;
+        const fieldType = fieldConfig.type;
+
+        try {
+          if (fieldType === 'array') {
+            // Array field - process in memory
+            const records = await db
+              .select({
+                id: (config.table as any)[config.idField],
+                urls: (config.table as any)[fieldName]
+              })
+              .from(config.table)
+              .where(isNotNull((config.table as any)[fieldName]));
+
+            for (const record of records) {
+              if (Array.isArray(record.urls)) {
+                const newUrls: string[] = [];
+                let hasChanges = false;
+
+                for (const url of record.urls) {
+                  const filename = getFilenameFromUrl(url);
+
+                  if (!filename || !hasNonASCII(filename)) {
+                    newUrls.push(url);
+                    totalSkipped++;
+                    continue;
+                  }
+
+                  logSyncActivity(`Found non-ASCII filename: ${filename}`, 'INFO');
+
+                  // Get the full file path
+                  let relativePath = url.replace(FILE_BASE_URL, '');
+                  if (relativePath.startsWith('/api/files/')) {
+                    relativePath = relativePath.replace('/api/files/', '');
+                  } else if (relativePath.startsWith('/storage/')) {
+                    relativePath = relativePath.replace('/storage/', '');
+                  }
+
+                  const oldPath = path.join(STORAGE_ROOT, relativePath);
+                  const dir = path.dirname(oldPath);
+
+                  // Generate new sanitized filename
+                  const sanitizedFilename = sanitizeFilename(filename);
+                  const newPath = path.join(dir, sanitizedFilename);
+
+                  // Rename file on disk if it exists
+                  if (fs.existsSync(oldPath)) {
+                    try {
+                      fs.renameSync(oldPath, newPath);
+                      logSyncActivity(`✓ Renamed: ${filename} → ${sanitizedFilename}`, 'INFO');
+                    } catch (err: any) {
+                      logSyncActivity(`✗ Failed to rename: ${(err as Error).message}`, 'ERROR');
+                      newUrls.push(url);
+                      continue;
+                    }
+                  } else {
+                    logSyncActivity(`⚠ File not found on disk: ${oldPath}`, 'INFO');
+                  }
+
+                  // Generate new URL
+                  const newRelativePath = relativePath.replace(filename, sanitizedFilename);
+                  const newUrl = `${FILE_BASE_URL}/api/files/${newRelativePath}`;
+                  newUrls.push(newUrl);
+                  hasChanges = true;
+                  totalPatched++;
+                }
+
+                // Update database if changes were made
+                if (hasChanges) {
+                  await db
+                    .update(config.table)
+                    .set({ [fieldName]: newUrls })
+                    .where(eq((config.table as any)[config.idField], record.id));
+
+                  logSyncActivity(`✓ Updated database record ${record.id}`, 'INFO');
+                }
+              }
+            }
+          } else {
+            // Single field - process in memory
+            const records = await db
+              .select({
+                id: (config.table as any)[config.idField],
+                url: (config.table as any)[fieldName]
+              })
+              .from(config.table)
+              .where(isNotNull((config.table as any)[fieldName]));
+
+            for (const record of records) {
+              const url = record.url as string;
+              const filename = getFilenameFromUrl(url);
+
+              if (!filename || !hasNonASCII(filename)) {
+                totalSkipped++;
+                continue;
+              }
+
+              logSyncActivity(`Found non-ASCII filename: ${filename}`, 'INFO');
+
+              // Get the full file path
+              let relativePath = url.replace(FILE_BASE_URL, '');
+              if (relativePath.startsWith('/api/files/')) {
+                relativePath = relativePath.replace('/api/files/', '');
+              } else if (relativePath.startsWith('/storage/')) {
+                relativePath = relativePath.replace('/storage/', '');
+              }
+
+              const oldPath = path.join(STORAGE_ROOT, relativePath);
+              const dir = path.dirname(oldPath);
+
+              // Generate new sanitized filename
+              const sanitizedFilename = sanitizeFilename(filename);
+              const newPath = path.join(dir, sanitizedFilename);
+
+              // Rename file on disk if it exists
+              if (fs.existsSync(oldPath)) {
+                try {
+                  fs.renameSync(oldPath, newPath);
+                  logSyncActivity(`✓ Renamed: ${filename} → ${sanitizedFilename}`, 'INFO');
+                } catch (err: any) {
+                  logSyncActivity(`✗ Failed to rename: ${(err as Error).message}`, 'ERROR');
+                  continue;
+                }
+              } else {
+                logSyncActivity(`⚠ File not found on disk: ${oldPath}`, 'WARN');
+              }
+
+              // Generate new URL
+              const newRelativePath = relativePath.replace(filename, sanitizedFilename);
+              const newUrl = `${FILE_BASE_URL}/api/files/${newRelativePath}`;
+
+              // Update database
+              await db
+                .update(config.table)
+                .set({ [fieldName]: newUrl })
+                .where(eq((config.table as any)[config.idField], record.id));
+
+              logSyncActivity(`✓ Updated database record ${record.id}`, 'INFO');
+              totalPatched++;
+            }
+          }
+        } catch (error) {
+          logSyncActivity(`Error patching ${config.tableName}.${fieldName}: ${String(error)}`, 'ERROR');
+        }
+      }
+    }
+
+    logSyncActivity(`Chinese filename patching complete: ${totalPatched} patched, ${totalSkipped} skipped`, 'INFO');
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+    revalidatePath("/customers");
+
+    return {
+      success: true,
+      totalPatched,
+      totalSkipped,
+      message: `Successfully patched ${totalPatched} file(s) with Chinese characters.\nSkipped ${totalSkipped} file(s).`
+    };
+
+  } catch (error) {
+    logSyncActivity(`Patch Chinese Filenames CRASHED: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
 }

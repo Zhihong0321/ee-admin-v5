@@ -8,6 +8,39 @@ const STORAGE_ROOT = '/storage';
 export const FILE_BASE_URL = process.env.FILE_BASE_URL || 'https://admin.atap.solar';
 
 /**
+ * Sanitize filename to handle non-ASCII characters (like Chinese)
+ * Converts non-ASCII characters to URL-encoded format for filesystem compatibility
+ */
+function sanitizeFilename(filename: string): string {
+  // Extract extension
+  const ext = path.extname(filename).split('?')[0];
+  const baseName = path.basename(filename, ext).split('?')[0];
+
+  // Keep ASCII characters, spaces, and common punctuation as-is
+  // URL-encode other characters (like Chinese) for filesystem compatibility
+  let sanitizedBaseName = '';
+  for (let i = 0; i < baseName.length; i++) {
+    const char = baseName[i];
+    const code = char.charCodeAt(0);
+
+    // Allow: a-z, A-Z, 0-9, space, hyphen, underscore, dot
+    if (
+      (code >= 48 && code <= 57) ||  // 0-9
+      (code >= 65 && code <= 90) ||  // A-Z
+      (code >= 97 && code <= 122) || // a-z
+      code === 32 || code === 45 || code === 46 || code === 95  // space, -, ., _
+    ) {
+      sanitizedBaseName += char;
+    } else {
+      // URL-encode non-ASCII characters
+      sanitizedBaseName += encodeURIComponent(char);
+    }
+  }
+
+  return sanitizedBaseName + ext;
+}
+
+/**
  * Downloads a file from a URL and saves it to the attached storage.
  * Returns the ABSOLUTE URL where the file can be accessed.
  */
@@ -28,13 +61,15 @@ export async function downloadBubbleFile(url: string, subfolder: string, filenam
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    const localPath = path.join(targetDir, filename);
+    // Sanitize filename to handle non-ASCII characters (Chinese, etc.)
+    const sanitizedFilename = sanitizeFilename(filename);
+    const localPath = path.join(targetDir, sanitizedFilename);
 
     // @ts-ignore - node fetch body is a ReadableStream which pipeline handles
     await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(localPath));
 
     // Return the ABSOLUTE URL for database storage
-    // Format: https://admin.atap.solar/api/files/seda/ic_copies/filename.jpg
+    // Use the sanitized filename in the URL for consistency
     const relativePath = localPath.replace(STORAGE_ROOT, '');
     return `${FILE_BASE_URL}/api/files${relativePath}`;
   } catch (error) {

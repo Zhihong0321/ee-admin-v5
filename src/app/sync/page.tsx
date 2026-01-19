@@ -6,7 +6,7 @@ import {
   UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
   Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag, Link, Globe
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, clearSyncLogs, runSedaOnlySync, runIdListSync } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, patchChineseFilenames, clearSyncLogs, runSedaOnlySync, runIdListSync } from "./actions";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
@@ -36,6 +36,7 @@ export default function SyncPage() {
   const [isUpdatingStatuses, setIsUpdatingStatuses] = useState(false);
   const [isRestoringLinks, setIsRestoringLinks] = useState(false);
   const [isPatchingUrls, setIsPatchingUrls] = useState(false);
+  const [isPatchingChinese, setIsPatchingChinese] = useState(false);
   const [isClearingLogs, setIsClearingLogs] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
@@ -299,6 +300,22 @@ export default function SyncPage() {
       setResults({ success: false, error: String(error) });
     } finally {
       setIsPatchingUrls(false);
+    }
+  };
+
+  const handlePatchChinese = async () => {
+    if (!confirm("This will fix files with Chinese (or other non-ASCII) characters in their filenames.\n\nIt will:\n1. Scan all file URLs in the database\n2. Rename files on disk to use URL-encoded names\n3. Update database URLs with the new filenames\n\nThis fixes the issue where files with Chinese characters cannot be accessed from browsers.\n\nContinue?")) return;
+
+    setIsPatchingChinese(true);
+    setResults(null);
+    try {
+      const res = await patchChineseFilenames();
+      setResults(res);
+      await loadLogs();
+    } catch (error) {
+      setResults({ success: false, error: String(error) });
+    } finally {
+      setIsPatchingChinese(false);
     }
   };
 
@@ -961,13 +978,22 @@ export default function SyncPage() {
               </div>
             </label>
 
-             <button 
+             <button
                onClick={() => handleSync('manual')}
                disabled={isSyncing}
                className="btn-primary w-full py-4 flex items-center justify-center gap-3 shadow-elevation-md"
              >
                {isSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
                Execute Manual Sync
+             </button>
+
+             <button
+               onClick={handlePatchChinese}
+               disabled={isPatchingChinese}
+               className="w-full py-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold transition-all flex items-center justify-center gap-2"
+             >
+               {isPatchingChinese ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
+               Non-English Filename Patcher
              </button>
 
              <button 
