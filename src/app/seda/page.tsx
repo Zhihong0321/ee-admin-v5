@@ -191,9 +191,9 @@ export default function SedaListPage() {
         </div>
         <div className="card bg-gradient-to-br from-green-50 to-green-100 border-green-200">
           <div className="text-3xl font-bold text-green-900">
-            {data.reduce((sum, g) => sum + g.invoices.filter(i => i.linked_seda_registration).length, 0)}
+            {data.reduce((sum, g) => sum + g.invoices.filter(i => i.seda_bubble_id).length, 0)}
           </div>
-          <div className="text-sm text-green-700 mt-1">With SEDA</div>
+          <div className="text-sm text-green-700 mt-1">With SEDA Data</div>
         </div>
       </div>
 
@@ -293,9 +293,13 @@ export default function SedaListPage() {
                               </div>
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap">
-                              {invoice.linked_seda_registration ? (
+                              {invoice.seda_bubble_id ? (
                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                   {invoice.seda_status || "Not Set"}
+                                </span>
+                              ) : invoice.linked_seda_registration ? (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                  Linked (No Data)
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
