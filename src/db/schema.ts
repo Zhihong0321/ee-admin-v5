@@ -60,6 +60,7 @@ export const invoices = pgTable('invoice', {
   sst_amount: numeric('sst_amount'),
   discount_amount: numeric('discount_amount'),
   voucher_amount: numeric('voucher_amount'),
+  percent_of_total_amount: numeric('percent_of_total_amount'),
   invoice_date: timestamp('invoice_date', { withTimezone: true }),
   due_date: timestamp('due_date', { withTimezone: true }),
   status: text('status'),

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sedaRegistration, customers, invoices } from "@/db/schema";
+import { sedaRegistration, customers, invoices, agents, users } from "@/db/schema";
 import { desc, ne, eq, sql, or, arrayContains } from "drizzle-orm";
 
 /**
@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
 
     console.log("SEDA API called with:", { statusFilter, searchQuery });
 
-    // Fetch SEDA with customer name via LEFT JOIN
+    // Fetch SEDA with customer name and agent name via LEFT JOIN
+    // Chain: seda.agent -> user.bubble_id -> user.linked_agent_profile -> agent.bubble_id
     const allSeda = await db
       .select({
         id: sedaRegistration.id,
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
         email: sedaRegistration.email,
         customer_name: customers.name,
         agent: sedaRegistration.agent,
+        agent_name: agents.name,
         modified_date: sedaRegistration.modified_date,
         updated_at: sedaRegistration.updated_at,
         created_date: sedaRegistration.created_date,
@@ -37,6 +39,8 @@ export async function GET(request: NextRequest) {
       })
       .from(sedaRegistration)
       .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))
+      .leftJoin(users, eq(sedaRegistration.agent, users.bubble_id))
+      .leftJoin(agents, eq(users.linked_agent_profile, agents.bubble_id))
       .where(ne(sedaRegistration.reg_status, "Deleted"))
       .orderBy(desc(sql`COALESCE(${sedaRegistration.modified_date}, ${sedaRegistration.updated_at}, ${sedaRegistration.created_date})`))
       .limit(100);
