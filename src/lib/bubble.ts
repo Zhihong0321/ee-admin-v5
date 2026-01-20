@@ -362,6 +362,78 @@ async function fetchAllBubbleIds(typeName: string): Promise<Set<string>> {
 }
 
 /**
+ * Calculate invoice total_amount from linked invoice items
+ * Returns null if no items found or items have no amounts
+ */
+async function calculateTotalFromInvoiceItems(linkedInvoiceItemIds: string[]): Promise<number | null> {
+  if (!linkedInvoiceItemIds || linkedInvoiceItemIds.length === 0) {
+    return null;
+  }
+
+  try {
+    // Fetch all invoice items and filter in memory
+    // (Drizzle doesn't have easy array contains syntax)
+    const allItems = await db.query.invoice_items.findMany();
+
+    // Filter to only items linked to this invoice
+    const matchedItems = allItems.filter(item =>
+      linkedInvoiceItemIds.includes(item.bubble_id)
+    );
+
+    if (matchedItems.length === 0) {
+      return null;
+    }
+
+    // Sum up all item amounts
+    let total = 0;
+    for (const item of matchedItems) {
+      if (item.amount) {
+        total += parseFloat(item.amount.toString());
+      }
+    }
+
+    return total > 0 ? total : null;
+  } catch (err) {
+    console.error('Error calculating total from invoice items:', err);
+    return null;
+  }
+}
+
+/**
+ * Get invoice total_amount with fallback logic:
+ * 1. Use Bubble value if not null
+ * 2. Calculate from linked_invoice_items if Bubble is null
+ * 3. Preserve existing local value if Bubble is null and no items
+ * 4. Only set to null if all above fail
+ */
+async function getInvoiceTotalWithFallback(
+  bubbleTotal: any,
+  linkedInvoiceItemIds: string[],
+  existingLocalTotal?: any
+): Promise<string | null> {
+  // Priority 1: Bubble has a valid value
+  if (bubbleTotal !== null && bubbleTotal !== undefined && bubbleTotal !== '') {
+    return bubbleTotal.toString();
+  }
+
+  // Priority 2: Calculate from invoice items
+  if (linkedInvoiceItemIds && linkedInvoiceItemIds.length > 0) {
+    const calculatedTotal = await calculateTotalFromInvoiceItems(linkedInvoiceItemIds);
+    if (calculatedTotal !== null && calculatedTotal > 0) {
+      return calculatedTotal.toString();
+    }
+  }
+
+  // Priority 3: Preserve existing local value
+  if (existingLocalTotal !== null && existingLocalTotal !== undefined && existingLocalTotal !== '') {
+    return existingLocalTotal.toString();
+  }
+
+  // Priority 4: Last resort - null (will show as 0)
+  return null;
+}
+
+/**
  * Sync Payments with Deletion Tracking and Invoice Chain Sync
  *
  * 1. Syncs all payment records from Bubble (overwrites local data)
@@ -487,10 +559,31 @@ export async function syncPaymentsFromBubble() {
           // Fetch the invoice from Bubble
           const invoice = await fetchBubbleRecordByTypeName('invoice', invoiceId);
 
+          // Get existing invoice to preserve local data if needed
+          const existingInvoice = await db.query.invoices.findFirst({
+            where: eq(invoices.bubble_id, invoiceId),
+          });
+
           // Sync the invoice with all relations (customer, agent, payments, SEDA, etc.)
           // This uses the existing syncInvoicePackageWithRelations logic but for a single invoice
 
           const bubbleModifiedDate = new Date(invoice["Modified Date"]);
+          const linkedItems = invoice["linked_invoice_item"] || invoice.linked_invoice_item || [];
+
+          // Use fallback logic to preserve total_amount
+          const total_amount = await getInvoiceTotalWithFallback(
+            invoice["Total Amount"] || invoice.total_amount || invoice.Amount,
+            linkedItems,
+            existingInvoice?.total_amount
+          );
+
+          // Use fallback logic for amount field too
+          const amount = await getInvoiceTotalWithFallback(
+            invoice.Amount,
+            linkedItems,
+            existingInvoice?.amount
+          );
+
           const vals = {
             invoice_id: invoice["Invoice ID"] || invoice.invoice_id || null,
             invoice_number: invoice["Invoice Number"] || invoice.invoice_number || null,
@@ -498,9 +591,9 @@ export async function syncPaymentsFromBubble() {
             linked_agent: invoice["Linked Agent"] || null,
             linked_payment: invoice["Linked Payment"] || null,
             linked_seda_registration: invoice["Linked SEDA Registration"] || null,
-            linked_invoice_item: invoice["linked_invoice_item"] || invoice.linked_invoice_item || null,
-            amount: invoice.Amount ? invoice.Amount.toString() : null,
-            total_amount: invoice["Total Amount"] || null,
+            linked_invoice_item: linkedItems,
+            amount: amount,
+            total_amount: total_amount,
             status: invoice.Status || 'draft',
             invoice_date: invoice["Invoice Date"] ? new Date(invoice["Invoice Date"]) : null,
             created_at: invoice["Created Date"] ? new Date(invoice["Created Date"]) : new Date(),
@@ -1524,8 +1617,29 @@ export async function syncByIdList(csvData: string) {
                 (inv["Linked Payment"] as string[]).forEach(p => paymentIds.add(p));
               }
 
+              // Get existing invoice to preserve local data if needed
+              const existingInvoice = await db.query.invoices.findFirst({
+                where: eq(invoices.bubble_id, inv._id),
+              });
+
               // Upsert invoice
               const bubbleModifiedDate = new Date(inv["Modified Date"]);
+              const linkedItems = inv["linked_invoice_item"] || inv.linked_invoice_item || [];
+
+              // Use fallback logic to preserve total_amount
+              const total_amount = await getInvoiceTotalWithFallback(
+                inv["Total Amount"] || inv.total_amount || inv.Amount,
+                linkedItems,
+                existingInvoice?.total_amount
+              );
+
+              // Use fallback logic for amount field too
+              const amount = await getInvoiceTotalWithFallback(
+                inv.Amount,
+                linkedItems,
+                existingInvoice?.amount
+              );
+
               const vals = {
                 invoice_id: inv["Invoice ID"] || inv.invoice_id || null,
                 invoice_number: inv["Invoice Number"] || inv.invoice_number || null,
@@ -1533,9 +1647,9 @@ export async function syncByIdList(csvData: string) {
                 linked_agent: inv["Linked Agent"] || null,
                 linked_payment: inv["Linked Payment"] || null,
                 linked_seda_registration: inv["Linked SEDA Registration"] || null,
-                linked_invoice_item: inv["linked_invoice_item"] || inv.linked_invoice_item || null,
-                amount: inv.Amount ? inv.Amount.toString() : null,
-                total_amount: inv["Total Amount"] || null,
+                linked_invoice_item: linkedItems,
+                amount: amount,
+                total_amount: total_amount,
                 status: inv.Status || 'draft',
                 invoice_date: inv["Invoice Date"] ? new Date(inv["Invoice Date"]) : null,
                 created_at: inv["Created Date"] ? new Date(inv["Created Date"]) : new Date(),
