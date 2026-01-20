@@ -1524,3 +1524,93 @@ export async function runIntegrityBatchSync(dateFrom: string, dateTo?: string) {
   }
 }
 
+/**
+ * FAST INVOICE SYNC BY ID LIST
+ *
+ * Paste a list of invoice Bubble IDs to sync directly
+ * Much faster than date range sync - no need to fetch all invoices
+ *
+ * @param invoiceIdText - Paste list of invoice IDs (one per line or comma-separated)
+ * @param skipUsers - Skip syncing users (default: true, they rarely change)
+ * @param skipAgents - Skip syncing agents (default: true, they rarely change)
+ */
+export async function runInvoiceIdListSync(
+  invoiceIdText: string,
+  skipUsers: boolean = true,
+  skipAgents: boolean = true
+) {
+  logSyncActivity(`Fast Invoice ID List Sync triggered`, 'INFO');
+
+  // Parse invoice IDs from text (handle newlines, commas, spaces)
+  const invoiceIds = invoiceIdText
+    .split(/[\n,\s]+/)
+    .map(id => id.trim())
+    .filter(id => id.length > 0);
+
+  if (invoiceIds.length === 0) {
+    return {
+      success: false,
+      error: 'No invoice IDs found. Please paste a list of invoice Bubble IDs.'
+    };
+  }
+
+  logSyncActivity(`Parsing ${invoiceIds.length} invoice IDs from paste`, 'INFO');
+
+  // Create sync progress session
+  const syncSessionId = await createSyncProgress();
+  logSyncActivity(`Created sync progress session: ${syncSessionId}`, 'INFO');
+
+  try {
+    const { syncInvoiceListByIds } = await import('@/lib/integrity-sync-idlist');
+
+    const result = await syncInvoiceListByIds(invoiceIds, {
+      syncSessionId,
+      skipUsers,
+      skipAgents,
+      onProgress: (current, total, message) => {
+        logSyncActivity(`[${current}/${total}] ${message}`, 'INFO');
+      }
+    });
+
+    if (result.success) {
+      logSyncActivity(`✅ ID List Sync SUCCESS!`, 'INFO');
+      logSyncActivity(`Total: ${result.results.total}, Synced: ${result.results.synced}, Skipped: ${result.results.skipped}, Failed: ${result.results.failed}`, 'INFO');
+
+      if (result.results.errors.length > 0) {
+        logSyncActivity(`⚠️  ${result.results.errors.length} error(s) occurred`, 'ERROR');
+        result.results.errors.slice(0, 10).forEach((err) => {
+          logSyncActivity(`  • ${err}`, 'ERROR');
+        });
+      }
+
+      // Auto-patch links after successful sync
+      logSyncActivity(`Running automatic link patching...`, 'INFO');
+      const invoiceLinkResult = await restoreInvoiceSedaLinks();
+      logSyncActivity(`Invoice→SEDA links restored: ${invoiceLinkResult.linked || 0} linked`, 'INFO');
+    } else {
+      logSyncActivity(`❌ ID List Sync FAILED`, 'ERROR');
+    }
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+    revalidatePath("/customers");
+
+    return {
+      ...result,
+      syncSessionId,
+    };
+  } catch (error) {
+    logSyncActivity(`ID List Sync CRASHED: ${String(error)}`, 'ERROR');
+    return {
+      success: false,
+      results: {
+        total: invoiceIds.length,
+        synced: 0,
+        skipped: 0,
+        failed: invoiceIds.length,
+        errors: [String(error)]
+      },
+      syncSessionId,
+    };
+  }
+}

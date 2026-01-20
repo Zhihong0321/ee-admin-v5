@@ -321,6 +321,8 @@ export async function syncInvoiceWithFullIntegrity(
   options: {
     sessionId?: string;
     force?: boolean;  // Skip timestamp check
+    skipUsers?: boolean; // Skip syncing users
+    skipAgents?: boolean; // Skip syncing agents
     onProgress?: (step: string, message: string) => void;
   } = {}
 ): Promise<SyncInvoiceResult> {
@@ -382,19 +384,16 @@ export async function syncInvoiceWithFullIntegrity(
     results.steps.push({ action: 'extract_relations', success: true });
 
     // STEP 4: Sync dependencies in correct order
-    // LEVEL 0: Agent (if linked)
-    if (relations.agent) {
+    // LEVEL 0: Agent (if linked) - SKIP if skipAgents=true
+    if (relations.agent && !options.skipAgents) {
       log('SYNC_AGENT', `Syncing agent ${relations.agent}...`);
       const agentResult = await syncAgentIntegrity(relations.agent);
       results.steps.push(agentResult);
       if (agentResult.success) {
         results.stats.agent++;
-        // Also sync the agent's user (via linked_user_login)
-        log('SYNC_AGENT_USER', `Finding user for agent...`);
-        // Note: We need to find the user by querying for users linked to this agent
-        // This requires fetching all users and filtering, which is expensive
-        // For now, skip unless specifically requested
       }
+    } else if (relations.agent && options.skipAgents) {
+      log('SKIP_AGENT', `Skipping agent ${relations.agent} (skipAgents=true)`);
     }
 
     // LEVEL 0: Customer (if linked)
@@ -407,14 +406,16 @@ export async function syncInvoiceWithFullIntegrity(
       }
     }
 
-    // LEVEL 1: Created By (user)
-    if (relations.created_by) {
+    // LEVEL 1: Created By (user) - SKIP if skipUsers=true
+    if (relations.created_by && !options.skipUsers) {
       log('SYNC_USER', `Syncing user ${relations.created_by}...`);
       const userResult = await syncUserIntegrity(relations.created_by);
       results.steps.push(userResult);
       if (userResult.success) {
         results.stats.user++;
       }
+    } else if (relations.created_by && options.skipUsers) {
+      log('SKIP_USER', `Skipping user ${relations.created_by} (skipUsers=true)`);
     }
 
     // LEVEL 3: Payments (array)

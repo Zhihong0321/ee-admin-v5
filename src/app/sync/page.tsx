@@ -6,7 +6,7 @@ import {
   UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
   Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag, Link, Globe
 } from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, patchChineseFilenames, clearSyncLogs, runSedaOnlySync, runIdListSync, syncInvoiceItemLinks, runIntegritySync, runIntegrityBatchSync } from "./actions";
+import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, patchChineseFilenames, clearSyncLogs, runSedaOnlySync, runIdListSync, syncInvoiceItemLinks, runIntegritySync, runIntegrityBatchSync, runInvoiceIdListSync } from "./actions";
 
 export default function SyncPage() {
   const [dateFrom, setDateFrom] = useState("");
@@ -29,6 +29,15 @@ export default function SyncPage() {
   const [csvIdList, setCsvIdList] = useState("");
   const [isIdListSyncing, setIsIdListSyncing] = useState(false);
   const [idListSyncResults, setIdListSyncResults] = useState<any>(null);
+
+  // Fast Invoice ID List Sync state (NEW - Integrity-based with progress)
+  const [invoiceIdList, setInvoiceIdList] = useState("");
+  const [skipUsers, setSkipUsers] = useState(true); // Default: skip users
+  const [skipAgents, setSkipAgents] = useState(true); // Default: skip agents
+  const [isInvoiceIdListSyncing, setIsInvoiceIdListSyncing] = useState(false);
+  const [invoiceIdListResults, setInvoiceIdListResults] = useState<any>(null);
+  const [invoiceIdListSessionId, setInvoiceIdListSessionId] = useState<string | null>(null);
+  const [invoiceIdListProgress, setInvoiceIdListProgress] = useState<any>(null);
 
   // Dedicated Invoice Item Sync state
   const [itemSyncDateFrom, setItemSyncDateFrom] = useState("");
@@ -237,6 +246,42 @@ export default function SyncPage() {
 
     return () => clearInterval(interval);
   }, [integritySyncSessionId, isIntegrityBatchSyncing]);
+
+  // Simple polling for invoice ID list sync progress (every 2 seconds)
+  useEffect(() => {
+    if (!invoiceIdListSessionId) return;
+    if (!isInvoiceIdListSyncing) return;
+
+    console.log('[ID List Sync Progress] Polling for progress, sessionId:', invoiceIdListSessionId);
+
+    const pollProgress = async () => {
+      try {
+        const res = await fetch(`/api/sync/progress?sessionId=${invoiceIdListSessionId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.progress) {
+            console.log('[ID List Sync Progress] Progress update:', data.progress);
+            setInvoiceIdListProgress(data.progress);
+
+            // Stop polling if completed or error
+            if (data.progress.status === 'completed' || data.progress.status === 'error') {
+              setIsInvoiceIdListSyncing(false);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[ID List Sync Progress] Failed to fetch progress:', error);
+      }
+    };
+
+    // Initial poll
+    pollProgress();
+
+    // Poll every 2 seconds
+    const interval = setInterval(pollProgress, 2000);
+
+    return () => clearInterval(interval);
+  }, [invoiceIdListSessionId, isInvoiceIdListSyncing]);
 
   const handleSync = async (type: 'manual' | 'auto') => {
     setIsSyncing(true);
@@ -541,6 +586,42 @@ export default function SyncPage() {
       setIntegrityBatchResults({ success: false, error: String(error) });
     } finally {
       // Note: setIsIntegrityBatchSyncing(false) will be called by the polling effect when sync completes
+    }
+  };
+
+  const handleInvoiceIdListSync = async () => {
+    if (!invoiceIdList.trim()) {
+      alert("Please paste a list of invoice Bubble IDs");
+      return;
+    }
+
+    // Count invoice IDs
+    const idCount = invoiceIdList.split(/[\n,\s]+/).filter(id => id.trim().length > 0).length;
+
+    const confirmMsg = `Sync ${idCount} invoices by ID list?\n\nThis will:\n• Sync only the pasted invoice IDs\n• Skip users: ${skipUsers ? 'Yes (faster)' : 'No'}\n• Skip agents: ${skipAgents ? 'Yes (faster)' : 'No'}\n• Show real-time progress\n\nContinue?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    // Clear previous progress and results
+    setInvoiceIdListProgress(null);
+    setInvoiceIdListResults(null);
+    setInvoiceIdListSessionId(null);
+
+    setIsInvoiceIdListSyncing(true);
+    try {
+      const res = await runInvoiceIdListSync(invoiceIdList, skipUsers, skipAgents);
+
+      // Capture the syncSessionId for progress tracking (only if success)
+      if ('syncSessionId' in res && res.syncSessionId) {
+        setInvoiceIdListSessionId(res.syncSessionId);
+      }
+
+      setInvoiceIdListResults(res);
+      await loadLogs();
+    } catch (error) {
+      setInvoiceIdListResults({ success: false, error: String(error) });
+    } finally {
+      // Note: setIsInvoiceIdListSyncing(false) will be called by the polling effect when sync completes
     }
   };
 
@@ -1412,6 +1493,167 @@ export default function SyncPage() {
             <div className="p-3 bg-white/5 rounded-lg text-center">
               <Loader2 className="h-5 w-5 animate-spin text-amber-300 mx-auto mb-2" />
               <p className="text-sm text-amber-200">Starting sync... detecting invoices</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* FAST INVOICE ID LIST SYNC - PASTE INVOICE IDs */}
+      <div className="bg-gradient-to-br from-cyan-600 to-blue-700 rounded-2xl shadow-xl overflow-hidden">
+        <div className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-bold text-white">⚡ Fast Invoice ID List Sync</h3>
+              <p className="text-cyan-200 text-sm">Paste invoice Bubble IDs to sync directly (much faster!)</p>
+            </div>
+            <Zap className="h-8 w-8 text-cyan-300" />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-cyan-200">Paste Invoice Bubble IDs (one per line or comma-separated)</label>
+            <textarea
+              className="w-full h-40 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-white/50 placeholder-white/30"
+              placeholder="1647839483923x8394832&#10;1647839483924x8394833&#10;1647839483925x8394834&#10;..."
+              value={invoiceIdList}
+              onChange={(e) => setInvoiceIdList(e.target.value)}
+            />
+          </div>
+
+          {/* Skip options */}
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex items-center gap-2 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-white/30 text-cyan-400 focus:ring-cyan-500"
+                checked={skipUsers}
+                onChange={(e) => setSkipUsers(e.target.checked)}
+              />
+              <div>
+                <p className="text-xs font-bold text-white">Skip Users</p>
+                <p className="text-[9px] text-cyan-200">Users rarely change</p>
+              </div>
+            </label>
+
+            <label className="flex items-center gap-2 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-white/30 text-cyan-400 focus:ring-cyan-500"
+                checked={skipAgents}
+                onChange={(e) => setSkipAgents(e.target.checked)}
+              />
+              <div>
+                <p className="text-xs font-bold text-white">Skip Agents</p>
+                <p className="text-[9px] text-cyan-200">Agents rarely change</p>
+              </div>
+            </label>
+          </div>
+
+          <button
+            onClick={handleInvoiceIdListSync}
+            disabled={isInvoiceIdListSyncing || !invoiceIdList.trim()}
+            className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isInvoiceIdListSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Zap className="h-5 w-5" />}
+            Sync Invoice ID List
+          </button>
+
+          {/* ID List Sync Results */}
+          {invoiceIdListResults?.success && (
+            <div className="p-4 bg-white/5 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-green-300">
+                <CheckCircle2 className="h-5 w-5" />
+                <p className="font-bold">Sync Complete!</p>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-xs">
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{invoiceIdListResults.results?.total || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-cyan-300">Total</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{invoiceIdListResults.results?.synced || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-cyan-300">Synced</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{invoiceIdListResults.results?.skipped || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-cyan-300">Skipped</p>
+                </div>
+                <div className="text-center p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{invoiceIdListResults.results?.failed || 0}</p>
+                  <p className="text-[9px] uppercase font-bold text-cyan-300">Failed</p>
+                </div>
+              </div>
+              {invoiceIdListResults.results?.errors && invoiceIdListResults.results.errors.length > 0 && (
+                <div className="p-2 bg-red-500/20 rounded-lg text-red-300 text-xs font-mono">
+                  {invoiceIdListResults.results.errors.length} error(s) - check logs
+                </div>
+              )}
+            </div>
+          )}
+
+          {invoiceIdListResults && !invoiceIdListResults.success && invoiceIdListResults.error && (
+            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
+              {invoiceIdListResults.error}
+            </div>
+          )}
+
+          {/* Progress Display for ID List Sync */}
+          {isInvoiceIdListSyncing && invoiceIdListProgress && (
+            <div className="p-4 bg-white/10 rounded-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-green-400 animate-pulse" />
+                  <p className="font-bold text-white">Sync Progress</p>
+                </div>
+                <p className="text-sm font-bold text-green-400">
+                  {invoiceIdListProgress.total_invoices > 0
+                    ? Math.round((invoiceIdListProgress.synced_invoices / invoiceIdListProgress.total_invoices) * 100)
+                    : 0}%
+                </p>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-300"
+                  style={{
+                    width: `${invoiceIdListProgress.total_invoices > 0
+                      ? (invoiceIdListProgress.synced_invoices / invoiceIdListProgress.total_invoices) * 100
+                      : 0}%`
+                  }}
+                />
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{invoiceIdListProgress.synced_invoices}</p>
+                  <p className="text-[9px] uppercase font-bold text-green-300">Synced</p>
+                </div>
+                <div className="p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{invoiceIdListProgress.total_invoices}</p>
+                  <p className="text-[9px] uppercase font-bold text-cyan-300">Total</p>
+                </div>
+                <div className="p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{invoiceIdListProgress.total_invoices - invoiceIdListProgress.synced_invoices}</p>
+                  <p className="text-[9px] uppercase font-bold text-cyan-300">Remaining</p>
+                </div>
+              </div>
+
+              {/* Current Invoice */}
+              {invoiceIdListProgress.current_invoice_id && (
+                <div className="p-2 bg-black/20 rounded-lg">
+                  <p className="text-[10px] uppercase font-bold text-cyan-300">Currently Syncing</p>
+                  <p className="text-xs font-mono text-white truncate">{invoiceIdListProgress.current_invoice_id}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Loading state before progress data arrives */}
+          {isInvoiceIdListSyncing && !invoiceIdListProgress && (
+            <div className="p-3 bg-white/5 rounded-lg text-center">
+              <Loader2 className="h-5 w-5 animate-spin text-cyan-300 mx-auto mb-2" />
+              <p className="text-sm text-cyan-200">Starting sync... parsing invoice IDs</p>
             </div>
           )}
         </div>
