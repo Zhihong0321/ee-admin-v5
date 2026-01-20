@@ -283,7 +283,7 @@ export default function ApiDocPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <code className="text-xs bg-secondary-100 px-2 py-1 rounded text-secondary-600">
-                          curl -X POST {baseUrl}{endpoint.path} -H "Content-Type: application/json" -d '{"bubble_id":"..."}'
+                          curl -X POST {baseUrl}{endpoint.path} -H "Content-Type: application/json" -d '{'"'{"bubble_id":"..."}'"'}'
                         </code>
                         <button
                           onClick={() => copyToClipboard(`curl -X POST ${baseUrl}${endpoint.path} -H "Content-Type: application/json" -d '${JSON.stringify(endpoint.example)}'`, 'url')}
