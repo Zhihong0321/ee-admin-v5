@@ -1466,6 +1466,8 @@ export async function runIntegrityBatchSync(dateFrom: string, dateTo?: string) {
   try {
     const result = await syncBatchInvoicesWithIntegrity(dateFrom, dateTo, {
       syncSessionId, // Pass to sync for DB progress tracking
+      skipUsers: true, // Skip syncing users (faster - they rarely change)
+      skipAgents: true, // Skip syncing agents (faster - they rarely change)
       onProgress: (current, total, message) => {
         logSyncActivity(`[${current}/${total}] ${message}`, 'INFO');
       }
