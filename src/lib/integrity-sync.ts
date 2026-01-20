@@ -469,6 +469,11 @@ export async function syncInvoiceWithFullIntegrity(
     log('SYNC_INVOICE', `Syncing invoice ${invoiceBubbleId}...`);
     const mappedInvoice = ALL_MAPPING_FUNCTIONS.invoice(bubbleInvoice);
 
+    // DEBUG: Log linked_invoice_item before upsert
+    log('DEBUG', `linked_invoice_item in mappedInvoice: ${JSON.stringify(mappedInvoice.linked_invoice_item)}`);
+    log('DEBUG', `linked_invoice_item type: ${Array.isArray(mappedInvoice.linked_invoice_item) ? 'array' : typeof mappedInvoice.linked_invoice_item}`);
+    log('DEBUG', `linked_invoice_item length: ${Array.isArray(mappedInvoice.linked_invoice_item) ? mappedInvoice.linked_invoice_item.length : 'N/A'}`);
+
     // Add timestamps
     mappedInvoice.updated_at = bubbleInvoice['Modified Date'] ? new Date(bubbleInvoice['Modified Date']) : new Date();
     mappedInvoice.created_at = bubbleInvoice['Created Date'] ? new Date(bubbleInvoice['Created Date']) : new Date();
