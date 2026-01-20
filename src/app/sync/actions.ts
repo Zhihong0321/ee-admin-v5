@@ -1485,16 +1485,8 @@ export async function runIntegrityBatchSync(dateFrom: string, dateTo?: string) {
         }
       }
 
-      // Auto-patch links after successful sync
-      logSyncActivity(`Running automatic link patching...`, 'INFO');
-
-      // Patch 1: Restore Invoice→SEDA links from SEDA.linked_invoice array
-      const invoiceLinkResult = await restoreInvoiceSedaLinks();
-      logSyncActivity(`Invoice→SEDA links restored: ${invoiceLinkResult.linked || 0} linked`, 'INFO');
-
-      // Patch 2: Fix SEDA→Customer links from Invoice.linked_customer
-      const sedaCustomerResult = await patchSedaCustomerLinks();
-      logSyncActivity(`SEDA→Customer links patched: ${sedaCustomerResult.patched || 0} patched`, 'INFO');
+      // NOTE: Skipping auto link patching - integrity sync already handles proper linking
+      // The sync process correctly sets linked_seda_registration during invoice sync
     } else {
       logSyncActivity(`❌ Batch Sync FAILED: ${result.results.errors.join(', ')}`, 'ERROR');
     }
@@ -1583,10 +1575,8 @@ export async function runInvoiceIdListSync(
         });
       }
 
-      // Auto-patch links after successful sync
-      logSyncActivity(`Running automatic link patching...`, 'INFO');
-      const invoiceLinkResult = await restoreInvoiceSedaLinks();
-      logSyncActivity(`Invoice→SEDA links restored: ${invoiceLinkResult.linked || 0} linked`, 'INFO');
+      // NOTE: Skipping auto link patching for ID list sync to avoid overhead
+      // The integrity sync already handles proper linking during sync
     } else {
       logSyncActivity(`❌ ID List Sync FAILED`, 'ERROR');
     }
