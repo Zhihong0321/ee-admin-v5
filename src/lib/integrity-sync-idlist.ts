@@ -6,6 +6,11 @@
  */
 
 import { syncInvoiceWithFullIntegrity } from "./integrity-sync";
+import {
+  updateSyncProgress,
+  completeSyncProgress,
+  errorSyncProgress
+} from "./sync-progress";
 
 export interface SyncInvoiceListOptions {
   syncSessionId?: string;
@@ -59,10 +64,8 @@ export async function syncInvoiceListByIds(
   console.log(`[ID List Sync] Starting sync for ${invoiceIds.length} invoices`);
   console.log(`[ID List Sync] Skip users: ${skipUsers}, Skip agents: ${skipAgents}`);
 
-  // Import update functions if we have a syncSessionId
-  let updateProgress: any = null;
+  // Initialize progress in database if sessionId provided
   if (syncSessionId) {
-    const { updateSyncProgress, completeSyncProgress, errorSyncProgress } = require("./sync-progress");
     await updateSyncProgress(syncSessionId, {
       total_invoices: invoiceIds.length,
       synced_invoices: 0,
@@ -104,7 +107,6 @@ export async function syncInvoiceListByIds(
 
       // Update progress in database
       if (syncSessionId) {
-        const { updateSyncProgress } = require("./sync-progress");
         await updateSyncProgress(syncSessionId, {
           synced_invoices: synced + skipped, // Total processed
           current_invoice_id: invoiceId,
@@ -126,12 +128,7 @@ export async function syncInvoiceListByIds(
 
   // Mark progress as completed
   if (syncSessionId) {
-    const { completeSyncProgress, errorSyncProgress } = require("./sync-progress");
-    if (failed > 0 && errors.length > 0) {
-      await completeSyncProgress(syncSessionId, { synced });
-    } else {
-      await completeSyncProgress(syncSessionId, { synced });
-    }
+    await completeSyncProgress(syncSessionId, { synced });
   }
 
   return {
