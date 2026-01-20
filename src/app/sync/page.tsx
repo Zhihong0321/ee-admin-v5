@@ -45,6 +45,8 @@ export default function SyncPage() {
   const [integrityBatchDateTo, setIntegrityBatchDateTo] = useState("");
   const [isIntegrityBatchSyncing, setIsIntegrityBatchSyncing] = useState(false);
   const [integrityBatchResults, setIntegrityBatchResults] = useState<any>(null);
+  const [integritySyncSessionId, setIntegritySyncSessionId] = useState<string | null>(null);
+  const [integritySyncProgress, setIntegritySyncProgress] = useState<any>(null);
 
   const [isUpdatingPercentages, setIsUpdatingPercentages] = useState(false);
   const [isPatchingCreators, setIsPatchingCreators] = useState(false);
@@ -198,6 +200,43 @@ export default function SyncPage() {
       eventSource.close();
     };
   }, [sessionId]);
+
+  // Simple polling for integrity batch sync progress (every 2 seconds)
+  useEffect(() => {
+    if (!integritySyncSessionId) return;
+    if (!isIntegrityBatchSyncing) return;
+
+    console.log('[Sync Progress] Polling for progress, sessionId:', integritySyncSessionId);
+
+    const pollProgress = async () => {
+      try {
+        const res = await fetch(`/api/sync/progress?sessionId=${integritySyncSessionId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.progress) {
+            console.log('[Sync Progress] Progress update:', data.progress);
+            setIntegritySyncProgress(data.progress);
+
+            // Stop polling if completed or error
+            if (data.progress.status === 'completed' || data.progress.status === 'error') {
+              setIsIntegrityBatchSyncing(false);
+              // Final results will be loaded via the normal flow
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[Sync Progress] Failed to fetch progress:', error);
+      }
+    };
+
+    // Initial poll
+    pollProgress();
+
+    // Poll every 2 seconds
+    const interval = setInterval(pollProgress, 2000);
+
+    return () => clearInterval(interval);
+  }, [integritySyncSessionId, isIntegrityBatchSyncing]);
 
   const handleSync = async (type: 'manual' | 'auto') => {
     setIsSyncing(true);
@@ -482,16 +521,26 @@ export default function SyncPage() {
 
     if (!confirm(confirmMsg)) return;
 
-    setIsIntegrityBatchSyncing(true);
+    // Clear previous progress and results
+    setIntegritySyncProgress(null);
     setIntegrityBatchResults(null);
+    setIntegritySyncSessionId(null);
+
+    setIsIntegrityBatchSyncing(true);
     try {
       const res = await runIntegrityBatchSync(integrityBatchDateFrom, integrityBatchDateTo || undefined);
+
+      // Capture the syncSessionId for progress tracking
+      if (res.syncSessionId) {
+        setIntegritySyncSessionId(res.syncSessionId);
+      }
+
       setIntegrityBatchResults(res);
       await loadLogs();
     } catch (error) {
       setIntegrityBatchResults({ success: false, error: String(error) });
     } finally {
-      setIsIntegrityBatchSyncing(false);
+      // Note: setIsIntegrityBatchSyncing(false) will be called by the polling effect when sync completes
     }
   };
 
@@ -1298,10 +1347,71 @@ export default function SyncPage() {
             </div>
           )}
 
-          {isIntegrityBatchSyncing && (
+          {/* Simple Real-time Progress Display for Batch Sync */}
+          {isIntegrityBatchSyncing && integritySyncProgress && (
+            <div className="p-4 bg-white/10 rounded-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-green-400 animate-pulse" />
+                  <p className="font-bold text-white">Sync Progress</p>
+                </div>
+                <p className="text-sm font-bold text-green-400">
+                  {integritySyncProgress.total_invoices > 0
+                    ? Math.round((integritySyncProgress.synced_invoices / integritySyncProgress.total_invoices) * 100)
+                    : 0}%
+                </p>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-300"
+                  style={{
+                    width: `${integritySyncProgress.total_invoices > 0
+                      ? (integritySyncProgress.synced_invoices / integritySyncProgress.total_invoices) * 100
+                      : 0}%`
+                  }}
+                />
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integritySyncProgress.synced_invoices}</p>
+                  <p className="text-[9px] uppercase font-bold text-green-300">Synced</p>
+                </div>
+                <div className="p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integritySyncProgress.total_invoices}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Total</p>
+                </div>
+                <div className="p-2 bg-white/5 rounded-lg">
+                  <p className="text-xl font-bold text-white">{integritySyncProgress.total_invoices - integritySyncProgress.synced_invoices}</p>
+                  <p className="text-[9px] uppercase font-bold text-amber-300">Remaining</p>
+                </div>
+              </div>
+
+              {/* Current Invoice */}
+              {integritySyncProgress.current_invoice_id && (
+                <div className="p-2 bg-black/20 rounded-lg">
+                  <p className="text-[10px] uppercase font-bold text-amber-300">Currently Syncing</p>
+                  <p className="text-xs font-mono text-white truncate">{integritySyncProgress.current_invoice_id}</p>
+                </div>
+              )}
+
+              {/* Status */}
+              {integritySyncProgress.status === 'error' && integritySyncProgress.error_message && (
+                <div className="p-2 bg-red-500/20 rounded-lg">
+                  <p className="text-xs text-red-300">{integritySyncProgress.error_message}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Loading state before progress data arrives */}
+          {isIntegrityBatchSyncing && !integritySyncProgress && (
             <div className="p-3 bg-white/5 rounded-lg text-center">
               <Loader2 className="h-5 w-5 animate-spin text-amber-300 mx-auto mb-2" />
-              <p className="text-sm text-amber-200">Running batch integrity sync... (check logs below for progress)</p>
+              <p className="text-sm text-amber-200">Starting sync... detecting invoices</p>
             </div>
           )}
         </div>

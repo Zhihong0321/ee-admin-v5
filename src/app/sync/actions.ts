@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { logSyncActivity, getLatestLogs, clearLogs } from "@/lib/logger";
 import { eq, sql, and, or, isNull, isNotNull, inArray } from "drizzle-orm";
 import { createProgressSession } from "@/lib/progress-tracker";
+import { createSyncProgress } from "@/lib/sync-progress";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
@@ -1450,12 +1451,21 @@ export async function runIntegritySync(invoiceBubbleId: string, options?: { forc
  *
  * @param dateFrom - Start date (ISO string)
  * @param dateTo - Optional end date (ISO string)
+ * @returns result with syncSessionId for progress tracking
  */
 export async function runIntegrityBatchSync(dateFrom: string, dateTo?: string) {
   logSyncActivity(`Integrity Batch Sync: ${dateFrom} to ${dateTo || 'present'}`, 'INFO');
 
+  // Create sync progress session
+  const syncSessionId = await createSyncProgress({
+    date_from: dateFrom,
+    date_to: dateTo,
+  });
+  logSyncActivity(`Created sync progress session: ${syncSessionId}`, 'INFO');
+
   try {
     const result = await syncBatchInvoicesWithIntegrity(dateFrom, dateTo, {
+      syncSessionId, // Pass to sync for DB progress tracking
       onProgress: (current, total, message) => {
         logSyncActivity(`[${current}/${total}] ${message}`, 'INFO');
       }
@@ -1493,7 +1503,11 @@ export async function runIntegrityBatchSync(dateFrom: string, dateTo?: string) {
     revalidatePath("/invoices");
     revalidatePath("/customers");
 
-    return result;
+    // Return result with syncSessionId
+    return {
+      ...result,
+      syncSessionId,
+    };
   } catch (error) {
     logSyncActivity(`Integrity Batch Sync CRASHED: ${String(error)}`, 'ERROR');
     return {
@@ -1504,7 +1518,8 @@ export async function runIntegrityBatchSync(dateFrom: string, dateTo?: string) {
         skipped: 0,
         failed: 0,
         errors: [String(error)]
-      }
+      },
+      syncSessionId,
     };
   }
 }

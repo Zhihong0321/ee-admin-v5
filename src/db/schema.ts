@@ -338,6 +338,22 @@ export const invoice_items = pgTable('invoice_item', {
   voucher_remark: text('voucher_remark'),
 });
 
+// Sync Progress Table - for tracking sync operation progress
+export const sync_progress = pgTable('sync_progress', {
+  id: serial('id').primaryKey(),
+  session_id: text('session_id').notNull().unique(),
+  status: text('status').notNull(), // 'running', 'completed', 'error'
+  total_invoices: integer('total_invoices').notNull().default(0),
+  synced_invoices: integer('synced_invoices').notNull().default(0),
+  current_invoice_id: text('current_invoice_id'),
+  date_from: text('date_from'),
+  date_to: text('date_to'),
+  error_message: text('error_message'),
+  started_at: timestamp('started_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  completed_at: timestamp('completed_at', { withTimezone: true }),
+});
+
 // Schema Descriptions Table - for storing column descriptions for documentation
 export const schema_descriptions = pgTable('schema_descriptions', {
   id: serial('id').primaryKey(),

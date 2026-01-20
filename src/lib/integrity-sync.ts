@@ -19,6 +19,11 @@ import {
   ALL_MAPPING_FUNCTIONS,
   extractInvoiceRelations
 } from "./complete-bubble-mappings";
+import {
+  updateSyncProgress,
+  completeSyncProgress,
+  errorSyncProgress
+} from "./sync-progress";
 
 const BUBBLE_API_KEY = process.env.BUBBLE_API_KEY || 'b870d2b5ee6e6b39bcf99409c59c9e02';
 const BUBBLE_BASE_URL = 'https://eternalgy.bubbleapps.io/api/1.1/obj';
@@ -513,6 +518,7 @@ export async function syncBatchInvoicesWithIntegrity(
   dateTo?: string,
   options: {
     sessionId?: string;
+    syncSessionId?: string; // NEW: DB-based progress tracking session ID
     onProgress?: (current: number, total: number, message: string) => void;
   } = {}
 ): Promise<{
@@ -572,7 +578,18 @@ export async function syncBatchInvoicesWithIntegrity(
 
     log(`Found ${invoicesInDateRange.length} invoices in date range`);
 
+    // Initialize progress in database if sessionId provided
+    if (options.syncSessionId) {
+      await updateSyncProgress(options.syncSessionId, {
+        total_invoices: invoicesInDateRange.length,
+        synced_invoices: 0,
+      });
+    }
+
     if (invoicesInDateRange.length === 0) {
+      if (options.syncSessionId) {
+        await completeSyncProgress(options.syncSessionId, { synced: 0 });
+      }
       return {
         success: true,
         results: {
@@ -612,6 +629,14 @@ export async function syncBatchInvoicesWithIntegrity(
         errors.push(...result.errors);
       }
 
+      // Update progress in database every invoice (or at least frequently)
+      if (options.syncSessionId) {
+        await updateSyncProgress(options.syncSessionId, {
+          synced_invoices: synced + skipped, // Total processed
+          current_invoice_id: invoice._id,
+        });
+      }
+
       // Log progress every 10 invoices
       if ((i + 1) % 10 === 0) {
         log(`Progress: ${i + 1}/${invoicesInDateRange.length} synced`);
@@ -619,6 +644,11 @@ export async function syncBatchInvoicesWithIntegrity(
     }
 
     log(`✅ Batch complete!`);
+
+    // Mark progress as completed
+    if (options.syncSessionId) {
+      await completeSyncProgress(options.syncSessionId, { synced });
+    }
 
     return {
       success: true,
@@ -633,6 +663,12 @@ export async function syncBatchInvoicesWithIntegrity(
 
   } catch (error: any) {
     log(`❌ Batch sync failed: ${error.message}`);
+
+    // Mark progress as errored
+    if (options.syncSessionId) {
+      await errorSyncProgress(options.syncSessionId, error.message);
+    }
+
     return {
       success: false,
       results: {
