@@ -17,7 +17,10 @@ const headers = {
  * Pushes local User updates back to Bubble
  */
 export async function pushUserUpdateToBubble(bubbleId: string, data: { access_level?: string[] }) {
-  if (!bubbleId) return;
+  if (!bubbleId) {
+    console.error("pushUserUpdateToBubble: No bubble_id provided");
+    return;
+  }
 
   const bubbleData: any = {};
   if (data.access_level) {
@@ -25,6 +28,8 @@ export async function pushUserUpdateToBubble(bubbleId: string, data: { access_le
   }
 
   if (Object.keys(bubbleData).length === 0) return;
+
+  console.log(`pushUserUpdateToBubble: Updating user ${bubbleId} with data:`, bubbleData);
 
   try {
     const response = await fetch(`${BUBBLE_BASE_URL}/user/${bubbleId}`, {
@@ -36,10 +41,14 @@ export async function pushUserUpdateToBubble(bubbleId: string, data: { access_le
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Bubble User Patch Failed (${response.status}):`, errorText);
-      throw new Error(`Bubble Update Failed: ${response.statusText}`);
+      console.error(`Request data:`, bubbleData);
+      console.error(`Request URL:`, `${BUBBLE_BASE_URL}/user/${bubbleId}`);
+      throw new Error(`Bubble Update Failed (${response.status}): ${errorText}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log(`Bubble User Patch Success:`, result);
+    return result;
   } catch (error) {
     console.error("Error pushing User update to Bubble:", error);
     throw error;

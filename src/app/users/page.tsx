@@ -95,7 +95,7 @@ export default function UsersPage() {
     if (!editingUser) return;
 
     try {
-      await updateUserProfile(editingUser.id, {
+      const result = await updateUserProfile(editingUser.id, {
         name: editingUser.agent_name,
         email: editingUser.agent_email,
         contact: editingUser.agent_contact,
@@ -103,12 +103,17 @@ export default function UsersPage() {
         banker: editingUser.agent_banker,
         bankin_account: editingUser.agent_bankin_account,
       }, editingUser.access_level);
-      setIsEditModalOpen(false);
-      fetchData();
-      loadAvailableTags(); // Refresh tags in case new ones were added
+
+      if (result.success) {
+        setIsEditModalOpen(false);
+        fetchData();
+        loadAvailableTags();
+      } else {
+        alert(`Failed to update user: ${result.error || 'Unknown error'}`);
+      }
     } catch (error) {
       console.error("Failed to update user", error);
-      alert("Failed to update user");
+      alert(`Failed to update user: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 

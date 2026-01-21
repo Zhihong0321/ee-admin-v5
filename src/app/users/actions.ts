@@ -91,44 +91,37 @@ export async function updateUserProfile(userId: number, agentData: Partial<typeo
       where: eq(users.id, userId)
     });
 
-    if (user) {
-      // Update access_level on the user table if tags provided
-      if (tags) {
-        await db
-          .update(users)
-          .set({
-            access_level: tags,
-            updated_at: new Date(),
-          })
-          .where(eq(users.id, userId));
-
-        // PUSH TO BUBBLE
-        if (user.bubble_id) {
-          await pushUserUpdateToBubble(user.bubble_id, { access_level: tags });
-        }
-      }
-
-      // Update agent profile if link exists
-      if (user.linked_agent_profile) {
-        await db
-          .update(agents)
-          .set({
-            ...agentData,
-            updated_at: new Date(),
-          })
-          .where(eq(agents.bubble_id, user.linked_agent_profile));
-
-        // PUSH TO BUBBLE
-        await pushAgentUpdateToBubble(user.linked_agent_profile, agentData);
-      }
-      
-      revalidatePath("/users");
-      return { success: true };
+    if (!user) {
+      return { success: false, error: "User not found" };
     }
-    return { success: false, error: "User not found" };
+
+    // Update access_level on the user table if tags provided
+    if (tags) {
+      await db
+        .update(users)
+        .set({
+          access_level: tags,
+          updated_at: new Date(),
+        })
+        .where(eq(users.id, userId));
+    }
+
+    // Update agent profile if link exists
+    if (user.linked_agent_profile) {
+      await db
+        .update(agents)
+        .set({
+          ...agentData,
+          updated_at: new Date(),
+        })
+        .where(eq(agents.bubble_id, user.linked_agent_profile));
+    }
+
+    revalidatePath("/users");
+    return { success: true };
   } catch (error) {
     console.error("Database error in updateUserProfile:", error);
-    throw error;
+    return { success: false, error: `Database error: ${String(error)}` };
   }
 }
 
