@@ -65,6 +65,9 @@ export const invoices = pgTable('invoice', {
   linked_payment: text('linked_payment').array(), // ARRAY of payment bubble_ids
   linked_seda_registration: text('linked_seda_registration'), // SEDA registration bubble_id
 
+  // Calculated Fields (synced from Bubble)
+  percent_of_total_amount: numeric('percent_of_total_amount'), // Payment percentage (0-100)
+
   // Legacy Columns (kept for backward compatibility)
   amount: numeric('amount'),
   dealercode: text('dealercode'),

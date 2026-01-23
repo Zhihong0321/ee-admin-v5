@@ -1,17 +1,45 @@
+/**
+ * ============================================================================
+ * SYNC CENTER PAGE
+ * ============================================================================
+ *
+ * Main synchronization interface for Bubble ERP to PostgreSQL ERP migration.
+ * Now using extracted components for better maintainability.
+ *
+ * File: src/app/sync/page.tsx
+ */
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { RefreshCw } from "lucide-react";
 import {
-  RefreshCw, Calendar, Clock, Database, FileText,
-  UserCheck, AlertCircle, CheckCircle2, Loader2, ArrowRight, Percent, ShieldCheck, Trash2, CalendarDays,
-  Download, File, XCircle, Circle, FolderOpen, HardDrive, Zap, Activity, FileDown, Tag, Link, Globe
-} from "lucide-react";
-import { runManualSync, runIncrementalSync, fetchSyncLogs, updateInvoicePaymentPercentages, patchInvoiceCreators, deleteDemoInvoices, fixMissingInvoiceDates, startManualSyncWithProgress, updateInvoiceStatuses, restoreInvoiceSedaLinks, runFullInvoiceSync, patchFileUrlsToAbsolute, patchChineseFilenames, clearSyncLogs, runSedaOnlySync, runIdListSync, syncInvoiceItemLinks, runIntegritySync, runIntegrityBatchSync, runInvoiceIdListSync } from "./actions";
+  QuickSyncForm,
+  FullInvoiceSyncForm,
+  SedaSyncForm,
+  IdListSyncForm,
+  IntegritySyncForm,
+  InvoiceItemSyncForm,
+  FileMigrationForm,
+  PaymentSyncForm,
+} from "./components/forms";
+import {
+  DataPatchesPanel,
+  MaintenancePanel,
+} from "./components/panels";
+import { LogViewer } from "./components/logs";
+import { fetchSyncLogs, clearSyncLogs } from "./actions";
 
 export default function SyncPage() {
+  // ============================================================================
+  // STATE
+  // ============================================================================
+
+  // Quick Sync state
   const [dateFrom, setDateFrom] = useState("");
-  const [syncFiles, setSyncFiles] = useState(true);
+  const [syncFiles, setSyncFiles] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResults, setSyncResults] = useState<any>(null);
 
   // Full Invoice Sync state
   const [fullSyncDateFrom, setFullSyncDateFrom] = useState("");
@@ -25,147 +53,82 @@ export default function SyncPage() {
   const [isSedaSyncing, setIsSedaSyncing] = useState(false);
   const [sedaSyncResults, setSedaSyncResults] = useState<any>(null);
 
-  // Fast ID-List Sync state (Optimized with CSV)
-  const [csvIdList, setCsvIdList] = useState("");
+  // ID List Sync state
   const [isIdListSyncing, setIsIdListSyncing] = useState(false);
   const [idListSyncResults, setIdListSyncResults] = useState<any>(null);
 
-  // Fast Invoice ID List Sync state (NEW - Integrity-based with progress)
-  const [invoiceIdList, setInvoiceIdList] = useState("");
-  const [skipUsers, setSkipUsers] = useState(true); // Default: skip users
-  const [skipAgents, setSkipAgents] = useState(true); // Default: skip agents
-  const [isInvoiceIdListSyncing, setIsInvoiceIdListSyncing] = useState(false);
-  const [invoiceIdListResults, setInvoiceIdListResults] = useState<any>(null);
-  const [invoiceIdListSessionId, setInvoiceIdListSessionId] = useState<string | null>(null);
-  const [invoiceIdListProgress, setInvoiceIdListProgress] = useState<any>(null);
-
-  // Dedicated Invoice Item Sync state
-  const [itemSyncDateFrom, setItemSyncDateFrom] = useState("");
-  const [isItemSyncing, setIsItemSyncing] = useState(false);
-  const [itemSyncResults, setItemSyncResults] = useState<any>(null);
-
   // Integrity Sync state
-  const [integrityInvoiceId, setIntegrityInvoiceId] = useState("");
   const [isIntegritySyncing, setIsIntegritySyncing] = useState(false);
   const [integritySyncResults, setIntegritySyncResults] = useState<any>(null);
-
-  // Integrity Batch Sync state
   const [integrityBatchDateFrom, setIntegrityBatchDateFrom] = useState("");
   const [integrityBatchDateTo, setIntegrityBatchDateTo] = useState("");
   const [isIntegrityBatchSyncing, setIsIntegrityBatchSyncing] = useState(false);
   const [integrityBatchResults, setIntegrityBatchResults] = useState<any>(null);
-  const [integritySyncSessionId, setIntegritySyncSessionId] = useState<string | null>(null);
-  const [integritySyncProgress, setIntegritySyncProgress] = useState<any>(null);
 
+  // Invoice Item Sync state
+  const [itemSyncDateFrom, setItemSyncDateFrom] = useState("");
+  const [isItemSyncing, setIsItemSyncing] = useState(false);
+  const [itemSyncResults, setItemSyncResults] = useState<any>(null);
+
+  // Patches & Maintenance state
   const [isUpdatingPercentages, setIsUpdatingPercentages] = useState(false);
   const [isPatchingCreators, setIsPatchingCreators] = useState(false);
+  const [isUpdatingStatuses, setIsUpdatingStatuses] = useState(false);
   const [isDeletingDemo, setIsDeletingDemo] = useState(false);
   const [isFixingDates, setIsFixingDates] = useState(false);
-  const [isUpdatingStatuses, setIsUpdatingStatuses] = useState(false);
   const [isRestoringLinks, setIsRestoringLinks] = useState(false);
   const [isPatchingUrls, setIsPatchingUrls] = useState(false);
   const [isPatchingChinese, setIsPatchingChinese] = useState(false);
-  const [isClearingLogs, setIsClearingLogs] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  const [patchResults, setPatchResults] = useState<any>(null);
+
+  // Logs state
   const [logs, setLogs] = useState<string[]>([]);
+  const [isClearingLogs, setIsClearingLogs] = useState(false);
 
-  // Progress tracking state
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [progress, setProgress] = useState<any>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
-
-  // Migration state
+  // File Migration state
+  const [isMigrating, setIsMigrating] = useState(false);
   const [migrationStats, setMigrationStats] = useState<any>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [migrationSessionId, setMigrationSessionId] = useState<string | null>(null);
+  const [migrationDateFilter, setMigrationDateFilter] = useState<string>("");
   const [migrationProgress, setMigrationProgress] = useState<any>(null);
+  const [migrationSessionId, setMigrationSessionId] = useState<string | null>(null);
   const migrationEventSourceRef = useRef<EventSource | null>(null);
-  const [migrationDateFilter, setMigrationDateFilter] = useState<string>(''); // Date filter for migration
 
-  const loadLogs = async () => {
-    // Check if auth token exists before making server action call
-    const hasAuthToken = document.cookie.includes('auth_token=');
-    if (!hasAuthToken) {
-      console.log('[loadLogs] No auth token found, skipping fetch');
-      return;
-    }
+  // Progress tracking state (managed inline for now)
+  const [progress, setProgress] = useState<any>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
-    console.log('[loadLogs] Fetching logs...');
-    try {
-      const latestLogs = await fetchSyncLogs();
-      console.log('[loadLogs] Received logs:', latestLogs.length);
-      setLogs(latestLogs);
-    } catch (error) {
-      console.error('[loadLogs] Failed:', error);
-      // Don't set error state on auth failures - this is expected during redirect
-      const errorMsg = String(error);
-      if (errorMsg.includes('fetch') || errorMsg.includes('Failed to fetch')) {
-        console.log('[loadLogs] Auth redirect in progress, will retry after auth');
-        return;
-      }
-      setLogs([`Error loading logs: ${errorMsg}`]);
-    }
-  };
-
-  const handleClearLogs = async () => {
-    if (!confirm("This will delete all sync logs. This action cannot be undone. Continue?")) return;
-
-    setIsClearingLogs(true);
-    try {
-      const res = await clearSyncLogs();
-      if (res.success) {
-        setLogs(['Logs cleared.']);
-      } else {
-        setLogs([`Failed to clear logs: ${res.error}`]);
-      }
-    } catch (error) {
-      setLogs([`Error: ${String(error)}`]);
-    } finally {
-      setIsClearingLogs(false);
-    }
-  };
+  // ============================================================================
+  // EFFECTS
+  // ============================================================================
 
   useEffect(() => {
     loadLogs();
-    fetchMigrationStats(); // Load migration stats on page load
-    const interval = setInterval(loadLogs, 10000); // Refresh every 10s
+    fetchMigrationStats();
+    const interval = setInterval(loadLogs, 10000);
     return () => clearInterval(interval);
   }, []);
 
   // Migration SSE connection
   useEffect(() => {
-    console.log('[Migration SSE] Effect triggered, sessionId:', migrationSessionId);
-    if (!migrationSessionId) {
-      console.log('[Migration SSE] No sessionId, skipping connection');
-      return;
-    }
+    if (!migrationSessionId) return;
 
     const url = `/api/migration/progress/stream?sessionId=${migrationSessionId}`;
-    console.log('[Migration SSE] Connecting to:', url);
     const eventSource = new EventSource(url);
     migrationEventSourceRef.current = eventSource;
-    console.log('[Migration SSE] EventSource created');
-
-    eventSource.onopen = () => {
-      console.log('[Migration SSE] Connection opened');
-    };
 
     eventSource.onmessage = (event) => {
-      console.log('[Migration SSE] Message received:', event.data);
       const data = JSON.parse(event.data);
 
       if (data.type === 'initial' || data.type === 'progress') {
-        console.log('[Migration SSE] Updating progress:', data.progress);
         setMigrationProgress(data.progress);
       } else if (data.type === 'completed') {
-        console.log('[Migration SSE] Migration completed');
         setMigrationProgress(data.progress);
         setIsMigrating(false);
         eventSource.close();
-        fetchMigrationStats(); // Refresh stats
+        fetchMigrationStats();
       } else if (data.type === 'error') {
-        console.error('[Migration SSE] Migration error:', data);
         setIsMigrating(false);
         eventSource.close();
       }
@@ -173,8 +136,6 @@ export default function SyncPage() {
 
     eventSource.onerror = (error) => {
       console.error('[SSE] Migration connection error:', error);
-      console.error('[SSE] Session ID:', migrationSessionId);
-      console.error('[SSE] ReadyState:', eventSource.readyState);
       eventSource.close();
     };
 
@@ -183,7 +144,7 @@ export default function SyncPage() {
     };
   }, [migrationSessionId]);
 
-  // SSE connection for progress updates
+  // Sync SSE connection for file progress
   useEffect(() => {
     if (!sessionId) return;
 
@@ -210,226 +171,70 @@ export default function SyncPage() {
     };
   }, [sessionId]);
 
-  // Simple polling for integrity batch sync progress (every 2 seconds)
-  useEffect(() => {
-    if (!integritySyncSessionId) return;
-    if (!isIntegrityBatchSyncing) return;
+  // ============================================================================
+  // HANDLERS
+  // ============================================================================
 
-    console.log('[Sync Progress] Polling for progress, sessionId:', integritySyncSessionId);
-
-    const pollProgress = async () => {
-      try {
-        const res = await fetch(`/api/sync/progress?sessionId=${integritySyncSessionId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.progress) {
-            console.log('[Sync Progress] Progress update:', data.progress);
-            setIntegritySyncProgress(data.progress);
-
-            // Stop polling if completed or error
-            if (data.progress.status === 'completed' || data.progress.status === 'error') {
-              setIsIntegrityBatchSyncing(false);
-              // Final results will be loaded via the normal flow
-            }
-          }
-        }
-      } catch (error) {
-        console.error('[Sync Progress] Failed to fetch progress:', error);
-      }
-    };
-
-    // Initial poll
-    pollProgress();
-
-    // Poll every 2 seconds
-    const interval = setInterval(pollProgress, 2000);
-
-    return () => clearInterval(interval);
-  }, [integritySyncSessionId, isIntegrityBatchSyncing]);
-
-  // Simple polling for invoice ID list sync progress (every 2 seconds)
-  useEffect(() => {
-    if (!invoiceIdListSessionId) return;
-    if (!isInvoiceIdListSyncing) return;
-
-    console.log('[ID List Sync Progress] Polling for progress, sessionId:', invoiceIdListSessionId);
-
-    const pollProgress = async () => {
-      try {
-        const res = await fetch(`/api/sync/progress?sessionId=${invoiceIdListSessionId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.progress) {
-            console.log('[ID List Sync Progress] Progress update:', data.progress);
-            setInvoiceIdListProgress(data.progress);
-
-            // Stop polling if completed or error
-            if (data.progress.status === 'completed' || data.progress.status === 'error') {
-              setIsInvoiceIdListSyncing(false);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('[ID List Sync Progress] Failed to fetch progress:', error);
-      }
-    };
-
-    // Initial poll
-    pollProgress();
-
-    // Poll every 2 seconds
-    const interval = setInterval(pollProgress, 2000);
-
-    return () => clearInterval(interval);
-  }, [invoiceIdListSessionId, isInvoiceIdListSyncing]);
-
-  const handleSync = async (type: 'manual' | 'auto') => {
-    setIsSyncing(true);
-    setResults(null);
-    setProgress(null);
+  const loadLogs = async () => {
+    const hasAuthToken = document.cookie.includes('auth_token=');
+    if (!hasAuthToken) return;
 
     try {
-      if (type === 'manual') {
-        const syncRes = await startManualSyncWithProgress(dateFrom, undefined, syncFiles);
-        if (syncRes.success && syncRes.sessionId) {
-          setSessionId(syncRes.sessionId);
-        }
+      const latestLogs = await fetchSyncLogs();
+      setLogs(latestLogs);
+    } catch (error) {
+      const errorMsg = String(error);
+      if (!errorMsg.includes('fetch') && !errorMsg.includes('Failed to fetch')) {
+        setLogs([`Error loading logs: ${errorMsg}`]);
+      }
+    }
+  };
+
+  const handleClearLogs = async () => {
+    if (!confirm("This will delete all sync logs. This action cannot be undone. Continue?")) return;
+
+    setIsClearingLogs(true);
+    try {
+      const res = await clearSyncLogs();
+      if (res.success) {
+        setLogs(['Logs cleared.']);
       } else {
-        const res = await runIncrementalSync();
-        setResults(res);
-        await loadLogs();
+        setLogs([`Failed to clear logs: ${res.error}`]);
       }
     } catch (error) {
-      setResults({ success: false, error: String(error) });
+      setLogs([`Error: ${String(error)}`]);
+    } finally {
+      setIsClearingLogs(false);
+    }
+  };
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    setSyncResults(null);
+
+    try {
+      const res = await runManualSync(dateFrom, undefined, syncFiles);
+      setSyncResults(res);
+      await loadLogs();
+    } catch (error) {
+      setSyncResults({ success: false, error: String(error) });
+    } finally {
       setIsSyncing(false);
     }
   };
 
-  const handleUpdatePercentages = async () => {
-    if (!confirm("This will calculate and update payment percentages for all invoices based on linked payments. Continue?")) return;
-    
-    setIsUpdatingPercentages(true);
-    setResults(null);
+  const handleIncrementalSync = async () => {
+    setIsSyncing(true);
+    setSyncResults(null);
+
     try {
-      const res = await updateInvoicePaymentPercentages();
-      setResults(res);
+      const res = await runIncrementalSync();
+      setSyncResults(res);
       await loadLogs();
     } catch (error) {
-      setResults({ success: false, error: String(error) });
+      setSyncResults({ success: false, error: String(error) });
     } finally {
-      setIsUpdatingPercentages(false);
-    }
-  };
-
-  const handlePatchCreators = async () => {
-    if (!confirm("This will attempt to fix invoices with NULL 'created_by' by looking up their Linked Agent's User profile. Continue?")) return;
-
-    setIsPatchingCreators(true);
-    setResults(null);
-    try {
-      const res = await patchInvoiceCreators();
-      setResults(res);
-      await loadLogs();
-    } catch (error) {
-      setResults({ success: false, error: String(error) });
-    } finally {
-      setIsPatchingCreators(false);
-    }
-  };
-
-  const handleDeleteDemo = async () => {
-    if (!confirm("This will mark all 'Demo Invoices' (no customer & no payments) and their linked SEDA registrations as 'deleted'. Continue?")) return;
-
-    setIsDeletingDemo(true);
-    setResults(null);
-    try {
-      const res = await deleteDemoInvoices();
-      setResults(res);
-      await loadLogs();
-    } catch (error) {
-      setResults({ success: false, error: String(error) });
-    } finally {
-      setIsDeletingDemo(false);
-    }
-  };
-
-  const handleFixDates = async () => {
-    if (!confirm("This will perform a FULL DATA SYNC (without files) to re-fetch correct Invoice Dates from Bubble. This may take a few minutes. Continue?")) return;
-
-    setIsFixingDates(true);
-    setResults(null);
-    try {
-      const res = await fixMissingInvoiceDates();
-      setResults(res);
-      await loadLogs();
-    } catch (error) {
-      setResults({ success: false, error: String(error) });
-    } finally {
-      setIsFixingDates(false);
-    }
-  };
-
-  const handleUpdateStatuses = async () => {
-    if (!confirm("This will update ALL invoice statuses based on:\n\n• No payment + no SEDA → 'draft'\n• Payment < 50% → 'DEPOSIT'\n• SEDA status = 'APPROVED' → 'SEDA APPROVED'\n• Payment 100% → 'FULLY PAID'\n\nContinue?")) return;
-
-    setIsUpdatingStatuses(true);
-    setResults(null);
-    try {
-      const res = await updateInvoiceStatuses();
-      setResults(res);
-      await loadLogs();
-    } catch (error) {
-      setResults({ success: false, error: String(error) });
-    } finally {
-      setIsUpdatingStatuses(false);
-    }
-  };
-
-  const handleRestoreLinks = async () => {
-    if (!confirm("This will restore missing links between invoices and SEDA registrations.\n\nIt will scan SEDA registrations and update invoice.linked_seda_registration based on the seda.linked_invoice array.\n\nContinue?")) return;
-
-    setIsRestoringLinks(true);
-    setResults(null);
-    try {
-      const res = await restoreInvoiceSedaLinks();
-      setResults(res);
-      await loadLogs();
-    } catch (error) {
-      setResults({ success: false, error: String(error) });
-    } finally {
-      setIsRestoringLinks(false);
-    }
-  };
-
-  const handlePatchUrls = async () => {
-    if (!confirm("This will convert all /storage/ URLs to absolute https://admin.atap.solar/api/files/ URLs in the database.\n\nThis fixes the issue where:\n1. Other apps on different subdomains cannot access files\n2. /storage/ path redirects to dashboard instead of serving files\n3. Wrong /api/files/storage/ path (doubled storage folder)\n\nContinue?")) return;
-
-    setIsPatchingUrls(true);
-    setResults(null);
-    try {
-      const res = await patchFileUrlsToAbsolute();
-      setResults(res);
-      await loadLogs();
-    } catch (error) {
-      setResults({ success: false, error: String(error) });
-    } finally {
-      setIsPatchingUrls(false);
-    }
-  };
-
-  const handlePatchChinese = async () => {
-    if (!confirm("This will fix files with Chinese (or other non-ASCII) characters in their filenames.\n\nIt will:\n1. Scan all file URLs in the database\n2. Rename files on disk to use URL-encoded names\n3. Update database URLs with the new filenames\n\nThis fixes the issue where files with Chinese characters cannot be accessed from browsers.\n\nContinue?")) return;
-
-    setIsPatchingChinese(true);
-    setResults(null);
-    try {
-      const res = await patchChineseFilenames();
-      setResults(res);
-      await loadLogs();
-    } catch (error) {
-      setResults({ success: false, error: String(error) });
-    } finally {
-      setIsPatchingChinese(false);
+      setIsSyncing(false);
     }
   };
 
@@ -447,6 +252,7 @@ export default function SyncPage() {
 
     setIsFullSyncing(true);
     setFullSyncResults(null);
+
     try {
       const res = await runFullInvoiceSync(fullSyncDateFrom, fullSyncDateTo || undefined);
       setFullSyncResults(res);
@@ -472,6 +278,7 @@ export default function SyncPage() {
 
     setIsSedaSyncing(true);
     setSedaSyncResults(null);
+
     try {
       const res = await runSedaOnlySync(sedaSyncDateFrom, sedaSyncDateTo || undefined);
       setSedaSyncResults(res);
@@ -483,45 +290,25 @@ export default function SyncPage() {
     }
   };
 
-  const handleInvoiceItemSync = async () => {
-    const confirmMsg = itemSyncDateFrom
-      ? `Link invoice items from invoice_item table to invoices (created ${itemSyncDateFrom} onwards)?\n\nThis will:\n• Populate invoice.linked_invoice_item with FK bubble_ids\n• From existing invoice_item records in Postgres\n• FAST - no Bubble API calls!\n\nContinue?`
-      : `Link ALL invoice items from invoice_item table to ALL invoices?\n\nThis will:\n• Populate invoice.linked_invoice_item with FK bubble_ids\n• From existing invoice_item records in Postgres\n• FAST - no Bubble API calls!\n\nContinue?`;
-
-    if (!confirm(confirmMsg)) return;
-
-    setIsItemSyncing(true);
-    setItemSyncResults(null);
-    try {
-      const res = await syncInvoiceItemLinks(itemSyncDateFrom || undefined);
-      setItemSyncResults(res);
-      await loadLogs();
-    } catch (error) {
-      setItemSyncResults({ success: false, error: String(error) });
-    } finally {
-      setIsItemSyncing(false);
-    }
-  };
-
-  const handleIdListSync = async () => {
-    if (!csvIdList.trim()) {
+  const handleIdListSync = async (csvData: string) => {
+    if (!csvData.trim()) {
       alert("Please paste CSV data");
       return;
     }
 
-    // Count records in CSV
-    const lines = csvIdList.trim().split('\n');
+    const lines = csvData.trim().split('\n');
     const hasHeader = lines[0].toLowerCase().includes('type') || lines[0].toLowerCase().includes('id');
     const recordCount = hasHeader ? lines.length - 1 : lines.length;
 
-    const confirmMsg = `Sync ${recordCount} records from CSV?\n\nThis will:\n• Check local data first\n• Only fetch from Bubble if newer\n• Skip records that are already up-to-date\n• Sync all related data (customers, agents, payments, items)\n\nContinue?`;
-
-    if (!confirm(confirmMsg)) return;
+    if (!confirm(`Sync ${recordCount} records from CSV?\n\nThis will:\n• Check local data first\n• Only fetch from Bubble if newer\n• Skip records that are already up-to-date\n• Sync all related data (customers, agents, payments, items)\n\nContinue?`)) {
+      return;
+    }
 
     setIsIdListSyncing(true);
     setIdListSyncResults(null);
+
     try {
-      const res = await runIdListSync(csvIdList);
+      const res = await runIdListSync(csvData);
       setIdListSyncResults(res);
       await loadLogs();
     } catch (error) {
@@ -531,20 +318,21 @@ export default function SyncPage() {
     }
   };
 
-  const handleIntegritySync = async () => {
-    if (!integrityInvoiceId.trim()) {
+  const handleIntegritySingleSync = async (invoiceId: string) => {
+    if (!invoiceId.trim()) {
       alert("Please enter an Invoice Bubble ID");
       return;
     }
 
-    const confirmMsg = `Run INTEGRITY SYNC for invoice ${integrityInvoiceId}?\n\nThis will:\n• Sync invoice with ALL dependencies (agent, customer, user, payments, items, SEDA)\n• Use complete field mappings (zero data loss)\n• Respect dependency order\n• Provide detailed progress tracking\n\nThis is the NEW integrity-first sync method.\n\nContinue?`;
-
-    if (!confirm(confirmMsg)) return;
+    if (!confirm(`Run INTEGRITY SYNC for invoice ${invoiceId}?\n\nThis will:\n• Sync invoice with ALL dependencies (agent, customer, user, payments, items, SEDA)\n• Use complete field mappings (zero data loss)\n• Respect dependency order\n• Provide detailed progress tracking\n\nThis is the NEW integrity-first sync method.\n\nContinue?`)) {
+      return;
+    }
 
     setIsIntegritySyncing(true);
     setIntegritySyncResults(null);
+
     try {
-      const res = await runIntegritySync(integrityInvoiceId.trim(), { force: true });
+      const res = await runIntegritySync(invoiceId.trim(), { force: true });
       setIntegritySyncResults(res);
       await loadLogs();
     } catch (error) {
@@ -566,66 +354,177 @@ export default function SyncPage() {
 
     if (!confirm(confirmMsg)) return;
 
-    // Clear previous progress and results
-    setIntegritySyncProgress(null);
-    setIntegrityBatchResults(null);
-    setIntegritySyncSessionId(null);
-
     setIsIntegrityBatchSyncing(true);
+    setIntegrityBatchResults(null);
+
     try {
       const res = await runIntegrityBatchSync(integrityBatchDateFrom, integrityBatchDateTo || undefined);
-
-      // Capture the syncSessionId for progress tracking
-      if (res.syncSessionId) {
-        setIntegritySyncSessionId(res.syncSessionId);
-      }
-
       setIntegrityBatchResults(res);
       await loadLogs();
     } catch (error) {
       setIntegrityBatchResults({ success: false, error: String(error) });
     } finally {
-      // Note: setIsIntegrityBatchSyncing(false) will be called by the polling effect when sync completes
+      setIsIntegrityBatchSyncing(false);
     }
   };
 
-  const handleInvoiceIdListSync = async () => {
-    if (!invoiceIdList.trim()) {
-      alert("Please paste a list of invoice Bubble IDs");
-      return;
-    }
-
-    // Count invoice IDs
-    const idCount = invoiceIdList.split(/[\n,\s]+/).filter(id => id.trim().length > 0).length;
-
-    const confirmMsg = `Sync ${idCount} invoices by ID list?\n\nThis will:\n• Sync only the pasted invoice IDs\n• Skip users: ${skipUsers ? 'Yes (faster)' : 'No'}\n• Skip agents: ${skipAgents ? 'Yes (faster)' : 'No'}\n• Show real-time progress\n\nContinue?`;
+  const handleInvoiceItemSync = async () => {
+    const confirmMsg = itemSyncDateFrom
+      ? `Link invoice items from invoice_item table to invoices (created ${itemSyncDateFrom} onwards)?\n\nThis will:\n• Populate invoice.linked_invoice_item with FK bubble_ids\n• From existing invoice_item records in Postgres\n• FAST - no Bubble API calls!\n\nContinue?`
+      : `Link ALL invoice items from invoice_item table to ALL invoices?\n\nThis will:\n• Populate invoice.linked_invoice_item with FK bubble_ids\n• From existing invoice_item records in Postgres\n• FAST - no Bubble API calls!\n\nContinue?`;
 
     if (!confirm(confirmMsg)) return;
 
-    // Clear previous progress and results
-    setInvoiceIdListProgress(null);
-    setInvoiceIdListResults(null);
-    setInvoiceIdListSessionId(null);
+    setIsItemSyncing(true);
+    setItemSyncResults(null);
 
-    setIsInvoiceIdListSyncing(true);
     try {
-      const res = await runInvoiceIdListSync(invoiceIdList, skipUsers, skipAgents);
-
-      // Capture the syncSessionId for progress tracking (only if success)
-      if ('syncSessionId' in res && res.syncSessionId) {
-        setInvoiceIdListSessionId(res.syncSessionId);
-      }
-
-      setInvoiceIdListResults(res);
+      const res = await syncInvoiceItemLinks(itemSyncDateFrom || undefined);
+      setItemSyncResults(res);
       await loadLogs();
     } catch (error) {
-      setInvoiceIdListResults({ success: false, error: String(error) });
+      setItemSyncResults({ success: false, error: String(error) });
     } finally {
-      // Note: setIsInvoiceIdListSyncing(false) will be called by the polling effect when sync completes
+      setIsItemSyncing(false);
     }
   };
 
-  // Fetch migration statistics
+  const handleUpdatePercentages = async () => {
+    if (!confirm("This will calculate and update payment percentages for all invoices based on linked payments. Continue?")) return;
+
+    setIsUpdatingPercentages(true);
+    setPatchResults(null);
+
+    try {
+      const res = await updateInvoicePaymentPercentages();
+      setPatchResults(res);
+      await loadLogs();
+    } catch (error) {
+      setPatchResults({ success: false, error: String(error) });
+    } finally {
+      setIsUpdatingPercentages(false);
+    }
+  };
+
+  const handlePatchCreators = async () => {
+    if (!confirm("This will attempt to fix invoices with NULL 'created_by' by looking up their Linked Agent's User profile. Continue?")) return;
+
+    setIsPatchingCreators(true);
+    setPatchResults(null);
+
+    try {
+      const res = await patchInvoiceCreators();
+      setPatchResults(res);
+      await loadLogs();
+    } catch (error) {
+      setPatchResults({ success: false, error: String(error) });
+    } finally {
+      setIsPatchingCreators(false);
+    }
+  };
+
+  const handleUpdateStatuses = async () => {
+    if (!confirm("This will update ALL invoice statuses based on:\n\n• No payment + no SEDA → 'draft'\n• Payment < 50% → 'DEPOSIT'\n• SEDA status = 'APPROVED' → 'SEDA APPROVED'\n• Payment 100% → 'FULLY PAID'\n\nContinue?")) return;
+
+    setIsUpdatingStatuses(true);
+    setPatchResults(null);
+
+    try {
+      const res = await updateInvoiceStatuses();
+      setPatchResults(res);
+      await loadLogs();
+    } catch (error) {
+      setPatchResults({ success: false, error: String(error) });
+    } finally {
+      setIsUpdatingStatuses(false);
+    }
+  };
+
+  const handleDeleteDemo = async () => {
+    if (!confirm("This will mark all 'Demo Invoices' (no customer & no payments) and their linked SEDA registrations as 'deleted'. Continue?")) return;
+
+    setIsDeletingDemo(true);
+    setPatchResults(null);
+
+    try {
+      const res = await deleteDemoInvoices();
+      setPatchResults(res);
+      await loadLogs();
+    } catch (error) {
+      setPatchResults({ success: false, error: String(error) });
+    } finally {
+      setIsDeletingDemo(false);
+    }
+  };
+
+  const handleFixDates = async () => {
+    if (!confirm("This will perform a FULL DATA SYNC (without files) to re-fetch correct Invoice Dates from Bubble. This may take a few minutes. Continue?")) return;
+
+    setIsFixingDates(true);
+    setPatchResults(null);
+
+    try {
+      const res = await fixMissingInvoiceDates();
+      setPatchResults(res);
+      await loadLogs();
+    } catch (error) {
+      setPatchResults({ success: false, error: String(error) });
+    } finally {
+      setIsFixingDates(false);
+    }
+  };
+
+  const handleRestoreLinks = async () => {
+    if (!confirm("This will restore missing links between invoices and SEDA registrations.\n\nIt will scan SEDA registrations and update invoice.linked_seda_registration based on the seda.linked_invoice array.\n\nContinue?")) return;
+
+    setIsRestoringLinks(true);
+    setPatchResults(null);
+
+    try {
+      const res = await restoreInvoiceSedaLinks();
+      setPatchResults(res);
+      await loadLogs();
+    } catch (error) {
+      setPatchResults({ success: false, error: String(error) });
+    } finally {
+      setIsRestoringLinks(false);
+    }
+  };
+
+  const handlePatchUrls = async () => {
+    if (!confirm("This will convert all /storage/ URLs to absolute https://admin.atap.solar/api/files/ URLs in the database.\n\nThis fixes the issue where:\n1. Other apps on different subdomains cannot access files\n2. /storage/ path redirects to dashboard instead of serving files\n3. Wrong /api/files/storage/ path (doubled storage folder)\n\nContinue?")) return;
+
+    setIsPatchingUrls(true);
+    setPatchResults(null);
+
+    try {
+      const res = await patchFileUrlsToAbsolute();
+      setPatchResults(res);
+      await loadLogs();
+    } catch (error) {
+      setPatchResults({ success: false, error: String(error) });
+    } finally {
+      setIsPatchingUrls(false);
+    }
+  };
+
+  const handlePatchChinese = async () => {
+    if (!confirm("This will fix files with Chinese (or other non-ASCII) characters in their filenames.\n\nIt will:\n1. Scan all file URLs in the database\n2. Rename files on disk to use URL-encoded names\n3. Update database URLs with the new filenames\n\nThis fixes the issue where files with Chinese characters cannot be accessed from browsers.\n\nContinue?")) return;
+
+    setIsPatchingChinese(true);
+    setPatchResults(null);
+
+    try {
+      const res = await patchChineseFilenames();
+      setPatchResults(res);
+      await loadLogs();
+    } catch (error) {
+      setPatchResults({ success: false, error: String(error) });
+    } finally {
+      setIsPatchingChinese(false);
+    }
+  };
+
   const fetchMigrationStats = async () => {
     setIsLoadingStats(true);
     try {
@@ -644,7 +543,6 @@ export default function SyncPage() {
     }
   };
 
-  // Start full migration
   const handleStartMigration = async () => {
     const fileCount = migrationStats?.totalFiles || 0;
     const dateFilterText = migrationDateFilter ? ` (created after ${migrationDateFilter})` : '';
@@ -652,9 +550,9 @@ export default function SyncPage() {
       return;
     }
 
-    console.log('[Migration] Starting migration...', migrationDateFilter ? `with date filter: ${migrationDateFilter}` : 'no date filter');
     setIsMigrating(true);
     setMigrationProgress(null);
+
     try {
       const res = await fetch('/api/migration/start', {
         method: 'POST',
@@ -663,10 +561,7 @@ export default function SyncPage() {
       });
       const data = await res.json();
 
-      console.log('[Migration] Start response:', data);
-
       if (data.success) {
-        console.log('[Migration] Setting sessionId:', data.sessionId);
         setMigrationSessionId(data.sessionId);
       } else {
         alert('Failed to start migration: ' + data.error);
@@ -679,9 +574,26 @@ export default function SyncPage() {
     }
   };
 
+  // Get current patch operation name for tracking
+  const getCurrentOperation = () => {
+    if (isUpdatingPercentages) return 'percentages';
+    if (isPatchingCreators) return 'creators';
+    if (isUpdatingStatuses) return 'statuses';
+    if (isDeletingDemo) return 'deleteDemo';
+    if (isFixingDates) return 'fixDates';
+    if (isRestoringLinks) return 'restoreLinks';
+    if (isPatchingUrls) return 'patchUrls';
+    if (isPatchingChinese) return 'patchChinese';
+    return null;
+  };
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-20">
-      {/* ... existing header ... */}
+      {/* Header */}
       <div className="space-y-2 border-b border-secondary-200 pb-6">
         <h1 className="text-3xl font-bold text-secondary-900 flex items-center gap-3">
           <RefreshCw className={`h-8 w-8 text-primary-600 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -692,1365 +604,136 @@ export default function SyncPage() {
         </p>
       </div>
 
-      {/* Bubble Decommission: File Migration Section */}
-      <div className="card overflow-hidden bg-gradient-to-br from-green-900 via-green-800 to-green-900 text-white shadow-elevation-lg">
-        <div className="p-6 border-b border-white/10">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-red-500/20 rounded-xl backdrop-blur-md border border-red-500/30">
-                <FolderOpen className="h-6 w-6 text-red-400" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold">Bubble Decommission: File Migration</h3>
-                <p className="text-green-200 text-sm">Migrate ALL files from Bubble to Railway storage before shutdown</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Date Filter Input */}
-              <div className="flex items-center gap-2">
-                <label className="text-[10px] uppercase font-bold text-green-300">From Date:</label>
-                <input
-                  type="date"
-                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  value={migrationDateFilter}
-                  onChange={(e) => setMigrationDateFilter(e.target.value)}
-                  disabled={isMigrating}
-                />
-                {migrationDateFilter && (
-                  <button
-                    onClick={() => setMigrationDateFilter('')}
-                    className="text-xs text-green-300 hover:text-white underline"
-                    disabled={isMigrating}
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              {migrationStats && (
-                <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-center">
-                  <p className="text-[10px] uppercase font-bold text-green-300 tracking-wider">Files to Migrate</p>
-                  <p className="text-2xl font-bold text-white">{migrationStats.totalFiles}</p>
-                </div>
-              )}
-
-              {!isMigrating && (
-                <button
-                  onClick={handleStartMigration}
-                  disabled={!migrationStats || migrationStats.totalFiles === 0 || isLoadingStats}
-                  className="btn-primary bg-red-600 hover:bg-red-500 border-none flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <FileDown className="h-4 w-4" />
-                  {isLoadingStats ? 'Scanning...' : 'Start Full Migration'}
-                </button>
-              )}
-
-              <button
-                onClick={fetchMigrationStats}
-                disabled={isLoadingStats}
-                className="btn-secondary bg-white/5 border-white/10 text-white hover:bg-white/10 flex items-center gap-2"
-              >
-                <RefreshCw className={`h-4 w-4 ${isLoadingStats ? 'animate-spin' : ''}`} />
-                Scan
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Migration Progress */}
-        {isMigrating && migrationProgress && (
-          <div className="p-6 bg-black/20 border-b border-white/5">
-            <div className="space-y-4">
-              {/* Progress Bar */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-white flex items-center gap-2">
-                    <Activity className="h-4 w-4" />
-                    Overall Progress
-                  </p>
-                  <p className="text-sm font-bold text-green-400">
-                    {migrationProgress.totalFiles > 0
-                      ? Math.round((migrationProgress.completedFiles / migrationProgress.totalFiles) * 100)
-                      : 0}%
-                  </p>
-                </div>
-                <div className="h-4 bg-white/10 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-300"
-                    style={{
-                      width: `${migrationProgress.totalFiles > 0
-                        ? (migrationProgress.completedFiles / migrationProgress.totalFiles) * 100
-                        : 0}%`
-                    }}
-                  />
-                </div>
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="text-green-400 font-semibold">
-                    ✓ {migrationProgress.completedFiles} migrated
-                  </span>
-                  <span className={migrationProgress.failedFiles > 0 ? 'text-red-400' : 'text-green-300'}>
-                    ✗ {migrationProgress.failedFiles} failed
-                  </span>
-                  <span className="text-green-300">
-                    → {migrationProgress.totalFiles - migrationProgress.completedFiles - migrationProgress.failedFiles} remaining
-                  </span>
-                </div>
-              </div>
-
-              {/* Current File & Speed */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-white/5 rounded-xl space-y-2">
-                  <p className="text-[10px] uppercase font-bold text-green-300 tracking-wider flex items-center gap-2">
-                    <File className="h-3 w-3" />
-                    Currently Downloading
-                  </p>
-                  {migrationProgress.currentFile ? (
-                    <>
-                      <p className="text-sm font-medium text-white truncate">{migrationProgress.currentFile}</p>
-                    </>
-                  ) : (
-                    <p className="text-sm text-green-200">Initializing...</p>
-                  )}
-                </div>
-
-                <div className="p-4 bg-white/5 rounded-xl space-y-2">
-                  <p className="text-[10px] uppercase font-bold text-green-300 tracking-wider flex items-center gap-2">
-                    <Zap className="h-3 w-3" />
-                    Download Speed
-                  </p>
-                  {migrationProgress.downloadSpeed ? (
-                    <p className="text-lg font-bold text-green-400">{migrationProgress.downloadSpeed}</p>
-                  ) : (
-                    <p className="text-sm text-green-200">Calculating...</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Recent Activity */}
-              {migrationProgress.details && migrationProgress.details.length > 0 && (
-                <div className="pt-4 border-t border-white/5">
-                  <p className="text-[10px] uppercase font-bold text-green-300 tracking-wider mb-3">Recent Activity</p>
-                  <div className="bg-black/30 rounded-lg p-3 h-24 overflow-y-auto space-y-1">
-                    {migrationProgress.details.slice(-8).map((detail: string, idx: number) => (
-                      <p key={idx} className="text-xs font-mono text-green-100 truncate">
-                        {detail}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Breakdown by Table */}
-        {migrationStats && !isMigrating && (
-          <div className="p-6">
-            <p className="text-[10px] uppercase font-bold text-green-300 tracking-wider mb-4 flex items-center gap-2">
-              <Database className="h-3 w-3" />
-              Files by Table (Click "Scan" to refresh)
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {Object.entries(migrationStats.byTable).map(([table, count]: [string, any]) => (
-                <div
-                  key={table}
-                  className="p-3 bg-white/5 rounded-lg border border-white/5 hover:border-green-500/30 transition-all"
-                >
-                  <p className="text-[10px] uppercase font-bold text-green-300 truncate">{table}</p>
-                  <p className="text-xl font-bold text-white">{count}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Full Invoice Sync Section */}
-      <div className="card overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 text-white shadow-elevation-lg">
-        <div className="p-6 border-b border-white/10">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-500/20 rounded-xl backdrop-blur-md border border-blue-500/30">
-                <Database className="h-6 w-6 text-blue-400" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold">Full Invoice Sync with Date Range</h3>
-                <p className="text-blue-200 text-sm">NOW WITH INVOICE ITEM SYNC! Sync invoices + all relational data (customers, agents, payments, SEDA, items)</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Date From Input */}
-              <div className="flex items-center gap-2">
-                <label className="text-[10px] uppercase font-bold text-blue-300">From:</label>
-                <input
-                  type="date"
-                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={fullSyncDateFrom}
-                  onChange={(e) => setFullSyncDateFrom(e.target.value)}
-                  disabled={isFullSyncing}
-                />
-              </div>
-
-              {/* Date To Input */}
-              <div className="flex items-center gap-2">
-                <label className="text-[10px] uppercase font-bold text-blue-300">To:</label>
-                <input
-                  type="date"
-                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={fullSyncDateTo}
-                  onChange={(e) => setFullSyncDateTo(e.target.value)}
-                  disabled={isFullSyncing}
-                  placeholder="Current"
-                />
-                {fullSyncDateTo && (
-                  <button
-                    onClick={() => setFullSyncDateTo('')}
-                    className="text-xs text-blue-300 hover:text-white underline"
-                    disabled={isFullSyncing}
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              {!isFullSyncing && (
-                <button
-                  onClick={handleFullInvoiceSync}
-                  disabled={!fullSyncDateFrom}
-                  className="btn-primary bg-blue-600 hover:bg-blue-500 border-none flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Start Full Invoice Sync (with Items)
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Full Sync Results */}
-        {fullSyncResults?.success ? (
-          <div className="p-6 bg-black/20 border-b border-white/5">
-            <div className="flex items-center gap-3 mb-4 text-green-400">
-              <CheckCircle2 className="h-5 w-5" />
-              <p className="font-bold">Sync Completed Successfully</p>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-              <div className="text-center p-3 bg-white/5 rounded-lg">
-                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedInvoices}</p>
-                <p className="text-[10px] uppercase font-bold text-blue-300">Invoices</p>
-              </div>
-              <div className="text-center p-3 bg-white/5 rounded-lg">
-                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedCustomers}</p>
-                <p className="text-[10px] uppercase font-bold text-blue-300">Customers</p>
-              </div>
-              <div className="text-center p-3 bg-white/5 rounded-lg">
-                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedAgents}</p>
-                <p className="text-[10px] uppercase font-bold text-blue-300">Agents</p>
-              </div>
-              <div className="text-center p-3 bg-white/5 rounded-lg">
-                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedUsers}</p>
-                <p className="text-[10px] uppercase font-bold text-blue-300">Users</p>
-              </div>
-              <div className="text-center p-3 bg-white/5 rounded-lg">
-                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedPayments + fullSyncResults.results?.syncedSubmittedPayments}</p>
-                <p className="text-[10px] uppercase font-bold text-blue-300">Payments</p>
-              </div>
-              <div className="text-center p-3 bg-white/5 rounded-lg">
-                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedItems}</p>
-                <p className="text-[10px] uppercase font-bold text-blue-300">Items</p>
-              </div>
-              <div className="text-center p-3 bg-white/5 rounded-lg">
-                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedSedas}</p>
-                <p className="text-[10px] uppercase font-bold text-blue-300">SEDA</p>
-              </div>
-              <div className="text-center p-3 bg-white/5 rounded-lg">
-                <p className="text-2xl font-bold text-white">{fullSyncResults.results?.syncedTemplates}</p>
-                <p className="text-[10px] uppercase font-bold text-blue-300">Templates</p>
-              </div>
-            </div>
-          </div>
-        ) : fullSyncResults && !fullSyncResults.success ? (
-          <div className="p-6 bg-black/20 border-b border-white/5">
-            <div className="flex items-center gap-3 mb-4 text-red-400">
-              <XCircle className="h-5 w-5" />
-              <p className="font-bold">Sync Failed</p>
-            </div>
-            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
-              {fullSyncResults.error}
-            </div>
-          </div>
-        ) : null}
-
-        {/* Full Sync Progress */}
-        {isFullSyncing && (
-          <div className="p-6 bg-black/20 border-b border-white/5">
-            <div className="flex items-center gap-3">
-              <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
-              <p className="font-bold text-white">Syncing invoices and all related data...</p>
-            </div>
-            <p className="text-sm text-blue-200 mt-2">This may take a few minutes. Please check the logs below for progress.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Invoice Item Link Sync Card */}
-      <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold text-white">🔗 Invoice Item Link Sync</h3>
-              <p className="text-green-200 text-sm">Populates invoice.linked_invoice_item from existing invoice_item table (FAST - no Bubble API!)</p>
-            </div>
-            <Link className="h-8 w-8 text-green-300" />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-green-200">Created From (optional - leave empty for ALL invoices)</label>
-            <input
-              type="date"
-              className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
-              value={itemSyncDateFrom}
-              onChange={(e) => setItemSyncDateFrom(e.target.value)}
-            />
-          </div>
-
-          <button
-            onClick={handleInvoiceItemSync}
-            disabled={isItemSyncing}
-            className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isItemSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Zap className="h-5 w-5" />}
-            Link Invoice Items Now
-          </button>
-
-          {/* Invoice Item Sync Results */}
-          {itemSyncResults?.success && (
-            <div className="p-4 bg-white/5 rounded-xl space-y-3">
-              <div className="flex items-center gap-2 text-green-300">
-                <CheckCircle2 className="h-5 w-5" />
-                <p className="font-bold">Link Complete!</p>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{itemSyncResults.results?.updatedCount}</p>
-                  <p className="text-[10px] uppercase font-bold text-green-300">Invoices Updated</p>
-                </div>
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{itemSyncResults.results?.totalItems}</p>
-                  <p className="text-[10px] uppercase font-bold text-green-300">Total Items</p>
-                </div>
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{itemSyncResults.results?.duration}s</p>
-                  <p className="text-[10px] uppercase font-bold text-green-300">Duration</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {itemSyncResults && !itemSyncResults.success && (
-            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
-              {itemSyncResults.error}
-            </div>
-          )}
-
-          {isItemSyncing && (
-            <div className="p-3 bg-white/5 rounded-lg text-center">
-              <Loader2 className="h-5 w-5 animate-spin text-green-400 mx-auto mb-2" />
-              <p className="text-sm text-green-200">Linking invoice items... (Fast!)</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* SEDA-Only Sync Card */}
-      <div className="bg-gradient-to-br from-purple-600 to-indigo-700 rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold text-white">SEDA Registration Sync</h3>
-              <p className="text-purple-200 text-sm">Quick sync for SEDA registrations with frequent updates</p>
-            </div>
-            <FileText className="h-8 w-8 text-purple-300" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-purple-200">From Date *</label>
-              <input
-                type="date"
-                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
-                value={sedaSyncDateFrom}
-                onChange={(e) => setSedaSyncDateFrom(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-purple-200">To Date (optional)</label>
-              <input
-                type="date"
-                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
-                value={sedaSyncDateTo}
-                onChange={(e) => setSedaSyncDateTo(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <button
-            onClick={handleSedaOnlySync}
-            disabled={isSedaSyncing || !sedaSyncDateFrom}
-            className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSedaSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
-            Sync SEDA Registrations
-          </button>
-
-          {/* SEDA Sync Results */}
-          {sedaSyncResults?.success && (
-            <div className="p-4 bg-white/5 rounded-xl space-y-3">
-              <div className="flex items-center gap-2 text-green-300">
-                <CheckCircle2 className="h-5 w-5" />
-                <p className="font-bold">Sync Complete!</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{sedaSyncResults.results?.syncedSedas}</p>
-                  <p className="text-[10px] uppercase font-bold text-purple-300">Synced</p>
-                </div>
-                <div className="text-center p-3 bg-white/5 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{sedaSyncResults.results?.skippedSedas}</p>
-                  <p className="text-[10px] uppercase font-bold text-purple-300">Skipped</p>
-                </div>
-              </div>
-              {sedaSyncResults.results?.errors && sedaSyncResults.results.errors.length > 0 && (
-                <div className="p-2 bg-red-500/20 rounded-lg text-red-300 text-xs font-mono">
-                  {sedaSyncResults.results.errors.length} errors
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* SEDA Sync Error */}
-          {!sedaSyncResults?.success && sedaSyncResults?.error && (
-            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
-              {sedaSyncResults.error}
-            </div>
-          )}
-        </div>
-
-        {/* SEDA Sync Progress */}
-        {isSedaSyncing && (
-          <div className="p-4 bg-black/20 border-t border-white/5">
-            <div className="flex items-center gap-3">
-              <Loader2 className="h-5 w-5 animate-spin text-purple-300" />
-              <p className="font-bold text-white">Syncing SEDA registrations...</p>
-            </div>
-            <p className="text-sm text-purple-200 mt-1">Check logs below for progress</p>
-          </div>
-        )}
-      </div>
-
-      {/* Fast ID-List Sync Card (Optimized with CSV) */}
-      <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold text-white">Optimized ID-List Sync</h3>
-              <p className="text-emerald-200 text-sm">CSV with modified dates - checks local data first</p>
-            </div>
-            <Zap className="h-8 w-8 text-emerald-300" />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-emerald-200">Paste CSV from Bubble ERP</label>
-            <textarea
-              className="w-full h-40 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-white/50 placeholder-white/30"
-              placeholder="type,id,modified_date&#10;invoice,1647839483923x8394832,2026-01-19T10:30:00Z&#10;invoice,1647839483924x8394833,2026-01-19T11:45:00Z&#10;seda,1647839483926x8394835,2026-01-19T09:15:00Z&#10;..."
-              value={csvIdList}
-              onChange={(e) => setCsvIdList(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center gap-2 p-3 bg-white/5 rounded-lg">
-            <Activity className="h-4 w-4 text-emerald-300" />
-            <p className="text-xs text-emerald-200">
-              Generate CSV in Bubble ERP → Paste here → Syncs only newer records
-            </p>
-          </div>
-
-          <button
-            onClick={handleIdListSync}
-            disabled={isIdListSyncing || !csvIdList.trim()}
-            className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isIdListSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Zap className="h-5 w-5" />}
-            Optimized Sync by CSV
-          </button>
-
-          {/* ID-List Sync Results */}
-          {idListSyncResults && idListSyncResults.success && (
-            <div className="p-4 bg-white/5 rounded-xl space-y-3">
-              <div className="flex items-center gap-2 text-green-300">
-                <CheckCircle2 className="h-5 w-5" />
-                <p className="font-bold">Optimized Sync Complete!</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{idListSyncResults.results?.syncedInvoices}</p>
-                  <p className="text-[9px] uppercase font-bold text-emerald-300">Invoices Synced</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{idListSyncResults.results?.skippedInvoices}</p>
-                  <p className="text-[9px] uppercase font-bold text-emerald-300">Invoices Skipped</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{idListSyncResults.results?.syncedSedas}</p>
-                  <p className="text-[9px] uppercase font-bold text-emerald-300">SEDA Synced</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{idListSyncResults.results?.skippedSedas}</p>
-                  <p className="text-[9px] uppercase font-bold text-emerald-300">SEDA Skipped</p>
-                </div>
-              </div>
-              <div className="text-xs text-emerald-200 text-center pt-2 border-t border-white/10">
-                Also synced: {idListSyncResults.results?.syncedItems} items, {idListSyncResults.results?.syncedPayments} payments, {idListSyncResults.results?.syncedCustomers} customers, {idListSyncResults.results?.syncedAgents} agents
-              </div>
-              {idListSyncResults.results?.errors && idListSyncResults.results.errors.length > 0 && (
-                <div className="p-2 bg-red-500/20 rounded-lg text-red-300 text-xs font-mono">
-                  {idListSyncResults.results.errors.length} errors
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ID-List Sync Error */}
-          {!idListSyncResults?.success && idListSyncResults?.error && (
-            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
-              {idListSyncResults.error}
-            </div>
-          )}
-        </div>
-
-        {/* ID-List Sync Progress */}
-        {isIdListSyncing && (
-          <div className="p-4 bg-black/20 border-t border-white/5">
-            <div className="flex items-center gap-3">
-              <Loader2 className="h-5 w-5 animate-spin text-emerald-300" />
-              <p className="font-bold text-white">Optimized sync running...</p>
-            </div>
-            <p className="text-sm text-emerald-200 mt-1">Checking local data & fetching only newer records</p>
-          </div>
-        )}
-      </div>
-
-      {/* INTEGRITY SYNC SECTION - NEW! */}
-      <div className="card overflow-hidden bg-gradient-to-br from-amber-600 via-yellow-600 to-amber-700 text-white shadow-elevation-lg">
-        <div className="p-6 border-b border-white/10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-md">
-              <ShieldCheck className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold">🛡️ INTEGRITY SYNC (NEW!)</h3>
-              <p className="text-amber-100 text-sm font-semibold">Zero Data Loss • Complete Field Mappings • Dependency-Aware</p>
-            </div>
-          </div>
-          <p className="text-amber-200 text-xs mt-2">
-            This is the NEW integrity-first sync method that solves data loss issues. Use for critical invoices or testing.
-          </p>
-        </div>
-
-        <div className="p-6 space-y-6">
-          {/* Single Invoice Integrity Sync */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-amber-100 flex items-center gap-2">
-              <Database className="h-4 w-4" />
-              Test Single Invoice
-            </h4>
-            <div className="grid grid-cols-1 gap-3">
-              <input
-                type="text"
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/50"
-                placeholder="Enter Invoice Bubble ID (e.g., 1708327130811x106027240349761540)"
-                value={integrityInvoiceId}
-                onChange={(e) => setIntegrityInvoiceId(e.target.value)}
-                disabled={isIntegritySyncing}
-              />
-              <button
-                onClick={handleIntegritySync}
-                disabled={isIntegritySyncing || !integrityInvoiceId.trim()}
-                className="w-full py-3 bg-white/20 hover:bg-white/30 border border-white/30 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isIntegritySyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
-                Run Integrity Sync
-              </button>
-            </div>
-          </div>
-
-          {/* Integrity Sync Results */}
-          {integritySyncResults?.success && (
-            <div className="p-4 bg-white/5 rounded-xl space-y-3">
-              <div className="flex items-center gap-2 text-green-300">
-                <CheckCircle2 className="h-5 w-5" />
-                <p className="font-bold">Integrity Sync Complete!</p>
-              </div>
-              <div className="grid grid-cols-4 gap-2 text-xs">
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.agent || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Agent</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.customer || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Customer</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.user || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">User</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.payments || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Payments</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.invoice_items || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Items</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.seda || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">SEDA</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integritySyncResults.stats?.invoice || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Invoice</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integritySyncResults.errors?.length || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Errors</p>
-                </div>
-              </div>
-              {integritySyncResults.errors && integritySyncResults.errors.length > 0 && (
-                <div className="p-2 bg-red-500/20 rounded-lg text-red-300 text-xs font-mono">
-                  {integritySyncResults.errors.length} error(s) - check logs
-                </div>
-              )}
-            </div>
-          )}
-
-          {integritySyncResults && !integritySyncResults.success && integritySyncResults.error && (
-            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
-              {integritySyncResults.error}
-            </div>
-          )}
-
-          {/* Batch Sync */}
-          <div className="pt-4 border-t border-white/10 space-y-3">
-            <h4 className="font-bold text-amber-100 flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              Batch Sync by Date Range
-            </h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-amber-200">From Date *</label>
-                <input
-                  type="date"
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
-                  value={integrityBatchDateFrom}
-                  onChange={(e) => setIntegrityBatchDateFrom(e.target.value)}
-                  disabled={isIntegrityBatchSyncing}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-amber-200">To Date (optional)</label>
-                <input
-                  type="date"
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
-                  value={integrityBatchDateTo}
-                  onChange={(e) => setIntegrityBatchDateTo(e.target.value)}
-                  disabled={isIntegrityBatchSyncing}
-                />
-              </div>
-            </div>
-            <button
-              onClick={handleIntegrityBatchSync}
-              disabled={isIntegrityBatchSyncing || !integrityBatchDateFrom}
-              className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isIntegrityBatchSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
-              Run Batch Integrity Sync
-            </button>
-          </div>
-
-          {/* Batch Results */}
-          {integrityBatchResults?.success && (
-            <div className="p-4 bg-white/5 rounded-xl space-y-3">
-              <div className="flex items-center gap-2 text-green-300">
-                <CheckCircle2 className="h-5 w-5" />
-                <p className="font-bold">Batch Sync Complete!</p>
-              </div>
-              <div className="grid grid-cols-4 gap-2 text-xs">
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integrityBatchResults.results?.total || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Total</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integrityBatchResults.results?.synced || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Synced</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integrityBatchResults.results?.skipped || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Skipped</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integrityBatchResults.results?.failed || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Failed</p>
-                </div>
-              </div>
-              {integrityBatchResults.results?.errors && integrityBatchResults.results.errors.length > 0 && (
-                <div className="p-2 bg-red-500/20 rounded-lg text-red-300 text-xs font-mono">
-                  {integrityBatchResults.results.errors.length} error(s) - check logs
-                </div>
-              )}
-            </div>
-          )}
-
-          {integrityBatchResults && !integrityBatchResults.success && integrityBatchResults.error && (
-            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
-              {integrityBatchResults.error}
-            </div>
-          )}
-
-          {/* Progress Indicators */}
-          {isIntegritySyncing && (
-            <div className="p-3 bg-white/5 rounded-lg text-center">
-              <Loader2 className="h-5 w-5 animate-spin text-amber-300 mx-auto mb-2" />
-              <p className="text-sm text-amber-200">Running integrity sync... (check logs below for progress)</p>
-            </div>
-          )}
-
-          {/* Simple Real-time Progress Display for Batch Sync */}
-          {isIntegrityBatchSyncing && integritySyncProgress && (
-            <div className="p-4 bg-white/10 rounded-xl space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-green-400 animate-pulse" />
-                  <p className="font-bold text-white">Sync Progress</p>
-                </div>
-                <p className="text-sm font-bold text-green-400">
-                  {integritySyncProgress.total_invoices > 0
-                    ? Math.round((integritySyncProgress.synced_invoices / integritySyncProgress.total_invoices) * 100)
-                    : 0}%
-                </p>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="h-3 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-300"
-                  style={{
-                    width: `${integritySyncProgress.total_invoices > 0
-                      ? (integritySyncProgress.synced_invoices / integritySyncProgress.total_invoices) * 100
-                      : 0}%`
-                  }}
-                />
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integritySyncProgress.synced_invoices}</p>
-                  <p className="text-[9px] uppercase font-bold text-green-300">Synced</p>
-                </div>
-                <div className="p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integritySyncProgress.total_invoices}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Total</p>
-                </div>
-                <div className="p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{integritySyncProgress.total_invoices - integritySyncProgress.synced_invoices}</p>
-                  <p className="text-[9px] uppercase font-bold text-amber-300">Remaining</p>
-                </div>
-              </div>
-
-              {/* Current Invoice */}
-              {integritySyncProgress.current_invoice_id && (
-                <div className="p-2 bg-black/20 rounded-lg">
-                  <p className="text-[10px] uppercase font-bold text-amber-300">Currently Syncing</p>
-                  <p className="text-xs font-mono text-white truncate">{integritySyncProgress.current_invoice_id}</p>
-                </div>
-              )}
-
-              {/* Status */}
-              {integritySyncProgress.status === 'error' && integritySyncProgress.error_message && (
-                <div className="p-2 bg-red-500/20 rounded-lg">
-                  <p className="text-xs text-red-300">{integritySyncProgress.error_message}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Loading state before progress data arrives */}
-          {isIntegrityBatchSyncing && !integritySyncProgress && (
-            <div className="p-3 bg-white/5 rounded-lg text-center">
-              <Loader2 className="h-5 w-5 animate-spin text-amber-300 mx-auto mb-2" />
-              <p className="text-sm text-amber-200">Starting sync... detecting invoices</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* FAST INVOICE ID LIST SYNC - PASTE INVOICE IDs */}
-      <div className="bg-gradient-to-br from-cyan-600 to-blue-700 rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold text-white">⚡ Fast Invoice ID List Sync</h3>
-              <p className="text-cyan-200 text-sm">Paste invoice Bubble IDs to sync directly (much faster!)</p>
-            </div>
-            <Zap className="h-8 w-8 text-cyan-300" />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-cyan-200">Paste Invoice Bubble IDs (one per line or comma-separated)</label>
-            <textarea
-              className="w-full h-40 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-white/50 placeholder-white/30"
-              placeholder="1647839483923x8394832&#10;1647839483924x8394833&#10;1647839483925x8394834&#10;..."
-              value={invoiceIdList}
-              onChange={(e) => setInvoiceIdList(e.target.value)}
-            />
-          </div>
-
-          {/* Skip options */}
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex items-center gap-2 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-white/30 text-cyan-400 focus:ring-cyan-500"
-                checked={skipUsers}
-                onChange={(e) => setSkipUsers(e.target.checked)}
-              />
-              <div>
-                <p className="text-xs font-bold text-white">Skip Users</p>
-                <p className="text-[9px] text-cyan-200">Users rarely change</p>
-              </div>
-            </label>
-
-            <label className="flex items-center gap-2 p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-white/30 text-cyan-400 focus:ring-cyan-500"
-                checked={skipAgents}
-                onChange={(e) => setSkipAgents(e.target.checked)}
-              />
-              <div>
-                <p className="text-xs font-bold text-white">Skip Agents</p>
-                <p className="text-[9px] text-cyan-200">Agents rarely change</p>
-              </div>
-            </label>
-          </div>
-
-          <button
-            onClick={handleInvoiceIdListSync}
-            disabled={isInvoiceIdListSyncing || !invoiceIdList.trim()}
-            className="w-full py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isInvoiceIdListSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Zap className="h-5 w-5" />}
-            Sync Invoice ID List
-          </button>
-
-          {/* ID List Sync Results */}
-          {invoiceIdListResults?.success && (
-            <div className="p-4 bg-white/5 rounded-xl space-y-3">
-              <div className="flex items-center gap-2 text-green-300">
-                <CheckCircle2 className="h-5 w-5" />
-                <p className="font-bold">Sync Complete!</p>
-              </div>
-              <div className="grid grid-cols-4 gap-2 text-xs">
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{invoiceIdListResults.results?.total || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-cyan-300">Total</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{invoiceIdListResults.results?.synced || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-cyan-300">Synced</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{invoiceIdListResults.results?.skipped || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-cyan-300">Skipped</p>
-                </div>
-                <div className="text-center p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{invoiceIdListResults.results?.failed || 0}</p>
-                  <p className="text-[9px] uppercase font-bold text-cyan-300">Failed</p>
-                </div>
-              </div>
-              {invoiceIdListResults.results?.errors && invoiceIdListResults.results.errors.length > 0 && (
-                <div className="p-2 bg-red-500/20 rounded-lg text-red-300 text-xs font-mono">
-                  {invoiceIdListResults.results.errors.length} error(s) - check logs
-                </div>
-              )}
-            </div>
-          )}
-
-          {invoiceIdListResults && !invoiceIdListResults.success && invoiceIdListResults.error && (
-            <div className="p-3 bg-red-500/20 rounded-lg text-red-300 text-sm font-mono">
-              {invoiceIdListResults.error}
-            </div>
-          )}
-
-          {/* Progress Display for ID List Sync */}
-          {isInvoiceIdListSyncing && invoiceIdListProgress && (
-            <div className="p-4 bg-white/10 rounded-xl space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-green-400 animate-pulse" />
-                  <p className="font-bold text-white">Sync Progress</p>
-                </div>
-                <p className="text-sm font-bold text-green-400">
-                  {invoiceIdListProgress.total_invoices > 0
-                    ? Math.round((invoiceIdListProgress.synced_invoices / invoiceIdListProgress.total_invoices) * 100)
-                    : 0}%
-                </p>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="h-3 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-300"
-                  style={{
-                    width: `${invoiceIdListProgress.total_invoices > 0
-                      ? (invoiceIdListProgress.synced_invoices / invoiceIdListProgress.total_invoices) * 100
-                      : 0}%`
-                  }}
-                />
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{invoiceIdListProgress.synced_invoices}</p>
-                  <p className="text-[9px] uppercase font-bold text-green-300">Synced</p>
-                </div>
-                <div className="p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{invoiceIdListProgress.total_invoices}</p>
-                  <p className="text-[9px] uppercase font-bold text-cyan-300">Total</p>
-                </div>
-                <div className="p-2 bg-white/5 rounded-lg">
-                  <p className="text-xl font-bold text-white">{invoiceIdListProgress.total_invoices - invoiceIdListProgress.synced_invoices}</p>
-                  <p className="text-[9px] uppercase font-bold text-cyan-300">Remaining</p>
-                </div>
-              </div>
-
-              {/* Current Invoice */}
-              {invoiceIdListProgress.current_invoice_id && (
-                <div className="p-2 bg-black/20 rounded-lg">
-                  <p className="text-[10px] uppercase font-bold text-cyan-300">Currently Syncing</p>
-                  <p className="text-xs font-mono text-white truncate">{invoiceIdListProgress.current_invoice_id}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Loading state before progress data arrives */}
-          {isInvoiceIdListSyncing && !invoiceIdListProgress && (
-            <div className="p-3 bg-white/5 rounded-lg text-center">
-              <Loader2 className="h-5 w-5 animate-spin text-cyan-300 mx-auto mb-2" />
-              <p className="text-sm text-cyan-200">Starting sync... parsing invoice IDs</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-        {/* ... (Manual sync side) ... */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-2 text-sm font-bold text-secondary-400 uppercase tracking-widest">
-            <Calendar className="h-4 w-4" />
-            Manual Range Sync
-          </div>
-          
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-secondary-700">Sync Data Modified Since:</label>
-              <input 
-                type="date" 
-                className="input"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-              />
-              <p className="text-[10px] text-secondary-400 italic">Leave empty to sync all historical data (Caution: slow)</p>
-            </div>
-
-            <label className="flex items-center gap-3 p-4 border border-secondary-200 rounded-xl cursor-pointer hover:bg-secondary-50 transition-colors">
-              <input 
-                type="checkbox" 
-                className="h-5 w-5 rounded border-secondary-300 text-primary-600 focus:ring-primary-500"
-                checked={syncFiles}
-                onChange={(e) => setSyncFiles(e.target.checked)}
-              />
-              <div>
-                <p className="text-sm font-bold text-secondary-900">Auto-Sync Files</p>
-                <p className="text-xs text-secondary-500">Download missing signatures/images after data sync</p>
-              </div>
-            </label>
-
-             <button
-               onClick={() => handleSync('manual')}
-               disabled={isSyncing}
-               className="btn-primary w-full py-4 flex items-center justify-center gap-3 shadow-elevation-md"
-             >
-               {isSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
-               Execute Manual Sync
-             </button>
-
-             <button
-               onClick={handlePatchChinese}
-               disabled={isPatchingChinese}
-               className="w-full py-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold transition-all flex items-center justify-center gap-2"
-             >
-               {isPatchingChinese ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
-               Non-English Filename Patcher
-             </button>
-
-             <button 
-               onClick={handleUpdatePercentages}
-               disabled={isUpdatingPercentages}
-               className="w-full py-3 rounded-xl border border-secondary-200 bg-secondary-50 hover:bg-secondary-100 text-secondary-700 font-bold transition-all flex items-center justify-center gap-2"
-             >
-               {isUpdatingPercentages ? <Loader2 className="h-5 w-5 animate-spin" /> : <Percent className="h-5 w-5" />}
-               Update Payment Percentages
-             </button>
-
-             <button 
-               onClick={handlePatchCreators}
-               disabled={isPatchingCreators}
-               className="w-full py-3 rounded-xl border border-secondary-200 bg-secondary-50 hover:bg-secondary-100 text-secondary-700 font-bold transition-all flex items-center justify-center gap-2"
-             >
-               {isPatchingCreators ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
-               Patch Creator IDs (Fix NULLs)
-             </button>
-
-             <button 
-               onClick={handleFixDates}
-               disabled={isFixingDates}
-               className="w-full py-3 rounded-xl border border-secondary-200 bg-secondary-50 hover:bg-secondary-100 text-secondary-700 font-bold transition-all flex items-center justify-center gap-2"
-             >
-               {isFixingDates ? <Loader2 className="h-5 w-5 animate-spin" /> : <CalendarDays className="h-5 w-5" />}
-               Fix Missing Dates (Backfill)
-             </button>
-
-             <button
-               onClick={handleDeleteDemo}
-               disabled={isDeletingDemo}
-               className="w-full py-3 rounded-xl border border-secondary-200 bg-secondary-50 hover:bg-secondary-100 text-secondary-700 font-bold transition-all flex items-center justify-center gap-2"
-             >
-               {isDeletingDemo ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-               Hide Demo Invoices (Mark Deleted)
-             </button>
-
-             <button
-               onClick={handleUpdateStatuses}
-               disabled={isUpdatingStatuses}
-               className="w-full py-3 rounded-xl border border-primary-200 bg-primary-50 hover:bg-primary-100 text-primary-700 font-bold transition-all flex items-center justify-center gap-2"
-             >
-               {isUpdatingStatuses ? <Loader2 className="h-5 w-5 animate-spin" /> : <Tag className="h-5 w-5" />}
-               Update Invoice Statuses
-             </button>
-
-             <button
-               onClick={handleRestoreLinks}
-               disabled={isRestoringLinks}
-               className="w-full py-3 rounded-xl border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 font-bold transition-all flex items-center justify-center gap-2"
-             >
-               {isRestoringLinks ? <Loader2 className="h-5 w-5 animate-spin" /> : <Link className="h-5 w-5" />}
-               Restore Invoice-SEDA Links
-             </button>
-
-             <button
-               onClick={handlePatchUrls}
-               disabled={isPatchingUrls}
-               className="w-full py-3 rounded-xl border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold transition-all flex items-center justify-center gap-2"
-             >
-               {isPatchingUrls ? <Loader2 className="h-5 w-5 animate-spin" /> : <Globe className="h-5 w-5" />}
-               Patch File URLs to Absolute
-             </button>
-          </div>
-        </div>
-
-        {/* ... (Maintenance side) ... */}
-        <div className="space-y-6 border-l border-secondary-100 pl-0 md:pl-12">
-          <div className="flex items-center gap-2 text-sm font-bold text-secondary-400 uppercase tracking-widest">
-            <Clock className="h-4 w-4" />
-            Maintenance & Automation
-          </div>
-
-          <div className="space-y-4 pt-2">
-            <div className="p-6 rounded-2xl bg-secondary-900 text-white space-y-4">
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <Database className="h-5 w-5 text-primary-400" />
-                Incremental Sync
-              </h3>
-              <p className="text-sm text-secondary-400">
-                Quickly pull changes from the last 24 hours. Ideal for daily maintenance.
-              </p>
-              <button 
-                onClick={() => handleSync('auto')}
-                disabled={isSyncing}
-                className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold transition-all flex items-center justify-center gap-2"
-              >
-                Sync Last 24 Hours
-              </button>
-            </div>
-
-            <div className="p-6 rounded-2xl border border-secondary-200 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary-50 rounded-lg">
-                  <RefreshCw className="h-5 w-5 text-primary-600" />
-                </div>
-                <h3 className="font-bold text-secondary-900">External Trigger (CRON)</h3>
-              </div>
-              <code className="block p-3 bg-secondary-50 rounded-lg text-[10px] text-secondary-600 break-all border border-secondary-200">
-                GET /api/sync/cron?secret=sync_admin_2026
-              </code>
-              <p className="text-[10px] text-secondary-500">
-                Trigger this URL from your Railway Cron Job or a GitHub Action to keep the database fresh automatically.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* File Sync Progress Section */}
-      {progress && progress.category && (
-        <div className="mt-8 border-t-2 pt-8 border-blue-100 animate-slide-up">
-          <div className="flex items-center gap-3 mb-6">
-            <Download className="h-6 w-6 text-blue-500 animate-pulse" />
-            <h2 className="text-xl font-bold text-secondary-900">
-              File Sync Progress
-            </h2>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-secondary-200 p-6 space-y-6">
-            {/* Overall Progress */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-semibold text-secondary-700">
-                  {progress.category ? progress.category.charAt(0).toUpperCase() + progress.category.slice(1).replace('_', ' ') : 'Processing...'}
-                </span>
-                <span className="font-bold text-blue-600">
-                  {progress.completedFiles} / {progress.totalFiles} files
-                </span>
-              </div>
-
-              <div className="h-3 bg-secondary-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300 ease-out"
-                  style={{
-                    width: `${progress.totalFiles > 0 ? (progress.completedFiles / progress.totalFiles) * 100 : 0}%`
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Current File Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-secondary-50 rounded-xl space-y-1">
-                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Current File</p>
-                <div className="flex items-center gap-2">
-                  <File className="h-4 w-4 text-blue-500" />
-                  <p className="text-sm font-medium text-secondary-900 truncate">
-                    {progress.currentFile || 'Waiting...'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-secondary-50 rounded-xl space-y-1">
-                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Download Speed</p>
-                <div className="flex items-center gap-2">
-                  <Download className="h-4 w-4 text-green-500" />
-                  <p className="text-sm font-bold text-green-600">
-                    {progress.downloadSpeed || 'Calculating...'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-secondary-100">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-green-600">{progress.completedFiles}</p>
-                <p className="text-xs text-secondary-500 font-semibold">Completed</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-red-600">{progress.failedFiles}</p>
-                <p className="text-xs text-secondary-500 font-semibold">Failed</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-secondary-900">
-                  {progress.totalFiles - progress.completedFiles - progress.failedFiles}
-                </p>
-                <p className="text-xs text-secondary-500 font-semibold">Remaining</p>
-              </div>
-            </div>
-
-            {/* Categories Progress */}
-            {progress.categoriesTotal && progress.categoriesTotal.length > 0 && (
-              <div className="pt-4 border-t border-secondary-100">
-                <p className="text-xs font-bold text-secondary-400 uppercase mb-3">Categories</p>
-                <div className="flex flex-wrap gap-2">
-                  {progress.categoriesTotal.map((cat: string) => {
-                    const isCompleted = progress.categoriesCompleted?.includes(cat);
-                    const isCurrent = progress.category === cat;
-                    return (
-                      <span
-                        key={cat}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
-                          isCompleted
-                            ? 'bg-green-100 text-green-700'
-                            : isCurrent
-                            ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500'
-                            : 'bg-secondary-100 text-secondary-500'
-                        }`}
-                      >
-                        {isCompleted ? '✓' : isCurrent ? '↓' : '○'} {cat.replace('_', ' ')}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Recent Activity */}
-            {progress.details && progress.details.length > 0 && (
-              <div className="pt-4 border-t border-secondary-100">
-                <p className="text-xs font-bold text-secondary-400 uppercase mb-3">Recent Activity</p>
-                <div className="bg-secondary-950 rounded-lg p-4 h-32 overflow-y-auto space-y-1.5">
-                  {progress.details.slice(-10).reverse().map((detail: string, idx: number) => (
-                    <p key={idx} className="text-xs font-mono text-secondary-300 flex items-center gap-2">
-                      {detail.startsWith('✓') ? (
-                        <CheckCircle2 className="h-3 w-3 text-green-400 flex-shrink-0" />
-                      ) : (
-                        <XCircle className="h-3 w-3 text-red-400 flex-shrink-0" />
-                      )}
-                      <span className={detail.startsWith('✓') ? 'text-green-400' : 'text-red-400'}>{detail}</span>
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {progress.status === 'completed' && (
-              <div className="flex items-center justify-center gap-2 p-4 bg-green-50 rounded-xl border border-green-200">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <p className="font-bold text-green-700">File sync completed successfully!</p>
-              </div>
-            )}
-
-            {progress.status === 'error' && (
-              <div className="flex items-center justify-center gap-2 p-4 bg-red-50 rounded-xl border border-red-200">
-                <AlertCircle className="h-5 w-5 text-red-600" />
-                <p className="font-bold text-red-700">File sync encountered an error</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Results Section */}
-      {results && (
-        <div className={`mt-8 border-t-2 pt-8 animate-slide-up ${results.success ? 'border-green-100' : 'border-red-100'}`}>
-          <div className="flex items-center gap-3 mb-6">
-            {results.success ? (
-              <CheckCircle2 className="h-6 w-6 text-green-500" />
-            ) : (
-              <AlertCircle className="h-6 w-6 text-red-500" />
-            )}
-            <h2 className="text-xl font-bold text-secondary-900">
-              {results.success ? 'Sync Completed Successfully' : 'Sync Process Failed'}
-            </h2>
-          </div>
-
-          {results.success && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <div className="p-4 border-b border-secondary-100">
-                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Invoices</p>
-                <p className="text-2xl font-bold text-secondary-900">{results.results?.syncedInvoices}</p>
-              </div>
-              <div className="p-4 border-b border-secondary-100">
-                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Customers</p>
-                <p className="text-2xl font-bold text-secondary-900">{results.results?.syncedCustomers}</p>
-              </div>
-              <div className="p-4 border-b border-secondary-100">
-                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Agents/Users</p>
-                <p className="text-2xl font-bold text-secondary-900">
-                  {(results.results?.syncedAgents || 0) + (results.results?.syncedUsers || 0)}
-                </p>
-              </div>
-              <div className="p-4 border-b border-secondary-100">
-                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">SEDA</p>
-                <p className="text-2xl font-bold text-secondary-900">{results.results?.syncedSedas}</p>
-              </div>
-              <div className="p-4 border-b border-secondary-100">
-                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Payments</p>
-                <p className="text-2xl font-bold text-secondary-900">
-                  {(results.results?.syncedPayments || 0) + (results.results?.syncedSubmittedPayments || 0)}
-                </p>
-              </div>
-              <div className="p-4 border-b border-secondary-100">
-                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Items</p>
-                <p className="text-2xl font-bold text-secondary-900">{results.results?.syncedItems}</p>
-              </div>
-              <div className="p-4 border-b border-secondary-100">
-                <p className="text-[10px] uppercase font-bold text-secondary-400 mb-1">Templates</p>
-                <p className="text-2xl font-bold text-secondary-900">{results.results?.syncedTemplates}</p>
-              </div>
-            </div>
-          )}
-
-          {!results.success && (
-            <div className="p-4 bg-red-50 rounded-xl border border-red-100 text-red-700 text-sm font-mono">
-              {results.error}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Logs Section */}
-      <div className="mt-12 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-bold text-secondary-400 uppercase tracking-widest">
-            <FileText className="h-4 w-4" />
-            Live Sync Logs
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={loadLogs}
-              className="text-[10px] font-bold text-primary-600 hover:text-primary-700 uppercase tracking-widest"
-            >
-              Refresh Logs
-            </button>
-            <button
-              onClick={handleClearLogs}
-              disabled={isClearingLogs}
-              className="text-[10px] font-bold text-red-600 hover:text-red-700 uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-            >
-              {isClearingLogs ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-              Clear Logs
-            </button>
-          </div>
-        </div>
-        <div className="bg-secondary-950 rounded-2xl p-6 font-mono text-[11px] text-secondary-300 h-80 overflow-y-auto border border-secondary-800 shadow-elevation-lg">
-          {logs.map((log, i) => {
-            const isError = log.includes('[ERROR]');
-            const isCron = log.includes('[CRON]');
-            return (
-              <p key={i} className={`mb-1.5 leading-relaxed ${isError ? 'text-red-400' : isCron ? 'text-primary-400' : 'text-secondary-400'}`}>
-                <span className="opacity-30 mr-2">{i+1}</span>
-                {log}
-              </p>
-            );
-          })}
-          {logs.length === 0 && <p className="opacity-50">Waiting for activity...</p>}
-        </div>
-      </div>
+      {/* File Migration */}
+      <FileMigrationForm
+        isMigrating={isMigrating}
+        dateFrom={migrationDateFilter}
+        migrationStats={migrationStats}
+        migrationProgress={migrationProgress}
+        onDateFromChange={setMigrationDateFilter}
+        onStartMigration={handleStartMigration}
+        onScanStats={fetchMigrationStats}
+      />
+
+      {/* Quick Sync */}
+      <QuickSyncForm
+        dateFrom={dateFrom}
+        syncFiles={syncFiles}
+        isSyncing={isSyncing}
+        results={syncResults}
+        progress={progress}
+        onDateFromChange={setDateFrom}
+        onSyncFilesChange={setSyncFiles}
+        onManualSync={handleManualSync}
+        onIncrementalSync={handleIncrementalSync}
+      />
+
+      {/* Full Invoice Sync */}
+      <FullInvoiceSyncForm
+        dateFrom={fullSyncDateFrom}
+        dateTo={fullSyncDateTo}
+        isSyncing={isFullSyncing}
+        results={fullSyncResults}
+        onDateFromChange={setFullSyncDateFrom}
+        onDateToChange={setFullSyncDateTo}
+        onSync={handleFullInvoiceSync}
+      />
+
+      {/* Invoice Item Sync */}
+      <InvoiceItemSyncForm
+        dateFrom={itemSyncDateFrom}
+        isSyncing={isItemSyncing}
+        results={itemSyncResults}
+        onDateFromChange={setItemSyncDateFrom}
+        onSync={handleInvoiceItemSync}
+      />
+
+      {/* SEDA-Only Sync */}
+      <SedaSyncForm
+        dateFrom={sedaSyncDateFrom}
+        dateTo={sedaSyncDateTo}
+        isSyncing={isSedaSyncing}
+        results={sedaSyncResults}
+        onDateFromChange={setSedaSyncDateFrom}
+        onDateToChange={setSedaSyncDateTo}
+        onSync={handleSedaOnlySync}
+      />
+
+      {/* ID List Sync */}
+      <IdListSyncForm
+        isSyncing={isIdListSyncing}
+        results={idListSyncResults}
+        onSync={handleIdListSync}
+      />
+
+      {/* Integrity Sync */}
+      <IntegritySyncForm
+        isSyncing={isIntegritySyncing || isIntegrityBatchSyncing}
+        results={integritySyncResults || integrityBatchResults}
+        batchDateFrom={integrityBatchDateFrom}
+        batchDateTo={integrityBatchDateTo}
+        onSingleSync={handleIntegritySingleSync}
+        onBatchSync={handleIntegrityBatchSync}
+        onBatchDateFromChange={setIntegrityBatchDateFrom}
+        onBatchDateToChange={setIntegrityBatchDateTo}
+      />
+
+      {/* Data Patches */}
+      <DataPatchesPanel
+        isSyncing={isUpdatingPercentages || isPatchingCreators || isUpdatingStatuses}
+        results={patchResults}
+        currentOperation={getCurrentOperation()}
+        onUpdatePercentages={handleUpdatePercentages}
+        onPatchCreators={handlePatchCreators}
+        onUpdateStatuses={handleUpdateStatuses}
+      />
+
+      {/* Maintenance */}
+      <MaintenancePanel
+        isSyncing={isDeletingDemo || isFixingDates || isRestoringLinks || isPatchingUrls || isPatchingChinese}
+        results={patchResults}
+        currentOperation={getCurrentOperation()}
+        onDeleteDemo={handleDeleteDemo}
+        onFixDates={handleFixDates}
+        onRestoreLinks={handleRestoreLinks}
+        onPatchUrls={handlePatchUrls}
+        onPatchChinese={handlePatchChinese}
+      />
+
+      {/* Payment Sync Operations */}
+      <PaymentSyncForm
+        onActionComplete={() => {
+          loadLogs();
+          // Optionally trigger other refresh actions
+        }}
+      />
+
+      {/* Logs */}
+      <LogViewer
+        logs={logs}
+        isClearing={isClearingLogs}
+        onClear={handleClearLogs}
+      />
     </div>
   );
 }
+
+// Import actions at the bottom to avoid clutter
+import {
+  runManualSync,
+  runIncrementalSync,
+  runFullInvoiceSync,
+  runSedaOnlySync,
+  runIdListSync,
+  runIntegritySync,
+  runIntegrityBatchSync,
+  syncInvoiceItemLinks,
+  updateInvoicePaymentPercentages,
+  patchInvoiceCreators,
+  updateInvoiceStatuses,
+  deleteDemoInvoices,
+  fixMissingInvoiceDates,
+  restoreInvoiceSedaLinks,
+  patchFileUrlsToAbsolute,
+  patchChineseFilenames,
+} from "./actions";

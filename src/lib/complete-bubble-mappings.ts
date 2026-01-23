@@ -65,6 +65,9 @@ export const INVOICE_FIELD_MAPPING: Record<string, FieldMappingConfig> = {
   'Locked Package?': { column: 'locked_package', type: 'boolean' },
   'Commission Paid?': { column: 'commission_paid', type: 'boolean' },
 
+  // Calculated Fields (synced from Bubble)
+  'Percent of Total Amount': { column: 'percent_of_total_amount', type: 'numeric' },
+
   // Commission & Performance
   'Normal Commission': { column: 'normal_commission', type: 'numeric' },
   'Performance Tier Month': { column: 'performance_tier_month', type: 'integer' },
@@ -82,8 +85,6 @@ export const INVOICE_FIELD_MAPPING: Record<string, FieldMappingConfig> = {
   // Counters
   'visit': { column: 'visit', type: 'integer' },
 
-  // UNMAPPED: Percent of Total Amount - unclear destination
-  // 'Percent of Total Amount': { column: '???', type: 'numeric', note: 'Destination unclear' },
 };
 
 // ============================================================================
