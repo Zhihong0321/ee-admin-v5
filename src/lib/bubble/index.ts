@@ -82,6 +82,18 @@ export {
   syncByIdList
 } from './sync-idlist';
 
+// JSON File Sync Operations
+export {
+  syncInvoicesFromJsonFile
+} from './sync-from-json';
+
+// JSON Upload Sync Operations (with validation)
+export {
+  syncJsonWithValidation,
+  type EntityType,
+  type JsonUploadSyncResult
+} from './sync-json-upload';
+
 // Re-export types
 export type {
   BubbleInvoiceRaw,

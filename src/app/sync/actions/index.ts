@@ -29,7 +29,8 @@ export {
 // Invoice Sync Operations
 export {
   runFullInvoiceSync,
-  runIdListSync
+  runIdListSync,
+  runJsonFileSync
 } from './invoice-sync';
 
 // Integrity Sync Operations
@@ -84,3 +85,12 @@ export {
   clearProblemSyncList,
   type ProblemSync
 } from './payment-operations';
+
+// JSON Upload Sync Operations
+export {
+  uploadAndSyncJson,
+  uploadInvoicesJson,
+  uploadPaymentsJson,
+  uploadSedaRegistrationsJson,
+  uploadInvoiceItemsJson
+} from './json-upload-sync';

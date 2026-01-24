@@ -22,6 +22,7 @@ import {
   InvoiceItemSyncForm,
   FileMigrationForm,
   PaymentSyncForm,
+  JsonUploadSyncForm,
 } from "./components/forms";
 import {
   DataPatchesPanel,
@@ -56,6 +57,10 @@ export default function SyncPage() {
   // ID List Sync state
   const [isIdListSyncing, setIsIdListSyncing] = useState(false);
   const [idListSyncResults, setIdListSyncResults] = useState<any>(null);
+
+  // JSON Upload Sync state
+  const [isJsonUploadSyncing, setIsJsonUploadSyncing] = useState(false);
+  const [jsonUploadResults, setJsonUploadResults] = useState<any>(null);
 
   // Integrity Sync state
   const [isIntegritySyncing, setIsIntegritySyncing] = useState(false);
@@ -315,6 +320,32 @@ export default function SyncPage() {
       setIdListSyncResults({ success: false, error: String(error) });
     } finally {
       setIsIdListSyncing(false);
+    }
+  };
+
+  const handleJsonUploadSync = async (entityType: 'invoice' | 'payment' | 'seda_registration' | 'invoice_item', jsonData: any[]) => {
+    if (!jsonData || jsonData.length === 0) {
+      alert("No JSON data to sync");
+      return;
+    }
+
+    if (!confirm(`Sync ${jsonData.length} ${entityType.replace('_', ' ')} records from JSON?\n\nThis will:\n• Validate the first entry first\n• If validation fails, entire sync is rejected\n• If validation passes, sync all records\n• Upsert records (update if exists, insert if new)\n\nContinue?`)) {
+      return;
+    }
+
+    setIsJsonUploadSyncing(true);
+    setJsonUploadResults(null);
+
+    try {
+      // Direct import from json-upload-sync action
+      const { uploadAndSyncJson } = await import("./actions/json-upload-sync");
+      const res = await uploadAndSyncJson(entityType, jsonData);
+      setJsonUploadResults(res);
+      await loadLogs();
+    } catch (error) {
+      setJsonUploadResults({ success: false, error: String(error) });
+    } finally {
+      setIsJsonUploadSyncing(false);
     }
   };
 
@@ -664,6 +695,13 @@ export default function SyncPage() {
         isSyncing={isIdListSyncing}
         results={idListSyncResults}
         onSync={handleIdListSync}
+      />
+
+      {/* JSON Upload Sync */}
+      <JsonUploadSyncForm
+        isSyncing={isJsonUploadSyncing}
+        results={jsonUploadResults}
+        onSync={handleJsonUploadSync}
       />
 
       {/* Integrity Sync */}

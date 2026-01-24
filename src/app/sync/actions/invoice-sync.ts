@@ -192,3 +192,87 @@ export async function runIdListSync(csvData: string) {
     return { success: false, error: String(error) };
   }
 }
+
+/**
+ * ============================================================================
+ * FUNCTION: runJsonFileSync
+ * ============================================================================
+ *
+ * INTENT (What & Why):
+ * Sync invoices from a locally exported JSON file to PostgreSQL. This is useful
+ * when you have exported data from Bubble and want to sync it without accessing
+ * the Bubble API.
+ *
+ * INPUTS:
+ * @param jsonFilePath - string (required): Path to the JSON file (relative to project root)
+ * @param limit - number (optional): Limit on number of records to sync (for testing)
+ *
+ * OUTPUTS:
+ * @returns { success: boolean, results?: { processed: number, synced: number, errors: string[] }, error?: string }
+ *
+ * EXECUTION ORDER (Step-by-step):
+ * 1. Read JSON file from disk
+ * 2. Parse JSON data
+ * 3. For each invoice record:
+ *    - Transform Bubble field names to PostgreSQL schema
+ *    - Parse dates, amounts, comma-separated lists
+ *    - Upsert to PostgreSQL
+ * 4. Revalidate Next.js cached paths
+ * 5. Return sync results
+ *
+ * FIELD MAPPINGS:
+ * - "unique id" → bubble_id
+ * - "Invoice ID" → invoice_id (parsed as number)
+ * - "Amount" → amount
+ * - "Total Amount" → total_amount
+ * - "Invoice Date" → invoice_date
+ * - "Created Date" → created_at
+ * - "Modified Date" → updated_at
+ * - "Linked Customer" → linked_customer
+ * - "Linked Agent" → linked_agent
+ * - "Linked Payment" → linked_payment (comma-separated → array)
+ * - "Linked Invoice Item" → linked_invoice_item (comma-separated → array)
+ * - "Linked SEDA registration" → linked_seda_registration
+ *
+ * EDGE CASES:
+ * - File not found → Returns success: false with error
+ * - Invalid JSON → Returns success: false with error
+ * - Missing "unique id" → Logs error, skips record
+ * - Some records fail → Continues processing, returns errors array
+ *
+ * SIDE EFFECTS:
+ * - Writes to PostgreSQL (invoices table)
+ * - Calls logSyncActivity() for audit trail
+ * - Calls revalidatePath() to refresh Next.js cache
+ *
+ * DEPENDENCIES:
+ * - Requires: syncInvoicesFromJsonFile() from @/lib/bubble
+ * - Used by: src/app/sync/page.tsx (JSON File Sync form)
+ */
+export async function runJsonFileSync(jsonFilePath: string, limit?: number) {
+  logSyncActivity(`JSON File Sync: ${jsonFilePath}${limit ? ` (limit: ${limit})` : ''}`, 'INFO');
+
+  try {
+    const { syncInvoicesFromJsonFile } = await import('@/lib/bubble');
+    const result = await syncInvoicesFromJsonFile(jsonFilePath, limit);
+
+    if (result.success) {
+      logSyncActivity(`JSON File Sync SUCCESS: ${result.synced}/${result.processed} invoices synced`, 'INFO');
+    } else {
+      logSyncActivity(`JSON File Sync FAILED`, 'ERROR');
+    }
+
+    if (result.errors.length > 0) {
+      logSyncActivity(`Errors encountered: ${result.errors.length}`, 'ERROR');
+      result.errors.slice(0, 5).forEach(e => logSyncActivity(e, 'ERROR'));
+    }
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+
+    return { success: result.success, results: result, error: result.success ? undefined : 'Sync failed' };
+  } catch (error) {
+    logSyncActivity(`JSON File Sync CRASHED: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
