@@ -264,6 +264,41 @@ export function JsonUploadSyncForm({
                 </div>
               </div>
             )}
+
+            {/* Schema Patch Results */}
+            {results.result.schemaPatch && (
+              <div className="mt-4 p-4 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <Database className="h-4 w-4 text-cyan-400" />
+                  <p className="text-sm font-bold text-cyan-400">Schema Auto-Patch Results</p>
+                </div>
+
+                {results.result.schemaPatch.addedColumns.length > 0 ? (
+                  <div>
+                    <p className="text-xs text-cyan-300 mb-2">
+                      ✓ Added {results.result.schemaPatch.addedColumns.length} new column(s) to database:
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {results.result.schemaPatch.addedColumns.map((col: string, idx: number) => (
+                        <div key={idx} className="text-xs font-mono bg-cyan-950/50 px-2 py-1 rounded text-cyan-200">
+                          {col}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-cyan-300">
+                    ✓ Schema is up to date - no new columns needed
+                  </p>
+                )}
+
+                {results.result.schemaPatch.missingColumns.length > 0 && results.result.schemaPatch.addedColumns.length === 0 && (
+                  <div className="mt-2 text-xs text-cyan-200">
+                    Found {results.result.schemaPatch.missingColumns.length} potential new columns in JSON (already exist in database or were skipped)
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-6 bg-red-500/20 border-b border-white/5">

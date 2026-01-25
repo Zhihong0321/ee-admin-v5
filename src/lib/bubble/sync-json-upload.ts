@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { invoices, payments, sedaRegistration, invoice_items } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
 import { eq } from "drizzle-orm";
+import { patchSchemaFromJson, type SchemaPatchResult } from "./schema-patcher";
 
 /**
  * ============================================================================
@@ -30,6 +31,7 @@ export interface JsonUploadSyncResult {
   synced: number;
   errors: string[];
   validationError?: string;
+  schemaPatch?: SchemaPatchResult;
 }
 
 /**
@@ -366,8 +368,29 @@ export async function syncJsonWithValidation(
 
   logSyncActivity(`Starting JSON sync for ${tableName} (${jsonData.length} records)`, 'INFO');
 
+  // STEP 0: AUTO-PATCH SCHEMA (NEW!)
+  logSyncActivity(`Step 0: Analyzing JSON and patching schema if needed...`, 'INFO');
+  try {
+    const schemaPatch = await patchSchemaFromJson(entityType, jsonData);
+    result.schemaPatch = schemaPatch;
+
+    if (schemaPatch.addedColumns.length > 0) {
+      logSyncActivity(`✓ Added ${schemaPatch.addedColumns.length} new columns to schema`, 'INFO');
+      logSyncActivity(`New columns: ${schemaPatch.addedColumns.join(', ')}`, 'INFO');
+    } else if (schemaPatch.missingColumns.length === 0) {
+      logSyncActivity(`✓ Schema is up to date`, 'INFO');
+    }
+
+    if (schemaPatch.errors.length > 0) {
+      logSyncActivity(`Schema patch completed with ${schemaPatch.errors.length} errors (continuing...)`, 'WARN');
+    }
+  } catch (err) {
+    logSyncActivity(`Schema patching failed: ${err} (continuing with sync...)`, 'WARN');
+    // Don't fail the entire sync if schema patching fails
+  }
+
   // STEP 1: VALIDATE FIRST ENTRY
-  logSyncActivity(`Validating first entry...`, 'INFO');
+  logSyncActivity(`Step 1: Validating first entry...`, 'INFO');
   try {
     await syncFn(jsonData[0]);
     result.synced = 1;
@@ -381,7 +404,7 @@ export async function syncJsonWithValidation(
   }
 
   // STEP 2: PROCESS REMAINING ENTRIES
-  logSyncActivity(`Processing remaining ${jsonData.length - 1} entries...`, 'INFO');
+  logSyncActivity(`Step 2: Processing remaining ${jsonData.length - 1} entries...`, 'INFO');
 
   for (let i = 1; i < jsonData.length; i++) {
     result.processed++;
