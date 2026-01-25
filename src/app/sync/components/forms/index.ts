@@ -18,3 +18,4 @@ export { FileMigrationForm } from './FileMigrationForm';
 export { QuickSyncForm } from './QuickSyncForm';
 export { PaymentSyncForm } from './PaymentSyncForm';
 export { JsonUploadSyncForm } from './JsonUploadSyncForm';
+export { RelationshipValidatorForm } from './RelationshipValidatorForm';

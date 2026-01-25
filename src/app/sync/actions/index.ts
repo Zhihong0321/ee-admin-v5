@@ -15,6 +15,7 @@
  * - data-cleanup.ts: Demo deletion, date fixes
  * - link-restoration.ts: Invoice-SEDA and SEDA-customer link restoration
  * - utilities.ts: Logging, file URL patching, filename fixes
+ * - relationship-rebuild.ts: Relationship validation and rebuilding
  *
  * File: src/app/sync/actions/index.ts
  */
@@ -94,3 +95,15 @@ export {
   uploadSedaRegistrationsJson,
   uploadInvoiceItemsJson
 } from './json-upload-sync';
+
+// Relationship Validation & Rebuild Operations
+export {
+  runRelationshipValidation,
+  quickValidation,
+  fullRebuild,
+  validateSpecificTables,
+  rebuildSpecificTables,
+  getRecentReports,
+  getValidationReport,
+  exportErrorsAsCSV
+} from './relationship-rebuild';

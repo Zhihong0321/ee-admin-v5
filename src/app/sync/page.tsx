@@ -15,6 +15,7 @@ import { useState, useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 import {
   JsonUploadSyncForm,
+  RelationshipValidatorForm,
 } from "./components/forms";
 import { LogViewer } from "./components/logs";
 import { fetchSyncLogs, clearSyncLogs } from "./actions";
@@ -27,6 +28,10 @@ export default function SyncPage() {
   // JSON Upload Sync state
   const [isJsonUploadSyncing, setIsJsonUploadSyncing] = useState(false);
   const [jsonUploadResults, setJsonUploadResults] = useState<any>(null);
+
+  // Relationship Validator state
+  const [isValidatingRelationships, setIsValidatingRelationships] = useState(false);
+  const [relationshipResults, setRelationshipResults] = useState<any>(null);
 
   // File and URL Patcher state
   const [isPatchingUrls, setIsPatchingUrls] = useState(false);
@@ -90,7 +95,15 @@ export default function SyncPage() {
       return;
     }
 
-    if (!confirm(`Sync ${jsonData.length} ${entityType.replace('_', ' ')} records from JSON?\n\nThis will:\n• Validate the first entry first\n• If validation fails, entire sync is rejected\n• If validation passes, sync all records\n• Upsert records (update if exists, insert if new)\n\nContinue?`)) {
+    if (!confirm(`Sync ${jsonData.length} ${entityType.replace('_', ' ')} records from JSON?
+
+This will:
+• Validate the first entry first
+• If validation fails, entire sync is rejected
+• If validation passes, sync all records
+• Upsert records (update if exists, insert if new)
+
+Continue?`)) {
       return;
     }
 
@@ -107,6 +120,39 @@ export default function SyncPage() {
       setJsonUploadResults({ success: false, error: String(error) });
     } finally {
       setIsJsonUploadSyncing(false);
+    }
+  };
+
+  const handleRelationshipValidation = async (options: { fixBrokenLinks: boolean; tables?: string[] }) => {
+    const action = options.fixBrokenLinks ? 'validate and fix' : 'validate';
+    const tableCount = options.tables?.length || 0;
+    const tableText = tableCount > 0 ? `${tableCount} tables` : 'all tables';
+    
+    if (!confirm(`${action === 'validate' ? 'Validate' : 'Validate and fix'} relationships in ${tableText}?
+
+This will check all linked_* fields and ${options.fixBrokenLinks ? 'remove invalid references' : 'report errors'}.
+
+Continue?`)) {
+      return;
+    }
+
+    setIsValidatingRelationships(true);
+    setRelationshipResults(null);
+
+    try {
+      const { runRelationshipValidation } = await import("./actions/relationship-rebuild");
+      const res = await runRelationshipValidation({
+        fix_broken_links: options.fixBrokenLinks,
+        validate_only: !options.fixBrokenLinks,
+        tables: options.tables,
+        log_to_file: true
+      });
+      setRelationshipResults(res);
+      await loadLogs();
+    } catch (error) {
+      setRelationshipResults({ success: false, error: String(error) });
+    } finally {
+      setIsValidatingRelationships(false);
     }
   };
 
@@ -173,6 +219,13 @@ export default function SyncPage() {
         isSyncing={isJsonUploadSyncing}
         results={jsonUploadResults}
         onSync={handleJsonUploadSync}
+      />
+
+      {/* Relationship Validator */}
+      <RelationshipValidatorForm 
+        onValidate={handleRelationshipValidation}
+        isValidating={isValidatingRelationships}
+        results={relationshipResults}
       />
 
       {/* File and URL Patcher */}
