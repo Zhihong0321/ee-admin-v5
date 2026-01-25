@@ -40,10 +40,30 @@ export interface JsonUploadSyncResult {
  * ============================================================================
  */
 
-// Parse comma-separated string to array
-function parseCommaSeparated(value?: string): string[] | null {
-  if (!value || value === "") return null;
-  const parts = value.split(',').map(s => s.trim()).filter(s => s !== "");
+// Parse comma-separated string to array (handles both strings and arrays)
+function parseCommaSeparated(value?: string | string[] | any): string[] | null {
+  // Handle null/undefined
+  if (value === null || value === undefined) return null;
+
+  // If already an array, process it
+  if (Array.isArray(value)) {
+    const items = value
+      .map(v => String(v).trim())
+      .filter(s => s !== "");
+    return items.length > 0 ? items : null;
+  }
+
+  // If string, split by comma
+  if (typeof value === 'string') {
+    if (value === "") return null;
+    const parts = value.split(',').map(s => s.trim()).filter(s => s !== "");
+    return parts.length > 0 ? parts : null;
+  }
+
+  // For any other type, convert to string and try to split
+  const strValue = String(value);
+  if (strValue === "") return null;
+  const parts = strValue.split(',').map(s => s.trim()).filter(s => s !== "");
   return parts.length > 0 ? parts : null;
 }
 
