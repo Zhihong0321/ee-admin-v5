@@ -716,10 +716,7 @@ export async function recalculateInvoicePaymentStatus() {
         // Update invoice
         await db.update(invoices)
           .set({
-            percent_of_total_amount: percentage,
-            paid: isPaid,
-            paid_amount: totalPaid,
-            balance_due: balanceDue,
+            percent_of_total_amount: percentage.toString(),
             updated_at: new Date()
           })
           .where(eq(invoices.id, invoice.id));

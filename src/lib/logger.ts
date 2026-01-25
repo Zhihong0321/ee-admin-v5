@@ -8,7 +8,7 @@ const SYNC_LOG_PATH = path.join(LOG_DIR, 'sync.log');
 const MEMORY_LOG_BUFFER: string[] = [];
 const MAX_MEMORY_LOGS = 500;
 
-export function logSyncActivity(message: string, type: 'INFO' | 'ERROR' | 'CRON' = 'INFO') {
+export function logSyncActivity(message: string, type: 'INFO' | 'ERROR' | 'CRON' | 'WARN' = 'INFO') {
   const timestamp = new Date().toISOString();
   const logEntry = `[${timestamp}] [${type}] ${message}`;
 
