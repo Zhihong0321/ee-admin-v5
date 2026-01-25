@@ -153,56 +153,33 @@ async function syncInvoice(inv: any): Promise<void> {
   const bubbleId = inv["unique id"] || inv._id;
   if (!bubbleId) throw new Error("Invoice missing 'unique id' or '_id' field");
 
-  try {
-    // Log the raw JSON for debugging
-    logSyncActivity(`DEBUG: Processing invoice ${bubbleId}`, 'INFO');
+  // Parse array fields properly
+  const linkedPayment = parseCommaSeparated(inv["Linked Payment"]);
+  const linkedInvoiceItem = parseCommaSeparated(inv["Linked Invoice Item"]);
 
-    // Log all keys in the invoice object
-    const allKeys = Object.keys(inv);
-    logSyncActivity(`DEBUG: Invoice has ${allKeys.length} keys: ${allKeys.join(', ')}`, 'INFO');
+  const vals = {
+    bubble_id: bubbleId,
+    invoice_id: inv["Invoice ID"] ? Number(inv["Invoice ID"]) : null,
+    invoice_number: inv["Invoice Number"] || String(inv["Invoice ID"] || ""),
+    linked_customer: inv["Linked Customer"] || null,
+    linked_agent: inv["Linked Agent"] || null,
+    linked_payment: linkedPayment,
+    linked_seda_registration: inv["Linked SEDA registration"] || inv["Linked SEDA Registration"] || null,
+    linked_invoice_item: linkedInvoiceItem,
+    amount: parseAmount(inv["Amount"]),
+    total_amount: parseAmount(inv["Total Amount"] || inv["Amount"]),
+    percent_of_total_amount: parseAmount(inv["Percent of Total Amount"]),
+    status: inv["Status"] || inv["Paid?"] || 'draft',
+    approval_status: inv["Approval Status"] || null,
+    case_status: inv["Case Status"] || null,
+    invoice_date: parseBubbleDate(inv["Invoice Date"]),
+    created_at: parseBubbleDate(inv["Created Date"]) || new Date(),
+    updated_at: parseBubbleDate(inv["Modified Date"]) || new Date(),
+    created_by: inv["Created By"] || inv["Creator"] || null,
+    dealercode: inv["Dealercode"] || null,
+  };
 
-    // Log types of all array-related fields
-    logSyncActivity(`DEBUG: Linked Payment type: ${typeof inv["Linked Payment"]}, value: ${JSON.stringify(inv["Linked Payment"])}`, 'INFO');
-    logSyncActivity(`DEBUG: Linked Invoice Item type: ${typeof inv["Linked Invoice Item"]}, value: ${JSON.stringify(inv["Linked Invoice Item"])}`, 'INFO');
-
-    // Parse array fields with safety checks
-    const linkedPayment = parseCommaSeparated(inv["Linked Payment"]);
-    const linkedInvoiceItem = parseCommaSeparated(inv["Linked Invoice Item"]);
-
-    logSyncActivity(`DEBUG: Parsed linkedPayment: ${JSON.stringify(linkedPayment)}, type: ${typeof linkedPayment}, isArray: ${Array.isArray(linkedPayment)}`, 'INFO');
-    logSyncActivity(`DEBUG: Parsed linkedInvoiceItem: ${JSON.stringify(linkedInvoiceItem)}, type: ${typeof linkedInvoiceItem}, isArray: ${Array.isArray(linkedInvoiceItem)}`, 'INFO');
-
-    const vals = {
-      bubble_id: bubbleId,
-      invoice_id: inv["Invoice ID"] ? Number(inv["Invoice ID"]) : null,
-      invoice_number: inv["Invoice Number"] || String(inv["Invoice ID"] || ""),
-      linked_customer: inv["Linked Customer"] || null,
-      linked_agent: inv["Linked Agent"] || null,
-      linked_payment: linkedPayment,
-      linked_seda_registration: inv["Linked SEDA registration"] || inv["Linked SEDA Registration"] || null,
-      linked_invoice_item: linkedInvoiceItem,
-      amount: parseAmount(inv["Amount"]),
-      total_amount: parseAmount(inv["Total Amount"] || inv["Amount"]),
-      percent_of_total_amount: parseAmount(inv["Percent of Total Amount"]),
-      status: inv["Status"] || inv["Paid?"] || 'draft',
-      approval_status: inv["Approval Status"] || null,
-      case_status: inv["Case Status"] || null,
-      invoice_date: parseBubbleDate(inv["Invoice Date"]),
-      created_at: parseBubbleDate(inv["Created Date"]) || new Date(),
-      updated_at: parseBubbleDate(inv["Modified Date"]) || new Date(),
-      created_by: inv["Created By"] || inv["Creator"] || null,
-      dealercode: inv["Dealercode"] || null,
-    };
-
-    logSyncActivity(`DEBUG: About to upsert invoice ${bubbleId}`, 'INFO');
-    await upsertInvoice(bubbleId, vals);
-    logSyncActivity(`DEBUG: Successfully upserted invoice ${bubbleId}`, 'INFO');
-  } catch (error) {
-    logSyncActivity(`ERROR in syncInvoice for ${bubbleId}: ${error}`, 'ERROR');
-    logSyncActivity(`ERROR Stack: ${error instanceof Error ? error.stack : 'No stack'}`, 'ERROR');
-    logSyncActivity(`ERROR Invoice data: ${JSON.stringify(inv)}`, 'ERROR');
-    throw error;
-  }
+  await upsertInvoice(bubbleId, vals);
 }
 
 /**
@@ -214,50 +191,37 @@ async function syncPayment(pay: any): Promise<void> {
   const bubbleId = pay["unique id"] || pay._id;
   if (!bubbleId) throw new Error("Payment missing 'unique id' or '_id' field");
 
-  try {
-    logSyncActivity(`DEBUG: Processing payment ${bubbleId}`, 'INFO');
+  // Parse array fields properly
+  const attachment = parseCommaSeparated(pay["Attachment"]);
 
-    // Parse array fields properly
-    const attachment = parseCommaSeparated(pay["Attachment"]);
+  const vals = {
+    bubble_id: bubbleId,
+    amount: parseAmount(pay["Amount"]),
+    payment_date: parseBubbleDate(pay["Payment Date"]),
+    payment_method: pay["Payment Method"] || null,
+    payment_method_v2: pay["Payment Method V2"] || pay["Payment Method v2"] || null,
+    remark: pay["Remark"] || null,
+    linked_agent: pay["Linked Agent"] || null,
+    linked_customer: pay["Linked Customer"] || null,
+    linked_invoice: pay["Linked Invoice"] || null,
+    created_by: pay["Created By"] || null,
+    created_date: parseBubbleDate(pay["Created Date"]),
+    modified_date: parseBubbleDate(pay["Modified Date"]),
+    payment_index: pay["Payment Index"] ? Number(pay["Payment Index"]) : null,
+    epp_month: pay["EPP Month"] ? Number(pay["EPP Month"]) : null,
+    bank_charges: pay["Bank Charges"] ? Number(pay["Bank Charges"]) : null,
+    terminal: pay["Terminal"] || null,
+    attachment: attachment,
+    verified_by: pay["Verified By"] || null,
+    edit_history: pay["Edit History"] || null,
+    issuer_bank: pay["Issuer Bank"] || null,
+    epp_type: pay["EPP Type"] || null,
+    created_at: parseBubbleDate(pay["Created Date"]) || new Date(),
+    updated_at: parseBubbleDate(pay["Modified Date"]) || new Date(),
+    last_synced_at: new Date(),
+  };
 
-    logSyncActivity(`DEBUG: Payment array fields parsed`, 'INFO');
-
-    const vals = {
-      bubble_id: bubbleId,
-      amount: parseAmount(pay["Amount"]),
-      payment_date: parseBubbleDate(pay["Payment Date"]),
-      payment_method: pay["Payment Method"] || null,
-      payment_method_v2: pay["Payment Method V2"] || pay["Payment Method v2"] || null,
-      remark: pay["Remark"] || null,
-      linked_agent: pay["Linked Agent"] || null,
-      linked_customer: pay["Linked Customer"] || null,
-      linked_invoice: pay["Linked Invoice"] || null,
-      created_by: pay["Created By"] || null,
-      created_date: parseBubbleDate(pay["Created Date"]),
-      modified_date: parseBubbleDate(pay["Modified Date"]),
-      payment_index: pay["Payment Index"] ? Number(pay["Payment Index"]) : null,
-      epp_month: pay["EPP Month"] ? Number(pay["EPP Month"]) : null,
-      bank_charges: pay["Bank Charges"] ? Number(pay["Bank Charges"]) : null,
-      terminal: pay["Terminal"] || null,
-      attachment: attachment, // PARSED
-      verified_by: pay["Verified By"] || null,
-      edit_history: pay["Edit History"] || null,
-      issuer_bank: pay["Issuer Bank"] || null,
-      epp_type: pay["EPP Type"] || null,
-      created_at: parseBubbleDate(pay["Created Date"]) || new Date(),
-      updated_at: parseBubbleDate(pay["Modified Date"]) || new Date(),
-      last_synced_at: new Date(),
-    };
-
-    logSyncActivity(`DEBUG: About to upsert payment ${bubbleId}`, 'INFO');
-    await upsertPayment(bubbleId, vals);
-    logSyncActivity(`DEBUG: Successfully upserted payment ${bubbleId}`, 'INFO');
-  } catch (error) {
-    logSyncActivity(`ERROR in syncPayment for ${bubbleId}: ${error}`, 'ERROR');
-    logSyncActivity(`ERROR Stack: ${error instanceof Error ? error.stack : 'No stack'}`, 'ERROR');
-    logSyncActivity(`ERROR Payment data: ${JSON.stringify(pay)}`, 'ERROR');
-    throw error;
-  }
+  await upsertPayment(bubbleId, vals);
 }
 
 /**
@@ -269,92 +233,79 @@ async function syncSedaRegistration(seda: any): Promise<void> {
   const bubbleId = seda["unique id"] || seda._id;
   if (!bubbleId) throw new Error("SEDA registration missing 'unique id' or '_id' field");
 
-  try {
-    logSyncActivity(`DEBUG: Processing SEDA ${bubbleId}`, 'INFO');
+  // Parse array fields properly
+  const linkedInvoice = parseCommaSeparated(seda["Linked Invoice"]);
+  const roofImages = parseCommaSeparated(seda["Roof Images"]);
+  const siteImages = parseCommaSeparated(seda["Site Images"]);
+  const drawingPdfSystem = parseCommaSeparated(seda["Drawing PDF System"]);
+  const drawingSystemActual = parseCommaSeparated(seda["Drawing System Actual"]);
+  const drawingEngineeringSedaPdf = parseCommaSeparated(seda["Drawing Engineering SEDA PDF"]);
 
-    // Parse array fields properly
-    const linkedInvoice = parseCommaSeparated(seda["Linked Invoice"]);
-    const roofImages = parseCommaSeparated(seda["Roof Images"]);
-    const siteImages = parseCommaSeparated(seda["Site Images"]);
-    const drawingPdfSystem = parseCommaSeparated(seda["Drawing PDF System"]);
-    const drawingSystemActual = parseCommaSeparated(seda["Drawing System Actual"]);
-    const drawingEngineeringSedaPdf = parseCommaSeparated(seda["Drawing Engineering SEDA PDF"]);
+  const vals = {
+    bubble_id: bubbleId,
+    seda_status: seda["SEDA Status"] || null,
+    state: seda["State"] || null,
+    city: seda["City"] || null,
+    agent: seda["Agent"] || null,
+    project_price: parseAmount(seda["Project Price"]),
+    linked_customer: seda["Linked Customer"] || null,
+    customer_signature: seda["Customer Signature"] || null,
+    ic_copy_front: seda["IC Copy Front"] || null,
+    ic_copy_back: seda["IC Copy Back"] || null,
+    tnb_bill_1: seda["TNB Bill 1"] || null,
+    tnb_bill_2: seda["TNB Bill 2"] || null,
+    tnb_bill_3: seda["TNB Bill 3"] || null,
+    nem_cert: seda["NEM Cert"] || null,
+    mykad_pdf: seda["MyKAD PDF"] || null,
+    property_ownership_prove: seda["Property Ownership Prove"] || null,
+    roof_images: roofImages,
+    site_images: siteImages,
+    drawing_pdf_system: drawingPdfSystem,
+    drawing_system_actual: drawingSystemActual,
+    drawing_engineering_seda_pdf: drawingEngineeringSedaPdf,
+    system_size: seda["System Size"] ? Number(seda["System Size"]) : null,
+    system_size_in_form_kwp: seda["System Size in Form (kwp)"] ? Number(seda["System Size in Form (kwp)"]) : null,
+    inverter_kwac: seda["Inverter kWac"] ? Number(seda["Inverter kWac"]) : null,
+    sunpeak_hours: parseAmount(seda["Sunpeak Hours"]),
+    estimated_monthly_saving: parseAmount(seda["Estimated Monthly Saving"]),
+    average_tnb: seda["Average TNB"] ? Number(seda["Average TNB"]) : null,
+    nem_application_no: seda["NEM Application No"] || null,
+    nem_type: seda["NEM Type"] || null,
+    phase_type: seda["Phase Type"] || null,
+    tnb_account_no: seda["TNB Account No"] || null,
+    tnb_meter: seda["TNB Meter"] || null,
+    tnb_meter_status: seda["TNB Meter Status"] || null,
+    tnb_meter_install_date: parseBubbleDate(seda["TNB Meter Install Date"]),
+    first_completion_date: parseBubbleDate(seda["First Completion Date"]),
+    inverter_serial_no: seda["Inverter Serial No"] || null,
+    special_remark: seda["Special Remark"] || null,
+    email: seda["Email"] || null,
+    ic_no: seda["IC No"] || null,
+    e_contact_name: seda["E Contact Name"] || null,
+    e_contact_no: seda["E Contact No"] || null,
+    e_contact_relationship: seda["E Contact Relationship"] || null,
+    e_contact_mykad: seda["E Contact MyKAD"] || null,
+    e_email: seda["E Email"] || null,
+    redex_status: seda["REDEX Status"] || null,
+    redex_remark: seda["REDEX Remark"] || null,
+    g_electric_folder_link: seda["G Electric Folder Link"] || null,
+    g_roof_folder_link: seda["G Roof Folder Link"] || null,
+    installation_address: seda["Installation Address"] || null,
+    price_category: seda["Price Category"] || null,
+    linked_invoice: linkedInvoice,
+    slug: seda["Slug"] || null,
+    drawing_system_submitted: seda["Drawing System Submitted"] || null,
+    request_drawing_date: parseBubbleDate(seda["Request Drawing Date"]),
+    reg_status: seda["Reg Status"] || null,
+    created_by: seda["Created By"] || null,
+    created_date: parseBubbleDate(seda["Created Date"]),
+    modified_date: parseBubbleDate(seda["Modified Date"]),
+    created_at: parseBubbleDate(seda["Created Date"]) || new Date(),
+    updated_at: parseBubbleDate(seda["Modified Date"]) || new Date(),
+    last_synced_at: new Date(),
+  };
 
-    logSyncActivity(`DEBUG: SEDA array fields parsed`, 'INFO');
-
-    const vals = {
-      bubble_id: bubbleId,
-      seda_status: seda["SEDA Status"] || null,
-      state: seda["State"] || null,
-      city: seda["City"] || null,
-      agent: seda["Agent"] || null,
-      project_price: parseAmount(seda["Project Price"]),
-      linked_customer: seda["Linked Customer"] || null,
-      customer_signature: seda["Customer Signature"] || null,
-      ic_copy_front: seda["IC Copy Front"] || null,
-      ic_copy_back: seda["IC Copy Back"] || null,
-      tnb_bill_1: seda["TNB Bill 1"] || null,
-      tnb_bill_2: seda["TNB Bill 2"] || null,
-      tnb_bill_3: seda["TNB Bill 3"] || null,
-      nem_cert: seda["NEM Cert"] || null,
-      mykad_pdf: seda["MyKAD PDF"] || null,
-      property_ownership_prove: seda["Property Ownership Prove"] || null,
-      roof_images: roofImages, // PARSED
-      site_images: siteImages, // PARSED
-      drawing_pdf_system: drawingPdfSystem, // PARSED
-      drawing_system_actual: drawingSystemActual, // PARSED
-      drawing_engineering_seda_pdf: drawingEngineeringSedaPdf, // PARSED
-      system_size: seda["System Size"] ? Number(seda["System Size"]) : null,
-      system_size_in_form_kwp: seda["System Size in Form (kwp)"] ? Number(seda["System Size in Form (kwp)"]) : null,
-      inverter_kwac: seda["Inverter kWac"] ? Number(seda["Inverter kWac"]) : null,
-      sunpeak_hours: parseAmount(seda["Sunpeak Hours"]),
-      estimated_monthly_saving: parseAmount(seda["Estimated Monthly Saving"]),
-      average_tnb: seda["Average TNB"] ? Number(seda["Average TNB"]) : null,
-      nem_application_no: seda["NEM Application No"] || null,
-      nem_type: seda["NEM Type"] || null,
-      phase_type: seda["Phase Type"] || null,
-      tnb_account_no: seda["TNB Account No"] || null,
-      tnb_meter: seda["TNB Meter"] || null,
-      tnb_meter_status: seda["TNB Meter Status"] || null,
-      tnb_meter_install_date: parseBubbleDate(seda["TNB Meter Install Date"]),
-      first_completion_date: parseBubbleDate(seda["First Completion Date"]),
-      inverter_serial_no: seda["Inverter Serial No"] || null,
-      special_remark: seda["Special Remark"] || null,
-      email: seda["Email"] || null,
-      ic_no: seda["IC No"] || null,
-      e_contact_name: seda["E Contact Name"] || null,
-      e_contact_no: seda["E Contact No"] || null,
-      e_contact_relationship: seda["E Contact Relationship"] || null,
-      e_contact_mykad: seda["E Contact MyKAD"] || null,
-      e_email: seda["E Email"] || null,
-      redex_status: seda["REDEX Status"] || null,
-      redex_remark: seda["REDEX Remark"] || null,
-      g_electric_folder_link: seda["G Electric Folder Link"] || null,
-      g_roof_folder_link: seda["G Roof Folder Link"] || null,
-      installation_address: seda["Installation Address"] || null,
-      price_category: seda["Price Category"] || null,
-      linked_invoice: linkedInvoice, // PARSED
-      slug: seda["Slug"] || null,
-      drawing_system_submitted: seda["Drawing System Submitted"] || null,
-      request_drawing_date: parseBubbleDate(seda["Request Drawing Date"]),
-      reg_status: seda["Reg Status"] || null,
-      created_by: seda["Created By"] || null,
-      created_date: parseBubbleDate(seda["Created Date"]),
-      modified_date: parseBubbleDate(seda["Modified Date"]),
-      created_at: parseBubbleDate(seda["Created Date"]) || new Date(),
-      updated_at: parseBubbleDate(seda["Modified Date"]) || new Date(),
-      last_synced_at: new Date(),
-    };
-
-    logSyncActivity(`DEBUG: About to upsert SEDA ${bubbleId}`, 'INFO');
-    await upsertSedaRegistration(bubbleId, vals);
-    logSyncActivity(`DEBUG: Successfully upserted SEDA ${bubbleId}`, 'INFO');
-  } catch (error) {
-    logSyncActivity(`ERROR in syncSedaRegistration for ${bubbleId}: ${error}`, 'ERROR');
-    logSyncActivity(`ERROR Stack: ${error instanceof Error ? error.stack : 'No stack'}`, 'ERROR');
-    logSyncActivity(`ERROR SEDA data: ${JSON.stringify(seda)}`, 'ERROR');
-    throw error;
-  }
+  await upsertSedaRegistration(bubbleId, vals);
 }
 
 /**
