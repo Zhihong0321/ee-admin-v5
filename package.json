@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "next dev -p 4425",
     "build": "next build",
+    "build:standalone": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postbuild": "echo 'Build completed successfully'"
   },
   "dependencies": {
     "clsx": "^2.1.1",

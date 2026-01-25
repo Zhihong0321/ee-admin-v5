@@ -1,0 +1,28 @@
+# Nixpacks configuration for faster Railway builds
+# https://nixpacks.com/docs/configuration/file
+
+[phases.setup]
+nixPkgs = ['nodejs_20']
+nixLibs = []
+
+[phases.install]
+cmds = [
+  'npm ci --prefer-offline --no-audit --no-fund --legacy-peer-deps'
+]
+
+[phases.build]
+cmds = [
+  'npm run build'
+]
+
+[start]
+cmd = 'npm start'
+
+# Environment variables for build optimization
+[variables]
+NODE_ENV = 'production'
+NEXT_TELEMETRY_DISABLED = '1'
+# Use npm ci for faster, deterministic installs
+NPM_CONFIG_PREFER_OFFLINE = 'true'
+NPM_CONFIG_NO_AUDIT = 'true'
+NPM_CONFIG_NO_FUND = 'true'

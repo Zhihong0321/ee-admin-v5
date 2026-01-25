@@ -1,0 +1,75 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next/
+out/
+dist/
+
+# Production
+build/
+
+# Misc
+.DS_Store
+*.pem
+.env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Documentation and non-essential files
+*.md
+!README.md
+recycle_bin/
+scripts/
+migrations/
+AI_CODER_DOCUMENTATION.txt
+FEATURE-TRACKER.md
+LIST_of_UID_Need_attention.txt
+
+# Large JSON files (not needed for build)
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!railway.json
+!swagger.json
+
+# Images (unless they're in public/)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+!public/**
+
+# Logs
+*.log
