@@ -12,7 +12,7 @@
 import { useState } from "react";
 import { Upload, RefreshCw, Loader2, XCircle, CheckCircle2, FileJson, Database } from "lucide-react";
 
-type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item';
+type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user';
 
 interface EntityOption {
   value: EntityType;
@@ -25,6 +25,7 @@ const ENTITY_OPTIONS: EntityOption[] = [
   { value: 'payment', label: 'Payments', color: 'green' },
   { value: 'seda_registration', label: 'SEDA Registrations', color: 'purple' },
   { value: 'invoice_item', label: 'Invoice Items', color: 'orange' },
+  { value: 'user', label: 'Users', color: 'cyan' },
 ];
 
 interface JsonUploadSyncFormProps {
@@ -88,6 +89,7 @@ export function JsonUploadSyncForm({
       case 'green': return 'text-green-400 bg-green-500/20 border-green-500/30';
       case 'purple': return 'text-purple-400 bg-purple-500/20 border-purple-500/30';
       case 'orange': return 'text-orange-400 bg-orange-500/20 border-orange-500/30';
+      case 'cyan': return 'text-cyan-400 bg-cyan-500/20 border-cyan-500/30';
       default: return 'text-gray-400 bg-gray-500/20 border-gray-500/30';
     }
   };

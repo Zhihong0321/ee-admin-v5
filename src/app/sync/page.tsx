@@ -89,7 +89,7 @@ export default function SyncPage() {
     }
   };
 
-  const handleJsonUploadSync = async (entityType: 'invoice' | 'payment' | 'seda_registration' | 'invoice_item', jsonData: any[]) => {
+  const handleJsonUploadSync = async (entityType: 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user', jsonData: any[]) => {
     if (!jsonData || jsonData.length === 0) {
       alert("No JSON data to sync");
       return;

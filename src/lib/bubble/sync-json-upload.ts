@@ -12,7 +12,7 @@
  */
 
 import { db } from "@/lib/db";
-import { invoices, payments, sedaRegistration, invoice_items } from "@/db/schema";
+import { invoices, payments, sedaRegistration, invoice_items, users } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
 import { eq } from "drizzle-orm";
 import { patchSchemaFromJson, type SchemaPatchResult } from "./schema-patcher";
@@ -22,7 +22,7 @@ import { patchSchemaFromJson, type SchemaPatchResult } from "./schema-patcher";
  * TYPE DEFINITIONS
  * ============================================================================
  */
-export type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item';
+export type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user';
 
 export interface JsonUploadSyncResult {
   success: boolean;
@@ -141,6 +141,22 @@ async function upsertInvoiceItem(bubbleId: string, vals: any): Promise<void> {
       .where(eq(invoice_items.bubble_id, bubbleId));
   } else {
     await db.insert(invoice_items).values(vals);
+  }
+}
+
+// Upsert function for users - FULL OVERWRITE mode
+async function upsertUser(bubbleId: string, vals: any): Promise<void> {
+  const existing = await db.query.users.findFirst({
+    where: eq(users.bubble_id, bubbleId)
+  });
+
+  if (existing) {
+    // FULL OVERWRITE - replace all fields with JSON data
+    await db.update(users)
+      .set(vals)
+      .where(eq(users.bubble_id, bubbleId));
+  } else {
+    await db.insert(users).values(vals);
   }
 }
 
@@ -378,6 +394,47 @@ async function syncInvoiceItem(item: any): Promise<void> {
 
 /**
  * ============================================================================
+ * USER SYNC FUNCTION
+ * ============================================================================
+ */
+async function syncUser(user: any): Promise<void> {
+  const bubbleId = user["unique id"] || user._id;
+  if (!bubbleId) throw new Error("User missing 'unique id' or '_id' field");
+
+  try {
+    // Parse array field for access_level
+    const accessLevel = parseCommaSeparated(user["Access Level"]);
+
+    const vals = {
+      bubble_id: bubbleId,
+      email: user["Email"] || user["authentication"]?.email || null,
+      linked_agent_profile: user["Linked Agent Profile"] || null,
+      agent_code: user["Agent Code"] || null,
+      dealership: user["Dealership"] || null,
+      profile_picture: user["Profile Picture"] || null,
+      user_signed_up: user["User Signed Up"] || false,
+      access_level: accessLevel,
+      created_date: parseBubbleDate(user["Created Date"]),
+      created_at: parseBubbleDate(user["Created Date"]) || new Date(),
+      updated_at: parseBubbleDate(user["Modified Date"]) || new Date(),
+      last_synced_at: new Date(),
+    };
+
+    await upsertUser(bubbleId, vals);
+  } catch (error: any) {
+    let columnInfo = '';
+    if (error?.message) {
+      const columnMatch = error.message.match(/column "([^"]+)"/);
+      if (columnMatch) {
+        columnInfo = `Column: ${columnMatch[1]} | `;
+      }
+    }
+    throw new Error(`User ${bubbleId} sync failed: ${columnInfo}${error?.message || error}`);
+  }
+}
+
+/**
+ * ============================================================================
  * MAIN SYNC FUNCTION - WITH FIRST ENTRY VALIDATION
  * ============================================================================
  */
@@ -429,6 +486,10 @@ export async function syncJsonWithValidation(
     case 'invoice_item':
       syncFn = syncInvoiceItem;
       tableName = "invoice_items";
+      break;
+    case 'user':
+      syncFn = syncUser;
+      tableName = "users";
       break;
     default:
       result.validationError = `Unknown entity type: ${entityType}`;
