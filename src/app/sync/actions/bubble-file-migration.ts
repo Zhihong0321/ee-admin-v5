@@ -479,3 +479,197 @@ ${failed > 0 ? `
     return { success: false, error: String(error) };
   }
 }
+
+/**
+ * Random test migration - Pick one random Bubble URL and migrate it
+ * Returns the image URL for browser verification
+ * 
+ * @returns Image URL to display in browser + migration details
+ */
+export async function randomTestMigration() {
+  const startTime = Date.now();
+  logSyncActivity(`🎲 Starting RANDOM TEST migration...`, 'INFO');
+
+  try {
+    // ============================================================================
+    // STEP 1: FIND ALL BUBBLE URLs
+    // ============================================================================
+    const allBubbleUrls: Array<{
+      table: any;
+      tableName: string;
+      idField: string;
+      fieldName: string;
+      fieldType: 'single' | 'array';
+      subfolder: string;
+      recordId: number;
+      url: string;
+      arrayIndex?: number;
+    }> = [];
+
+    logSyncActivity(`📊 Scanning database for Bubble URLs...`, 'INFO');
+
+    for (const config of FILE_FIELDS_CONFIG) {
+      for (const fieldConfig of config.fields) {
+        try {
+          if (fieldConfig.type === 'single') {
+            const records = await db
+              .select({
+                id: (config.table as any)[config.idField],
+                url: (config.table as any)[fieldConfig.name]
+              })
+              .from(config.table)
+              .where(isNotNull((config.table as any)[fieldConfig.name]));
+
+            for (const record of records) {
+              if (isBubbleUrl(record.url)) {
+                allBubbleUrls.push({
+                  table: config.table,
+                  tableName: config.tableName,
+                  idField: config.idField,
+                  fieldName: fieldConfig.name,
+                  fieldType: 'single',
+                  subfolder: fieldConfig.subfolder,
+                  recordId: record.id,
+                  url: record.url
+                });
+              }
+            }
+          } else {
+            const records = await db
+              .select({
+                id: (config.table as any)[config.idField],
+                urls: (config.table as any)[fieldConfig.name]
+              })
+              .from(config.table)
+              .where(isNotNull((config.table as any)[fieldConfig.name]));
+
+            for (const record of records) {
+              if (Array.isArray(record.urls)) {
+                for (let i = 0; i < record.urls.length; i++) {
+                  const url = record.urls[i];
+                  if (isBubbleUrl(url)) {
+                    allBubbleUrls.push({
+                      table: config.table,
+                      tableName: config.tableName,
+                      idField: config.idField,
+                      fieldName: fieldConfig.name,
+                      fieldType: 'array',
+                      subfolder: fieldConfig.subfolder,
+                      recordId: record.id,
+                      url: url,
+                      arrayIndex: i
+                    });
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          // Skip errors during scan
+        }
+      }
+    }
+
+    if (allBubbleUrls.length === 0) {
+      return {
+        success: false,
+        error: 'No Bubble URLs found in database. All files may already be migrated.'
+      };
+    }
+
+    logSyncActivity(`✅ Found ${allBubbleUrls.length} Bubble URLs`, 'INFO');
+
+    // ============================================================================
+    // STEP 2: PICK ONE RANDOM URL
+    // ============================================================================
+    const randomIndex = Math.floor(Math.random() * allBubbleUrls.length);
+    const selectedFile = allBubbleUrls[randomIndex];
+
+    logSyncActivity(`🎯 Randomly selected #${randomIndex + 1}/${allBubbleUrls.length}`, 'INFO');
+    logSyncActivity(`   Table: ${selectedFile.tableName}`, 'INFO');
+    logSyncActivity(`   Field: ${selectedFile.fieldName}`, 'INFO');
+    logSyncActivity(`   Record ID: ${selectedFile.recordId}`, 'INFO');
+    logSyncActivity(`   Old URL: ${selectedFile.url}`, 'INFO');
+
+    // ============================================================================
+    // STEP 3: DOWNLOAD & MIGRATE
+    // ============================================================================
+    const hadChinese = hasNonASCII(getFilenameFromUrl(selectedFile.url));
+    const filename = generateFilename(selectedFile.url, selectedFile.recordId, selectedFile.arrayIndex || 0);
+    const targetPath = path.join(STORAGE_ROOT, selectedFile.subfolder, filename);
+    const newUrl = `${FILE_BASE_URL}/api/files/${selectedFile.subfolder}/${filename}`;
+
+    logSyncActivity(`📥 Downloading file...`, 'INFO');
+    const fileSize = await downloadFile(selectedFile.url, targetPath);
+    logSyncActivity(`✅ Downloaded: ${formatBytes(fileSize)}`, 'INFO');
+
+    // ============================================================================
+    // STEP 4: UPDATE DATABASE
+    // ============================================================================
+    logSyncActivity(`💾 Updating database...`, 'INFO');
+
+    if (selectedFile.fieldType === 'single') {
+      await db
+        .update(selectedFile.table)
+        .set({ [selectedFile.fieldName]: newUrl })
+        .where(eq((selectedFile.table as any)[selectedFile.idField], selectedFile.recordId));
+    } else {
+      // Array field - update specific element
+      const currentRecord = await db
+        .select({ urls: (selectedFile.table as any)[selectedFile.fieldName] })
+        .from(selectedFile.table)
+        .where(eq((selectedFile.table as any)[selectedFile.idField], selectedFile.recordId))
+        .limit(1);
+
+      if (currentRecord.length > 0 && Array.isArray(currentRecord[0].urls)) {
+        const updatedUrls = [...currentRecord[0].urls];
+        if (selectedFile.arrayIndex !== undefined) {
+          updatedUrls[selectedFile.arrayIndex] = newUrl;
+          await db
+            .update(selectedFile.table)
+            .set({ [selectedFile.fieldName]: updatedUrls })
+            .where(eq((selectedFile.table as any)[selectedFile.idField], selectedFile.recordId));
+        }
+      }
+    }
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+
+    logSyncActivity(`✅ Random test complete!`, 'INFO');
+    logSyncActivity(`   File size: ${formatBytes(fileSize)}`, 'INFO');
+    logSyncActivity(`   Duration: ${duration}s`, 'INFO');
+    logSyncActivity(`   New URL: ${newUrl}`, 'INFO');
+
+    revalidatePath("/sync");
+
+    // Determine file type for display
+    const ext = path.extname(filename).toLowerCase();
+    const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp'].includes(ext);
+    const isPdf = ext === '.pdf';
+
+    return {
+      success: true,
+      imageUrl: newUrl,
+      isImage,
+      isPdf,
+      details: {
+        table: selectedFile.tableName,
+        field: selectedFile.fieldName,
+        recordId: selectedFile.recordId,
+        oldUrl: selectedFile.url,
+        newUrl: newUrl,
+        filename: filename,
+        fileSize: formatBytes(fileSize),
+        hadChineseChars: hadChinese,
+        sanitized: hadChinese ? 'Yes (non-ASCII characters URL-encoded)' : 'No (already ASCII)',
+        duration: `${duration}s`,
+        totalBubbleUrlsFound: allBubbleUrls.length,
+        selectedIndex: randomIndex + 1
+      }
+    };
+
+  } catch (error) {
+    logSyncActivity(`❌ Random test failed: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}

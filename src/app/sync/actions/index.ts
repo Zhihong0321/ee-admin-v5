@@ -76,7 +76,8 @@ export {
 
 // Bubble File Migration Operations
 export {
-  migrateBubbleFilesToLocal
+  migrateBubbleFilesToLocal,
+  randomTestMigration
 } from './bubble-file-migration';
 
 // Payment Operations

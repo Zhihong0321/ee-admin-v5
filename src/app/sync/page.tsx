@@ -19,6 +19,8 @@ import {
 } from "./components/forms";
 import { LogViewer } from "./components/logs";
 import { fetchSyncLogs, clearSyncLogs } from "./actions";
+import { patchFileUrlsToAbsolute, patchChineseFilenames } from "./actions";
+import { migrateBubbleFilesToLocal, randomTestMigration } from "./actions/bubble-file-migration";
 
 export default function SyncPage() {
   // ============================================================================
@@ -37,8 +39,10 @@ export default function SyncPage() {
   const [isPatchingUrls, setIsPatchingUrls] = useState(false);
   const [isPatchingChinese, setIsPatchingChinese] = useState(false);
   const [isMigratingBubbleFiles, setIsMigratingBubbleFiles] = useState(false);
+  const [isRandomTesting, setIsRandomTesting] = useState(false);
   const [patchResults, setPatchResults] = useState<any>(null);
   const [migrationResults, setMigrationResults] = useState<any>(null);
+  const [randomTestResults, setRandomTestResults] = useState<any>(null);
 
   // Logs state
   const [logs, setLogs] = useState<string[]>([]);
@@ -222,6 +226,25 @@ Continue?`
     }
   };
 
+  const handleRandomTest = async () => {
+    if (!confirm(
+      '🎲 RANDOM TEST MIGRATION\n\nThis will:\n1. Scan database for ALL Bubble URLs\n2. Randomly pick ONE file\n3. Download it to local storage\n4. Sanitize filename if needed\n5. Update database URL\n6. Show you the image/file for verification\n\n⚠️ This WILL download and update 1 file\n\nContinue?'
+    )) return;
+
+    setIsRandomTesting(true);
+    setRandomTestResults(null);
+
+    try {
+      const res = await randomTestMigration();
+      setRandomTestResults(res);
+      await loadLogs();
+    } catch (error) {
+      setRandomTestResults({ success: false, error: String(error) });
+    } finally {
+      setIsRandomTesting(false);
+    }
+  };
+
   // Get current patch operation name for tracking
   const getCurrentOperation = () => {
     if (isPatchingUrls) return 'patchUrls';
@@ -285,10 +308,10 @@ Continue?`
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <button
               onClick={() => handleMigrateBubbleFiles(true)}
-              disabled={isMigratingBubbleFiles}
+              disabled={isMigratingBubbleFiles || isRandomTesting}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-secondary-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -298,13 +321,23 @@ Continue?`
             </button>
             <button
               onClick={() => handleMigrateBubbleFiles(false)}
-              disabled={isMigratingBubbleFiles}
+              disabled={isMigratingBubbleFiles || isRandomTesting}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-secondary-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
               {isMigratingBubbleFiles ? 'Migrating...' : 'Start Migration'}
+            </button>
+            <button
+              onClick={handleRandomTest}
+              disabled={isMigratingBubbleFiles || isRandomTesting}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-secondary-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {isRandomTesting ? 'Testing...' : '🎲 Random Test'}
             </button>
           </div>
 
@@ -342,6 +375,102 @@ Continue?`
                 </>
               ) : (
                 <p className="font-medium">✗ Error: {migrationResults.error}</p>
+              )}
+            </div>
+          )}
+
+          {/* Random Test Results */}
+          {randomTestResults && (
+            <div className={`p-4 rounded-lg border ${
+              randomTestResults.success
+                ? 'bg-purple-50 border-purple-200 text-purple-900'
+                : 'bg-red-50 border-red-200 text-red-800'
+            }`}>
+              {randomTestResults.success ? (
+                <>
+                  <p className="font-bold text-lg mb-3">🎯 Random Test Result</p>
+                  
+                  {/* File Preview */}
+                  {randomTestResults.isImage ? (
+                    <div className="mb-4 bg-white rounded-lg p-4 border border-purple-300">
+                      <p className="text-sm font-medium mb-2">📸 Downloaded Image Preview:</p>
+                      <img 
+                        src={randomTestResults.imageUrl} 
+                        alt="Random test file" 
+                        className="max-w-full h-auto rounded border border-secondary-200 shadow-sm"
+                        style={{ maxHeight: '400px' }}
+                      />
+                      <p className="text-xs mt-2 text-secondary-600">
+                        <a href={randomTestResults.imageUrl} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
+                          Open in new tab →
+                        </a>
+                      </p>
+                    </div>
+                  ) : randomTestResults.isPdf ? (
+                    <div className="mb-4 bg-white rounded-lg p-4 border border-purple-300">
+                      <p className="text-sm font-medium mb-2">📄 Downloaded PDF:</p>
+                      <a href={randomTestResults.imageUrl} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
+                        Open PDF in new tab →
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="mb-4 bg-white rounded-lg p-4 border border-purple-300">
+                      <p className="text-sm font-medium mb-2">📎 Downloaded File:</p>
+                      <a href={randomTestResults.imageUrl} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
+                        Open file in new tab →
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Details */}
+                  {randomTestResults.details && (
+                    <div className="space-y-2 text-sm">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-white bg-opacity-50 rounded p-2">
+                          <p className="text-xs font-medium text-purple-700">Table</p>
+                          <p className="font-mono text-xs">{randomTestResults.details.table}</p>
+                        </div>
+                        <div className="bg-white bg-opacity-50 rounded p-2">
+                          <p className="text-xs font-medium text-purple-700">Field</p>
+                          <p className="font-mono text-xs">{randomTestResults.details.field}</p>
+                        </div>
+                        <div className="bg-white bg-opacity-50 rounded p-2">
+                          <p className="text-xs font-medium text-purple-700">Record ID</p>
+                          <p className="font-mono text-xs">{randomTestResults.details.recordId}</p>
+                        </div>
+                        <div className="bg-white bg-opacity-50 rounded p-2">
+                          <p className="text-xs font-medium text-purple-700">File Size</p>
+                          <p className="font-mono text-xs">{randomTestResults.details.fileSize}</p>
+                        </div>
+                        <div className="bg-white bg-opacity-50 rounded p-2">
+                          <p className="text-xs font-medium text-purple-700">Sanitized</p>
+                          <p className="font-mono text-xs">{randomTestResults.details.sanitized}</p>
+                        </div>
+                        <div className="bg-white bg-opacity-50 rounded p-2">
+                          <p className="text-xs font-medium text-purple-700">Duration</p>
+                          <p className="font-mono text-xs">{randomTestResults.details.duration}</p>
+                        </div>
+                      </div>
+                      <div className="bg-white bg-opacity-50 rounded p-2">
+                        <p className="text-xs font-medium text-purple-700">New Filename</p>
+                        <p className="font-mono text-xs break-all">{randomTestResults.details.filename}</p>
+                      </div>
+                      <div className="bg-white bg-opacity-50 rounded p-2">
+                        <p className="text-xs font-medium text-purple-700">Old URL (Bubble)</p>
+                        <p className="font-mono text-xs break-all text-red-600">{randomTestResults.details.oldUrl}</p>
+                      </div>
+                      <div className="bg-white bg-opacity-50 rounded p-2">
+                        <p className="text-xs font-medium text-purple-700">New URL (Local)</p>
+                        <p className="font-mono text-xs break-all text-green-600">{randomTestResults.details.newUrl}</p>
+                      </div>
+                      <p className="text-xs text-purple-700 mt-2">
+                        ℹ️ Randomly selected file #{randomTestResults.details.selectedIndex} out of {randomTestResults.details.totalBubbleUrlsFound} total Bubble URLs found
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="font-medium">✗ Error: {randomTestResults.error}</p>
               )}
             </div>
           )}
@@ -436,10 +565,3 @@ Continue?`
     </div>
   );
 }
-
-// Import actions at the bottom to avoid clutter
-import {
-  patchFileUrlsToAbsolute,
-  patchChineseFilenames,
-} from "./actions";
-import { migrateBubbleFilesToLocal } from "./actions/bubble-file-migration";
