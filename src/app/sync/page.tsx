@@ -327,9 +327,30 @@ Continue?`
 
           {/* Action Buttons */}
           <div className="flex gap-3 flex-wrap">
+            {/* Debug Status Display */}
+            <div className="w-full p-2 bg-yellow-50 border border-yellow-200 rounded text-xs font-mono flex items-center justify-between">
+              <span>
+                <strong>Debug:</strong> isMigratingBubbleFiles={String(isMigratingBubbleFiles)}, isRandomTesting={String(isRandomTesting)}
+              </span>
+              <button
+                onClick={() => {
+                  console.log('🔄 Force reset states');
+                  setIsMigratingBubbleFiles(false);
+                  setIsRandomTesting(false);
+                  setPatchResults(null);
+                  setMigrationResults(null);
+                  setRandomTestResults(null);
+                }}
+                className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+              >
+                🔄 Force Reset
+              </button>
+            </div>
+            
             <button
               onClick={() => {
                 console.log('🔵 Preview button clicked');
+                console.log('Button disabled?', isMigratingBubbleFiles || isRandomTesting);
                 handleMigrateBubbleFiles(true);
               }}
               disabled={isMigratingBubbleFiles || isRandomTesting}
