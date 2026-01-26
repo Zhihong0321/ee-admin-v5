@@ -1,0 +1,481 @@
+/**
+ * ============================================================================
+ * BUBBLE FILE MIGRATION - COMPREHENSIVE SOLUTION
+ * ============================================================================
+ *
+ * This module provides a comprehensive file migration system that:
+ * 1. Scans database for all Bubble storage URLs
+ * 2. Downloads files from Bubble to app's attached storage
+ * 3. Rewrites URLs in PostgreSQL to absolute local URLs
+ * 4. Auto-sanitizes Chinese/non-ASCII filenames during download
+ *
+ * File: src/app/sync/actions/bubble-file-migration.ts
+ */
+
+"use server";
+
+import { db } from "@/lib/db";
+import { sedaRegistration, users, payments, submitted_payments, invoice_templates } from "@/db/schema";
+import { eq, and, isNotNull, gte } from "drizzle-orm";
+import { logSyncActivity } from "@/lib/logger";
+import { revalidatePath } from "next/cache";
+import path from "path";
+import fs from "fs";
+import { pipeline } from "stream/promises";
+import { Readable } from "stream";
+
+const STORAGE_ROOT = '/storage';
+const FILE_BASE_URL = process.env.FILE_BASE_URL || 'https://admin.atap.solar';
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Check if URL is from Bubble storage (external)
+ */
+function isBubbleUrl(url: string | null): boolean {
+  if (!url) return false;
+  // Already migrated to local storage
+  if (url.startsWith('/storage/')) return false;
+  if (url.startsWith('/api/files/')) return false;
+  if (url.startsWith(FILE_BASE_URL)) return false;
+  // External URLs (Bubble storage)
+  if (url.includes('s3.amazonaws.com')) return true;
+  if (url.includes('bubble.io')) return true;
+  if (url.includes('bubbleapps.io')) return true;
+  if (url.startsWith('//s3.')) return true;
+  if (url.startsWith('http://') || url.startsWith('https://')) return true;
+  return false;
+}
+
+/**
+ * Check if filename contains non-ASCII characters
+ */
+function hasNonASCII(str: string): boolean {
+  for (let i = 0; i < str.length; i++) {
+    if (str.charCodeAt(i) > 127) return true;
+  }
+  return false;
+}
+
+/**
+ * Sanitize filename - URL-encode non-ASCII characters
+ */
+function sanitizeFilename(filename: string): string {
+  const ext = path.extname(filename).split('?')[0];
+  const baseName = path.basename(filename, ext).split('?')[0];
+
+  let sanitizedBaseName = '';
+  for (let i = 0; i < baseName.length; i++) {
+    const char = baseName[i];
+    const code = char.charCodeAt(0);
+
+    // Allow: a-z, A-Z, 0-9, space, hyphen, underscore, dot
+    if (
+      (code >= 48 && code <= 57) ||  // 0-9
+      (code >= 65 && code <= 90) ||  // A-Z
+      (code >= 97 && code <= 122) || // a-z
+      code === 32 || code === 45 || code === 46 || code === 95  // space, -, ., _
+    ) {
+      sanitizedBaseName += char;
+    } else {
+      // URL-encode non-ASCII characters
+      sanitizedBaseName += encodeURIComponent(char);
+    }
+  }
+
+  return sanitizedBaseName + ext;
+}
+
+/**
+ * Extract filename from URL
+ */
+function getFilenameFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url.startsWith('//') ? 'https:' + url : url);
+    const pathname = urlObj.pathname;
+    return path.basename(pathname) || `file_${Date.now()}.dat`;
+  } catch {
+    return `file_${Date.now()}.dat`;
+  }
+}
+
+/**
+ * Generate safe, unique filename
+ */
+function generateFilename(originalUrl: string, recordId: number, index: number = 0): string {
+  const timestamp = Date.now();
+  const originalFilename = getFilenameFromUrl(originalUrl);
+  const ext = path.extname(originalFilename).split('?')[0] || '.jpg';
+  const baseName = path.basename(originalFilename, ext).split('?')[0];
+  const safeBaseName = baseName.replace(/[^a-zA-Z0-9_\-]/g, '_').substring(0, 30);
+  const suffix = index > 0 ? `_${index}` : '';
+  const filename = `${recordId}_${safeBaseName}_${timestamp}${suffix}${ext}`;
+  return sanitizeFilename(filename); // Auto-sanitize
+}
+
+/**
+ * Download file from URL
+ */
+async function downloadFile(url: string, targetPath: string): Promise<number> {
+  const fullUrl = url.startsWith('//') ? `https:${url}` : url;
+  const response = await fetch(fullUrl);
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  if (!response.body) throw new Error('Response body is empty');
+
+  const dir = path.dirname(targetPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  // @ts-ignore
+  await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(targetPath));
+  return fs.statSync(targetPath).size;
+}
+
+/**
+ * Format bytes to human readable
+ */
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+// ============================================================================
+// FILE FIELDS CONFIGURATION
+// ============================================================================
+
+const FILE_FIELDS_CONFIG = [
+  // SEDA Registration
+  {
+    table: sedaRegistration,
+    tableName: 'seda_registration',
+    idField: 'id',
+    dateField: 'created_date',
+    fields: [
+      { name: 'customer_signature', type: 'single' as const, subfolder: 'seda/signatures' },
+      { name: 'ic_copy_front', type: 'single' as const, subfolder: 'seda/ic_copies' },
+      { name: 'ic_copy_back', type: 'single' as const, subfolder: 'seda/ic_copies' },
+      { name: 'tnb_bill_1', type: 'single' as const, subfolder: 'seda/tnb_bills' },
+      { name: 'tnb_bill_2', type: 'single' as const, subfolder: 'seda/tnb_bills' },
+      { name: 'tnb_bill_3', type: 'single' as const, subfolder: 'seda/tnb_bills' },
+      { name: 'nem_cert', type: 'single' as const, subfolder: 'seda/certificates' },
+      { name: 'mykad_pdf', type: 'single' as const, subfolder: 'seda/mykad' },
+      { name: 'property_ownership_prove', type: 'single' as const, subfolder: 'seda/ownership' },
+      { name: 'roof_images', type: 'array' as const, subfolder: 'seda/roof_images' },
+      { name: 'site_images', type: 'array' as const, subfolder: 'seda/site_images' },
+      { name: 'drawing_pdf_system', type: 'array' as const, subfolder: 'seda/drawings' },
+      { name: 'drawing_system_actual', type: 'array' as const, subfolder: 'seda/drawings' },
+      { name: 'drawing_engineering_seda_pdf', type: 'array' as const, subfolder: 'seda/drawings' },
+    ]
+  },
+  // Users
+  {
+    table: users,
+    tableName: 'user',
+    idField: 'id',
+    dateField: 'created_date',
+    fields: [
+      { name: 'profile_picture', type: 'single' as const, subfolder: 'users/profiles' },
+    ]
+  },
+  // Payments
+  {
+    table: payments,
+    tableName: 'payment',
+    idField: 'id',
+    dateField: 'created_date',
+    fields: [
+      { name: 'attachment', type: 'array' as const, subfolder: 'payments/attachments' },
+    ]
+  },
+  // Submitted Payments
+  {
+    table: submitted_payments,
+    tableName: 'submitted_payment',
+    idField: 'id',
+    dateField: 'created_date',
+    fields: [
+      { name: 'attachment', type: 'array' as const, subfolder: 'payments/submitted' },
+    ]
+  },
+  // Invoice Templates
+  {
+    table: invoice_templates,
+    tableName: 'invoice_template',
+    idField: 'id',
+    dateField: 'created_at',
+    fields: [
+      { name: 'logo_url', type: 'single' as const, subfolder: 'templates/logos' },
+    ]
+  },
+];
+
+// ============================================================================
+// MAIN MIGRATION FUNCTION
+// ============================================================================
+
+/**
+ * Migrate all files from Bubble storage to local storage
+ * 
+ * STEPS:
+ * 1. Scan database for Bubble URLs
+ * 2. Download files from Bubble
+ * 3. Save to /storage/ with sanitized filenames
+ * 4. Update database with new absolute URLs
+ * 
+ * @param options.dryRun - Preview without downloading (default: false)
+ * @param options.createdAfter - Only process records created after this date
+ * @param options.tables - Specific tables to process (default: all)
+ */
+export async function migrateBubbleFilesToLocal(options: {
+  dryRun?: boolean;
+  createdAfter?: string;
+  tables?: string[];
+} = {}) {
+  const startTime = Date.now();
+  logSyncActivity(`Starting Bubble-to-Local file migration...`, 'INFO');
+  
+  if (options.dryRun) {
+    logSyncActivity(`🔍 DRY RUN MODE - No files will be downloaded`, 'INFO');
+  }
+  if (options.createdAfter) {
+    logSyncActivity(`📅 Filter: Records created after ${options.createdAfter}`, 'INFO');
+  }
+
+  try {
+    let scanned = 0;
+    let downloaded = 0;
+    let failed = 0;
+    let skipped = 0;
+    let totalSize = 0;
+    const details: any[] = [];
+
+    // Filter by tables if specified
+    const configsToProcess = options.tables
+      ? FILE_FIELDS_CONFIG.filter(c => options.tables!.includes(c.tableName))
+      : FILE_FIELDS_CONFIG;
+
+    // ============================================================================
+    // STEP 1: SCAN DATABASE FOR BUBBLE URLs
+    // ============================================================================
+    logSyncActivity(`📊 Step 1: Scanning database for Bubble storage URLs...`, 'INFO');
+
+    for (const config of configsToProcess) {
+      logSyncActivity(`   Scanning ${config.tableName}...`, 'INFO');
+
+      for (const fieldConfig of config.fields) {
+        try {
+          if (fieldConfig.type === 'single') {
+            // Single field
+            const whereConditions: any[] = [
+              isNotNull((config.table as any)[fieldConfig.name])
+            ];
+
+            if (options.createdAfter) {
+              whereConditions.push(gte((config.table as any)[config.dateField], new Date(options.createdAfter)));
+            }
+
+            const records = await db
+              .select({
+                id: (config.table as any)[config.idField],
+                url: (config.table as any)[fieldConfig.name]
+              })
+              .from(config.table)
+              .where(and(...whereConditions));
+
+            for (const record of records) {
+              if (isBubbleUrl(record.url)) {
+                scanned++;
+                const hadChinese = hasNonASCII(getFilenameFromUrl(record.url));
+                const filename = generateFilename(record.url, record.id);
+                const targetPath = path.join(STORAGE_ROOT, fieldConfig.subfolder, filename);
+                const newUrl = `${FILE_BASE_URL}/api/files/${fieldConfig.subfolder}/${filename}`;
+
+                logSyncActivity(`   [${scanned}] ${config.tableName}.${fieldConfig.name} (ID: ${record.id})`, 'INFO');
+                logSyncActivity(`      Old: ${record.url.substring(0, 80)}...`, 'INFO');
+                logSyncActivity(`      New: ${newUrl}`, 'INFO');
+                if (hadChinese) logSyncActivity(`      ⚠️  Chinese chars detected - will sanitize`, 'INFO');
+
+                if (!options.dryRun) {
+                  try {
+                    // STEP 2: DOWNLOAD FILE
+                    const fileSize = await downloadFile(record.url, targetPath);
+                    logSyncActivity(`      ✅ Downloaded: ${formatBytes(fileSize)}`, 'INFO');
+
+                    // STEP 3: UPDATE DATABASE
+                    await db
+                      .update(config.table)
+                      .set({ [fieldConfig.name]: newUrl })
+                      .where(eq((config.table as any)[config.idField], record.id));
+
+                    downloaded++;
+                    totalSize += fileSize;
+
+                    details.push({
+                      table: config.tableName,
+                      field: fieldConfig.name,
+                      recordId: record.id,
+                      oldUrl: record.url,
+                      newUrl: newUrl,
+                      fileSize: formatBytes(fileSize),
+                      hadChineseChars: hadChinese
+                    });
+                  } catch (err: any) {
+                    failed++;
+                    logSyncActivity(`      ❌ Failed: ${err.message}`, 'ERROR');
+                    details.push({
+                      table: config.tableName,
+                      field: fieldConfig.name,
+                      recordId: record.id,
+                      oldUrl: record.url,
+                      newUrl: null,
+                      error: err.message
+                    });
+                  }
+                } else {
+                  logSyncActivity(`      🔍 [DRY RUN] Would download to: ${targetPath}`, 'INFO');
+                }
+              }
+            }
+          } else {
+            // Array field
+            const whereConditions: any[] = [
+              isNotNull((config.table as any)[fieldConfig.name])
+            ];
+
+            if (options.createdAfter) {
+              whereConditions.push(gte((config.table as any)[config.dateField], new Date(options.createdAfter)));
+            }
+
+            const records = await db
+              .select({
+                id: (config.table as any)[config.idField],
+                urls: (config.table as any)[fieldConfig.name]
+              })
+              .from(config.table)
+              .where(and(...whereConditions));
+
+            for (const record of records) {
+              if (Array.isArray(record.urls)) {
+                const newUrls: string[] = [];
+                let hasChanges = false;
+
+                for (let i = 0; i < record.urls.length; i++) {
+                  const url = record.urls[i];
+
+                  if (isBubbleUrl(url)) {
+                    scanned++;
+                    const hadChinese = hasNonASCII(getFilenameFromUrl(url));
+                    const filename = generateFilename(url, record.id, i);
+                    const targetPath = path.join(STORAGE_ROOT, fieldConfig.subfolder, filename);
+                    const newUrl = `${FILE_BASE_URL}/api/files/${fieldConfig.subfolder}/${filename}`;
+
+                    logSyncActivity(`   [${scanned}] ${config.tableName}.${fieldConfig.name}[${i}] (ID: ${record.id})`, 'INFO');
+                    logSyncActivity(`      Old: ${url.substring(0, 80)}...`, 'INFO');
+                    logSyncActivity(`      New: ${newUrl}`, 'INFO');
+                    if (hadChinese) logSyncActivity(`      ⚠️  Chinese chars detected - will sanitize`, 'INFO');
+
+                    if (!options.dryRun) {
+                      try {
+                        // STEP 2: DOWNLOAD FILE
+                        const fileSize = await downloadFile(url, targetPath);
+                        logSyncActivity(`      ✅ Downloaded: ${formatBytes(fileSize)}`, 'INFO');
+
+                        newUrls.push(newUrl);
+                        hasChanges = true;
+                        downloaded++;
+                        totalSize += fileSize;
+
+                        details.push({
+                          table: config.tableName,
+                          field: fieldConfig.name,
+                          recordId: record.id,
+                          oldUrl: url,
+                          newUrl: newUrl,
+                          fileSize: formatBytes(fileSize),
+                          hadChineseChars: hadChinese
+                        });
+                      } catch (err: any) {
+                        failed++;
+                        logSyncActivity(`      ❌ Failed: ${err.message}`, 'ERROR');
+                        newUrls.push(url); // Keep old URL on failure
+                        details.push({
+                          table: config.tableName,
+                          field: fieldConfig.name,
+                          recordId: record.id,
+                          oldUrl: url,
+                          newUrl: null,
+                          error: err.message
+                        });
+                      }
+                    } else {
+                      logSyncActivity(`      🔍 [DRY RUN] Would download to: ${targetPath}`, 'INFO');
+                      newUrls.push(url);
+                    }
+                  } else {
+                    newUrls.push(url); // Keep non-Bubble URLs
+                  }
+                }
+
+                // STEP 3: UPDATE DATABASE (array)
+                if (hasChanges && !options.dryRun) {
+                  await db
+                    .update(config.table)
+                    .set({ [fieldConfig.name]: newUrls })
+                    .where(eq((config.table as any)[config.idField], record.id));
+                }
+              }
+            }
+          }
+        } catch (error) {
+          logSyncActivity(`   ❌ Error scanning ${config.tableName}.${fieldConfig.name}: ${error}`, 'ERROR');
+        }
+      }
+    }
+
+    // ============================================================================
+    // COMPLETE
+    // ============================================================================
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+
+    logSyncActivity(`✅ Migration complete!`, 'INFO');
+    logSyncActivity(`   Scanned: ${scanned} Bubble URLs`, 'INFO');
+    logSyncActivity(`   Downloaded: ${downloaded}`, 'INFO');
+    logSyncActivity(`   Failed: ${failed}`, 'INFO');
+    logSyncActivity(`   Skipped: ${skipped}`, 'INFO');
+    logSyncActivity(`   Total size: ${formatBytes(totalSize)}`, 'INFO');
+    logSyncActivity(`   Duration: ${duration}s`, 'INFO');
+
+    revalidatePath("/sync");
+    revalidatePath("/invoices");
+    revalidatePath("/customers");
+
+    return {
+      success: true,
+      scanned,
+      downloaded,
+      failed,
+      skipped,
+      totalSize: formatBytes(totalSize),
+      duration: `${duration}s`,
+      details,
+      message: options.dryRun
+        ? `DRY RUN: Found ${scanned} files to migrate\n\nNo files were downloaded.`
+        : `Successfully migrated ${downloaded}/${scanned} files from Bubble storage
+
+Total size: ${formatBytes(totalSize)}
+Duration: ${duration}s
+${failed > 0 ? `
+⚠️ ${failed} files failed` : ''}`
+    };
+
+  } catch (error) {
+    logSyncActivity(`Migration crashed: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}

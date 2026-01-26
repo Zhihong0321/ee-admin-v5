@@ -74,6 +74,11 @@ export {
   patchChineseFilenames
 } from './utilities';
 
+// Bubble File Migration Operations
+export {
+  migrateBubbleFilesToLocal
+} from './bubble-file-migration';
+
 // Payment Operations
 export {
   resetPaymentTable,
