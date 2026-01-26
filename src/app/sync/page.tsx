@@ -197,8 +197,10 @@ Continue?`)) {
   };
 
   const handleMigrateBubbleFiles = async (dryRun: boolean = false) => {
+    console.log('🚀 handleMigrateBubbleFiles called, dryRun:', dryRun);
     const action = dryRun ? 'preview' : 'migrate';
-    if (!confirm(
+    
+    const confirmed = confirm(
       `This will ${action} files from Bubble storage to local storage.
 
 Steps:
@@ -210,8 +212,12 @@ Steps:
 ${dryRun ? '🔍 DRY RUN: No files will be downloaded' : '⚠️ This will download files from Bubble'}
 
 Continue?`
-    )) return;
+    );
+    
+    console.log('✅ User confirmed:', confirmed);
+    if (!confirmed) return;
 
+    console.log('📊 Starting migration process...');
     setIsMigratingBubbleFiles(true);
     setMigrationResults(null);
 
@@ -221,16 +227,20 @@ Continue?`
     }, 2000);
 
     try {
+      console.log('📥 Calling migrateBubbleFilesToLocal...');
       const res = await migrateBubbleFilesToLocal({ dryRun });
+      console.log('✅ Migration complete, result:', res);
       setMigrationResults(res);
       await loadLogs();
     } catch (error) {
+      console.error('❌ Migration error:', error);
       setMigrationResults({ success: false, error: String(error) });
     } finally {
       clearInterval(migrationPollInterval);
       setIsMigratingBubbleFiles(false);
       // Reload logs one final time
       await loadLogs();
+      console.log('🏁 Migration handler finished');
     }
   };
 
@@ -318,7 +328,10 @@ Continue?`
           {/* Action Buttons */}
           <div className="flex gap-3 flex-wrap">
             <button
-              onClick={() => handleMigrateBubbleFiles(true)}
+              onClick={() => {
+                console.log('🔵 Preview button clicked');
+                handleMigrateBubbleFiles(true);
+              }}
               disabled={isMigratingBubbleFiles || isRandomTesting}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-secondary-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
@@ -328,7 +341,10 @@ Continue?`
               {isMigratingBubbleFiles ? 'Scanning...' : 'Preview (Dry Run)'}
             </button>
             <button
-              onClick={() => handleMigrateBubbleFiles(false)}
+              onClick={() => {
+                console.log('�︢ Start Migration button clicked');
+                handleMigrateBubbleFiles(false);
+              }}
               disabled={isMigratingBubbleFiles || isRandomTesting}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-secondary-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
