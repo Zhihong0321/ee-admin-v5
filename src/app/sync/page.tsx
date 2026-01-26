@@ -363,7 +363,9 @@ Continue?`
             </button>
             <button
               onClick={() => {
-                console.log('�︢ Start Migration button clicked');
+                alert('🟢 START MIGRATION CLICKED!');
+                console.log('🟢 Start Migration button clicked');
+                console.log('Button disabled?', isMigratingBubbleFiles || isRandomTesting);
                 handleMigrateBubbleFiles(false);
               }}
               disabled={isMigratingBubbleFiles || isRandomTesting}
