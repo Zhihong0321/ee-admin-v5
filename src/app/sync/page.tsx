@@ -215,6 +215,11 @@ Continue?`
     setIsMigratingBubbleFiles(true);
     setMigrationResults(null);
 
+    // Start aggressive log polling during migration (every 2 seconds)
+    const migrationPollInterval = setInterval(() => {
+      loadLogs();
+    }, 2000);
+
     try {
       const res = await migrateBubbleFilesToLocal({ dryRun });
       setMigrationResults(res);
@@ -222,7 +227,10 @@ Continue?`
     } catch (error) {
       setMigrationResults({ success: false, error: String(error) });
     } finally {
+      clearInterval(migrationPollInterval);
       setIsMigratingBubbleFiles(false);
+      // Reload logs one final time
+      await loadLogs();
     }
   };
 

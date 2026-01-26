@@ -261,25 +261,29 @@ export async function migrateBubbleFilesToLocal(options: {
       : FILE_FIELDS_CONFIG;
 
     // ============================================================================
-    // STEP 1: SCAN DATABASE FOR BUBBLE URLs
+    // STEP 1: QUICK SCAN TO COUNT TOTAL URLs
     // ============================================================================
-    logSyncActivity(`📊 Step 1: Scanning database for Bubble storage URLs...`, 'INFO');
+    logSyncActivity(`📊 Step 1: Quick scan to count total Bubble URLs...`, 'INFO');
+    
+    let totalToMigrate = 0;
+    const allFileReferences: Array<{
+      config: any;
+      fieldConfig: any;
+      recordId: number;
+      url: string;
+      arrayIndex?: number;
+    }> = [];
 
     for (const config of configsToProcess) {
-      logSyncActivity(`   Scanning ${config.tableName}...`, 'INFO');
-
       for (const fieldConfig of config.fields) {
         try {
           if (fieldConfig.type === 'single') {
-            // Single field
             const whereConditions: any[] = [
               isNotNull((config.table as any)[fieldConfig.name])
             ];
-
             if (options.createdAfter) {
               whereConditions.push(gte((config.table as any)[config.dateField], new Date(options.createdAfter)));
             }
-
             const records = await db
               .select({
                 id: (config.table as any)[config.idField],
@@ -290,56 +294,13 @@ export async function migrateBubbleFilesToLocal(options: {
 
             for (const record of records) {
               if (isBubbleUrl(record.url)) {
-                scanned++;
-                const hadChinese = hasNonASCII(getFilenameFromUrl(record.url));
-                const filename = generateFilename(record.url, record.id);
-                const targetPath = path.join(STORAGE_ROOT, fieldConfig.subfolder, filename);
-                const newUrl = `${FILE_BASE_URL}/api/files/${fieldConfig.subfolder}/${filename}`;
-
-                logSyncActivity(`   [${scanned}] ${config.tableName}.${fieldConfig.name} (ID: ${record.id})`, 'INFO');
-                logSyncActivity(`      Old: ${record.url.substring(0, 80)}...`, 'INFO');
-                logSyncActivity(`      New: ${newUrl}`, 'INFO');
-                if (hadChinese) logSyncActivity(`      ⚠️  Chinese chars detected - will sanitize`, 'INFO');
-
-                if (!options.dryRun) {
-                  try {
-                    // STEP 2: DOWNLOAD FILE
-                    const fileSize = await downloadFile(record.url, targetPath);
-                    logSyncActivity(`      ✅ Downloaded: ${formatBytes(fileSize)}`, 'INFO');
-
-                    // STEP 3: UPDATE DATABASE
-                    await db
-                      .update(config.table)
-                      .set({ [fieldConfig.name]: newUrl })
-                      .where(eq((config.table as any)[config.idField], record.id));
-
-                    downloaded++;
-                    totalSize += fileSize;
-
-                    details.push({
-                      table: config.tableName,
-                      field: fieldConfig.name,
-                      recordId: record.id,
-                      oldUrl: record.url,
-                      newUrl: newUrl,
-                      fileSize: formatBytes(fileSize),
-                      hadChineseChars: hadChinese
-                    });
-                  } catch (err: any) {
-                    failed++;
-                    logSyncActivity(`      ❌ Failed: ${err.message}`, 'ERROR');
-                    details.push({
-                      table: config.tableName,
-                      field: fieldConfig.name,
-                      recordId: record.id,
-                      oldUrl: record.url,
-                      newUrl: null,
-                      error: err.message
-                    });
-                  }
-                } else {
-                  logSyncActivity(`      🔍 [DRY RUN] Would download to: ${targetPath}`, 'INFO');
-                }
+                totalToMigrate++;
+                allFileReferences.push({
+                  config,
+                  fieldConfig,
+                  recordId: record.id,
+                  url: record.url
+                });
               }
             }
           } else {
@@ -347,11 +308,9 @@ export async function migrateBubbleFilesToLocal(options: {
             const whereConditions: any[] = [
               isNotNull((config.table as any)[fieldConfig.name])
             ];
-
             if (options.createdAfter) {
               whereConditions.push(gte((config.table as any)[config.dateField], new Date(options.createdAfter)));
             }
-
             const records = await db
               .select({
                 id: (config.table as any)[config.idField],
@@ -362,79 +321,118 @@ export async function migrateBubbleFilesToLocal(options: {
 
             for (const record of records) {
               if (Array.isArray(record.urls)) {
-                const newUrls: string[] = [];
-                let hasChanges = false;
-
                 for (let i = 0; i < record.urls.length; i++) {
                   const url = record.urls[i];
-
                   if (isBubbleUrl(url)) {
-                    scanned++;
-                    const hadChinese = hasNonASCII(getFilenameFromUrl(url));
-                    const filename = generateFilename(url, record.id, i);
-                    const targetPath = path.join(STORAGE_ROOT, fieldConfig.subfolder, filename);
-                    const newUrl = `${FILE_BASE_URL}/api/files/${fieldConfig.subfolder}/${filename}`;
-
-                    logSyncActivity(`   [${scanned}] ${config.tableName}.${fieldConfig.name}[${i}] (ID: ${record.id})`, 'INFO');
-                    logSyncActivity(`      Old: ${url.substring(0, 80)}...`, 'INFO');
-                    logSyncActivity(`      New: ${newUrl}`, 'INFO');
-                    if (hadChinese) logSyncActivity(`      ⚠️  Chinese chars detected - will sanitize`, 'INFO');
-
-                    if (!options.dryRun) {
-                      try {
-                        // STEP 2: DOWNLOAD FILE
-                        const fileSize = await downloadFile(url, targetPath);
-                        logSyncActivity(`      ✅ Downloaded: ${formatBytes(fileSize)}`, 'INFO');
-
-                        newUrls.push(newUrl);
-                        hasChanges = true;
-                        downloaded++;
-                        totalSize += fileSize;
-
-                        details.push({
-                          table: config.tableName,
-                          field: fieldConfig.name,
-                          recordId: record.id,
-                          oldUrl: url,
-                          newUrl: newUrl,
-                          fileSize: formatBytes(fileSize),
-                          hadChineseChars: hadChinese
-                        });
-                      } catch (err: any) {
-                        failed++;
-                        logSyncActivity(`      ❌ Failed: ${err.message}`, 'ERROR');
-                        newUrls.push(url); // Keep old URL on failure
-                        details.push({
-                          table: config.tableName,
-                          field: fieldConfig.name,
-                          recordId: record.id,
-                          oldUrl: url,
-                          newUrl: null,
-                          error: err.message
-                        });
-                      }
-                    } else {
-                      logSyncActivity(`      🔍 [DRY RUN] Would download to: ${targetPath}`, 'INFO');
-                      newUrls.push(url);
-                    }
-                  } else {
-                    newUrls.push(url); // Keep non-Bubble URLs
+                    totalToMigrate++;
+                    allFileReferences.push({
+                      config,
+                      fieldConfig,
+                      recordId: record.id,
+                      url: url,
+                      arrayIndex: i
+                    });
                   }
-                }
-
-                // STEP 3: UPDATE DATABASE (array)
-                if (hasChanges && !options.dryRun) {
-                  await db
-                    .update(config.table)
-                    .set({ [fieldConfig.name]: newUrls })
-                    .where(eq((config.table as any)[config.idField], record.id));
                 }
               }
             }
           }
         } catch (error) {
-          logSyncActivity(`   ❌ Error scanning ${config.tableName}.${fieldConfig.name}: ${error}`, 'ERROR');
+          // Skip errors during scan
         }
+      }
+    }
+
+    logSyncActivity(`✅ Scan complete: Found ${totalToMigrate} Bubble URLs to ${options.dryRun ? 'preview' : 'migrate'}`, 'INFO');
+
+    if (options.dryRun) {
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      logSyncActivity(`✅ Dry run complete in ${duration}s`, 'INFO');
+      revalidatePath("/sync");
+      return {
+        success: true,
+        scanned: totalToMigrate,
+        downloaded: 0,
+        failed: 0,
+        totalSize: '0 B',
+        duration: `${duration}s`,
+        message: `Dry run complete: ${totalToMigrate} files would be migrated`
+      };
+    }
+
+    // ============================================================================
+    // STEP 2: DOWNLOAD AND MIGRATE FILES
+    // ============================================================================
+    logSyncActivity(`📥 Step 2: Downloading ${totalToMigrate} files...`, 'INFO');
+
+    for (let i = 0; i < allFileReferences.length; i++) {
+      const fileRef = allFileReferences[i];
+      const currentProgress = i + 1;
+      
+      try {
+        const hadChinese = hasNonASCII(getFilenameFromUrl(fileRef.url));
+        const filename = generateFilename(fileRef.url, fileRef.recordId, fileRef.arrayIndex || 0);
+        const targetPath = path.join(STORAGE_ROOT, fileRef.fieldConfig.subfolder, filename);
+        const newUrl = `${FILE_BASE_URL}/api/files/${fileRef.fieldConfig.subfolder}/${filename}`;
+
+        // Log progress
+        logSyncActivity(`📥 [${currentProgress}/${totalToMigrate}] ${filename}`, 'INFO');
+        logSyncActivity(`   Table: ${fileRef.config.tableName}.${fileRef.fieldConfig.name}, ID: ${fileRef.recordId}`, 'INFO');
+
+        // DOWNLOAD FILE
+        const fileSize = await downloadFile(fileRef.url, targetPath);
+        logSyncActivity(`   ✅ Downloaded: ${formatBytes(fileSize)}`, 'INFO');
+
+        // UPDATE DATABASE
+        if (fileRef.fieldConfig.type === 'single') {
+          await db
+            .update(fileRef.config.table)
+            .set({ [fileRef.fieldConfig.name]: newUrl })
+            .where(eq((fileRef.config.table as any)[fileRef.config.idField], fileRef.recordId));
+        } else {
+          // Array field - update specific element
+          const currentRecord = await db
+            .select({ urls: (fileRef.config.table as any)[fileRef.fieldConfig.name] })
+            .from(fileRef.config.table)
+            .where(eq((fileRef.config.table as any)[fileRef.config.idField], fileRef.recordId))
+            .limit(1);
+
+          if (currentRecord.length > 0 && Array.isArray(currentRecord[0].urls)) {
+            const updatedUrls = [...currentRecord[0].urls];
+            if (fileRef.arrayIndex !== undefined) {
+              updatedUrls[fileRef.arrayIndex] = newUrl;
+              await db
+                .update(fileRef.config.table)
+                .set({ [fileRef.fieldConfig.name]: updatedUrls })
+                .where(eq((fileRef.config.table as any)[fileRef.config.idField], fileRef.recordId));
+            }
+          }
+        }
+
+        downloaded++;
+        totalSize += fileSize;
+        logSyncActivity(`   ✅ Progress: ${downloaded} downloaded, ${failed} failed`, 'INFO');
+
+        details.push({
+          table: fileRef.config.tableName,
+          field: fileRef.fieldConfig.name,
+          recordId: fileRef.recordId,
+          oldUrl: fileRef.url,
+          newUrl: newUrl,
+          fileSize: formatBytes(fileSize),
+          hadChineseChars: hadChinese
+        });
+      } catch (err: any) {
+        failed++;
+        logSyncActivity(`   ❌ Failed: ${err.message}`, 'ERROR');
+        details.push({
+          table: fileRef.config.tableName,
+          field: fileRef.fieldConfig.name,
+          recordId: fileRef.recordId,
+          oldUrl: fileRef.url,
+          newUrl: null,
+          error: err.message
+        });
       }
     }
 
