@@ -197,50 +197,73 @@ Continue?`)) {
   };
 
   const handleMigrateBubbleFiles = async (dryRun: boolean = false) => {
+    alert('🟢 START MIGRATION HANDLER CALLED!');
     console.log('🚀 handleMigrateBubbleFiles called, dryRun:', dryRun);
     const action = dryRun ? 'preview' : 'migrate';
     
     const confirmed = confirm(
       `This will ${action} files from Bubble storage to local storage.
-
-Steps:
-1. Scan database for Bubble storage URLs (s3.amazonaws.com, etc.)
-2. ${dryRun ? 'Preview files to download' : 'Download files to /storage/'}
-3. ${dryRun ? 'Show migration plan' : 'Update database with new absolute URLs'}
-4. Auto-sanitize Chinese/non-ASCII filenames
-
-${dryRun ? '🔍 DRY RUN: No files will be downloaded' : '⚠️ This will download files from Bubble'}
+      
+This process uses CHUNKING (50 files per batch) to avoid server timeouts.
+The UI will loop until all 21,825+ files are processed.
 
 Continue?`
     );
     
-    console.log('✅ User confirmed:', confirmed);
     if (!confirmed) return;
 
-    console.log('📊 Starting migration process...');
     setIsMigratingBubbleFiles(true);
     setMigrationResults(null);
+    let totalProcessed = 0;
 
-    // Start aggressive log polling during migration (every 2 seconds)
     const migrationPollInterval = setInterval(() => {
       loadLogs();
     }, 2000);
 
     try {
-      console.log('📥 Calling migrateBubbleFilesToLocal...');
-      const res = await migrateBubbleFilesToLocal({ dryRun });
-      console.log('✅ Migration complete, result:', res);
-      setMigrationResults(res);
-      await loadLogs();
+      if (dryRun) {
+        const res = await migrateBubbleFilesToLocal({ dryRun: true });
+        setMigrationResults(res);
+      } else {
+        let isDone = false;
+        while (!isDone) {
+          console.log(`📥 Processing batch... Total so far: ${totalProcessed}`);
+          const res = await migrateBubbleFilesToLocal({ limit: 50 });
+          
+          if (!res.success) {
+            throw new Error(res.error || 'Batch failed');
+          }
+          
+          if (res.completed) {
+            isDone = true;
+            console.log('✅ All batches completed');
+          } else {
+            totalProcessed += (res.processed || 0);
+            setMigrationResults({
+              success: true,
+              message: `Processing... (${totalProcessed} files migrated so far)`,
+              downloaded: totalProcessed,
+              scanned: 'Scanning...',
+              totalSize: 'Calculating...'
+            });
+            await loadLogs();
+          }
+        }
+        
+        setMigrationResults({
+          success: true,
+          message: `Success! Total ${totalProcessed} files migrated.`,
+          downloaded: totalProcessed,
+          scanned: totalProcessed
+        });
+      }
     } catch (error) {
       console.error('❌ Migration error:', error);
       setMigrationResults({ success: false, error: String(error) });
     } finally {
       clearInterval(migrationPollInterval);
       setIsMigratingBubbleFiles(false);
-      // Reload logs one final time
       await loadLogs();
-      console.log('🏁 Migration handler finished');
     }
   };
 
