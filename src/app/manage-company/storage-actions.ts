@@ -8,6 +8,8 @@ import { createProgressSession, updateProgress, deleteProgress } from "@/lib/pro
 import path from "path";
 import fs from "fs";
 
+import sharp from "sharp";
+
 // Helper function to format bytes
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -15,6 +17,106 @@ function formatBytes(bytes: number): string {
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+export interface StorageFile {
+  name: string;
+  path: string; // Relative to /storage
+  fullPath: string; // Absolute path
+  size: number;
+  sizeFormatted: string;
+  type: 'image' | 'pdf' | 'other';
+  extension: string;
+  mtime: Date;
+}
+
+/**
+ * List all files in the storage directory recursively
+ */
+export async function listAllFiles(): Promise<StorageFile[]> {
+  const STORAGE_ROOT = '/storage';
+  const files: StorageFile[] = [];
+
+  function scanDir(dir: string) {
+    if (!fs.existsSync(dir)) return;
+    
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      
+      if (entry.isDirectory()) {
+        scanDir(fullPath);
+      } else {
+        const stats = fs.statSync(fullPath);
+        const relativePath = path.relative(STORAGE_ROOT, fullPath).replace(/\\/g, '/');
+        const ext = path.extname(entry.name).toLowerCase();
+        
+        let type: 'image' | 'pdf' | 'other' = 'other';
+        if (['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext)) {
+          type = 'image';
+        } else if (ext === '.pdf') {
+          type = 'pdf';
+        }
+
+        files.push({
+          name: entry.name,
+          path: relativePath,
+          fullPath: fullPath,
+          size: stats.size,
+          sizeFormatted: formatBytes(stats.size),
+          type,
+          extension: ext,
+          mtime: stats.mtime
+        });
+      }
+    }
+  }
+
+  scanDir(STORAGE_ROOT);
+  return files;
+}
+
+/**
+ * Shrink an image file using sharp
+ * @param filePath Absolute path to the image
+ * @param quality Quality percentage (1-100)
+ */
+export async function shrinkImage(filePath: string, quality: number = 80) {
+  try {
+    const ext = path.extname(filePath).toLowerCase();
+    const tempPath = `${filePath}.tmp${ext}`;
+    
+    let pipeline = sharp(filePath);
+    
+    // Auto-rotate based on EXIF
+    pipeline = pipeline.rotate();
+
+    if (ext === '.jpg' || ext === '.jpeg') {
+      await pipeline.jpeg({ quality, mozjpeg: true }).toFile(tempPath);
+    } else if (ext === '.png') {
+      await pipeline.png({ quality, compressionLevel: 9 }).toFile(tempPath);
+    } else if (ext === '.webp') {
+      await pipeline.webp({ quality }).toFile(tempPath);
+    } else {
+      throw new Error("Unsupported image format for shrinking");
+    }
+
+    // Check if shrink actually worked (sometimes it gets bigger if quality was already low)
+    const oldSize = fs.statSync(filePath).size;
+    const newSize = fs.statSync(tempPath).size;
+
+    if (newSize < oldSize) {
+      fs.renameSync(tempPath, filePath);
+      return { success: true, oldSize: formatBytes(oldSize), newSize: formatBytes(newSize), saved: formatBytes(oldSize - newSize) };
+    } else {
+      fs.unlinkSync(tempPath);
+      return { success: false, message: "Shrinking didn't reduce file size (already optimized)" };
+    }
+  } catch (error) {
+    console.error("Shrink error:", error);
+    return { success: false, error: String(error) };
+  }
 }
 
 // Helper function to get file size

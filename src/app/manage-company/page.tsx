@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { Building2, Plus, Edit2, Mail, Phone, MapPin,
   Globe, CreditCard, FileText, CheckCircle2,
@@ -51,7 +52,11 @@ export default function ManageCompanyPage() {
 
   // Start full migration
   const handleStartMigration = async () => {
-    if (!confirm(`Start comprehensive file migration?\n\nThis will download ${migrationStats?.totalFiles || 0} files from Bubble and update all database URLs.\n\nThe process will run in the background and you can track progress here.`)) {
+    if (!confirm(`Start comprehensive file migration?
+
+This will download ${migrationStats?.totalFiles || 0} files from Bubble and update all database URLs.
+
+The process will run in the background and you can track progress here.`)) {
       return;
     }
 
@@ -263,6 +268,13 @@ export default function ManageCompanyPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              <Link 
+                href="/storage"
+                className="btn-secondary bg-white/5 border-white/10 text-white hover:bg-white/10 flex items-center gap-2"
+              >
+                <FolderOpen className="h-4 w-4" />
+                Storage Manager
+              </Link>
               {migrationStats && (
                 <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-center">
                   <p className="text-[10px] uppercase font-bold text-primary-300 tracking-wider">Files to Migrate</p>
