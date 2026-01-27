@@ -27,6 +27,20 @@ import { cn } from "@/lib/utils";
 import InvoiceViewer from "@/components/InvoiceViewer";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
 
+function formatDate(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return 'N/A';
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (isNaN(date.getTime())) return 'Invalid Date';
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatTime(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '';
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
 export default function PaymentsPage() {
   const [activeTab, setActiveTab] = useState<"pending" | "verified">("pending");
   const [search, setSearch] = useState("");
@@ -62,9 +76,11 @@ export default function PaymentsPage() {
       return (payment.payment_method || "").toLowerCase() === paymentMethodFilter.toLowerCase();
     })
     .sort((a, b) => {
-      const dateA = new Date(a.payment_date || a.created_at || 0).getTime();
-      const dateB = new Date(b.payment_date || b.created_at || 0).getTime();
-      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+      const dateA = a.payment_date || a.created_at;
+      const dateB = b.payment_date || b.created_at;
+      const timeA = dateA ? (dateA instanceof Date ? dateA.getTime() : new Date(dateA).getTime()) : 0;
+      const timeB = dateB ? (dateB instanceof Date ? dateB.getTime() : new Date(dateB).getTime()) : 0;
+      return sortOrder === "desc" ? timeB - timeA : timeA - timeB;
     });
 
   useEffect(() => {
@@ -413,14 +429,10 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     <td>
                       <div className="flex flex-col">
                         <span className="font-medium text-secondary-900">
-                          {payment.payment_date 
-                            ? new Date(payment.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-                            : new Date(payment.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                          {formatDate(payment.payment_date || payment.created_at)}
                         </span>
                         <span className="text-xs text-secondary-500">
-                          {payment.payment_date 
-                            ? new Date(payment.payment_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-                            : new Date(payment.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          {formatTime(payment.payment_date || payment.created_at)}
                         </span>
                       </div>
                     </td>
@@ -558,14 +570,10 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       <div>
                         <p className="text-xs text-secondary-500">Payment Date</p>
                         <p className="text-sm font-medium text-secondary-900">
-                          {viewingPayment.payment_date 
-                            ? new Date(viewingPayment.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-                            : new Date(viewingPayment.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                          {formatDate(viewingPayment.payment_date || viewingPayment.created_at)}
                         </p>
                         <p className="text-xs text-secondary-500 mt-0.5">
-                          {viewingPayment.payment_date 
-                            ? new Date(viewingPayment.payment_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-                            : new Date(viewingPayment.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          {formatTime(viewingPayment.payment_date || viewingPayment.created_at)}
                         </p>
                       </div>
                     </div>
