@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, agents, users, invoice_templates, customers } from "@/db/schema";
-import { ilike, or, sql, desc, eq, and } from "drizzle-orm";
+import { invoices, agents, users, invoice_templates, customers, payments, invoice_items } from "@/db/schema";
+import { ilike, or, sql, desc, eq, and, inArray } from "drizzle-orm";
 import { getInvoiceHtml } from "@/lib/invoice-renderer";
 import { revalidatePath } from "next/cache";
 import { syncCompleteInvoicePackage } from "@/lib/bubble";
@@ -51,6 +51,7 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
           i.invoice_number,
           i.total_amount,
           i.invoice_date,
+          i.percent_of_total_amount,
           c.name as customer_name,
           COALESCE(a.name, i.linked_agent) as agent_name
         FROM invoice i
@@ -67,6 +68,7 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
         invoice_number: row.invoice_number,
         total_amount: row.total_amount,
         invoice_date: row.invoice_date,
+        percent_of_total_amount: row.percent_of_total_amount,
         customer_name_snapshot: row.customer_name || "N/A",
         agent_name: row.agent_name || "N/A"
       }));
@@ -90,7 +92,13 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
     if (!invoice) return null;
 
     if (version === "v2" || invoice.invoice_number) {
-      const items: any[] = [];
+      // Fetch all linked invoice items
+      let items: any[] = [];
+      if (invoice.linked_invoice_item && invoice.linked_invoice_item.length > 0) {
+        items = await db.query.invoice_items.findMany({
+          where: inArray(invoice_items.bubble_id, invoice.linked_invoice_item),
+        });
+      }
 
       const template = await db.query.invoice_templates.findFirst({
         where: invoice.template_id
@@ -109,11 +117,19 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
         }
       }
 
-      // Fetch customer data for template rendering
+      // Fetch customer data
       let customerData = null;
       if (invoice.linked_customer) {
         customerData = await db.query.customers.findFirst({
           where: eq(customers.customer_id, invoice.linked_customer),
+        });
+      }
+
+      // Fetch all linked payments
+      let paymentsData: any[] = [];
+      if (invoice.linked_payment && invoice.linked_payment.length > 0) {
+        paymentsData = await db.query.payments.findMany({
+          where: inArray(payments.bubble_id, invoice.linked_payment),
         });
       }
 
@@ -122,15 +138,16 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
         items,
         template,
         created_by_user_name,
-        // Add customer fields for template
+        customer_data: customerData,
         customer_name_snapshot: customerData?.name || null,
         customer_address_snapshot: customerData?.address || null,
         customer_phone_snapshot: customerData?.phone || null,
         customer_email_snapshot: customerData?.email || null,
+        linked_payments: paymentsData,
+        total_payments: paymentsData.reduce((sum, p) => sum + Number(p.amount || 0), 0),
       };
     } else {
       // v1 legacy - limited detail support for now
-      // For v1, we'll try to map it to the viewer structure
       return {
         id: invoice.id,
         invoice_number: `INV-${invoice.invoice_id}`,
@@ -147,7 +164,10 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
           }
         ],
         template: await db.query.invoice_templates.findFirst({ where: eq(invoice_templates.is_default, true) }),
-        created_by_user_name: "Legacy System"
+        created_by_user_name: "Legacy System",
+        customer_data: null,
+        linked_payments: [],
+        total_payments: 0,
       };
     }
   } catch (error) {
