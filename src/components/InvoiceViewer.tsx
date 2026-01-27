@@ -55,7 +55,7 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-8">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full h-[95vh] max-h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Toolbar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-secondary-200 bg-secondary-50">
           <div className="flex items-center gap-3">
@@ -126,7 +126,7 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
           </div>
         ) : (
           <div className="flex-1 overflow-auto p-6 bg-secondary-50">
-            <div className="max-w-6xl mx-auto space-y-6">
+            <div className="max-w-full mx-auto space-y-6">
               {/* Invoice Summary */}
               <div className="card p-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -134,22 +134,22 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
                   <h3 className="text-lg font-bold text-secondary-900">Invoice Summary</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-sm text-secondary-500">Invoice Number</label>
-                    <p className="font-semibold text-secondary-900">{invoiceData?.invoice_number || 'N/A'}</p>
+                    <p className="font-semibold text-secondary-900 truncate" title={invoiceData?.invoice_number}>{invoiceData?.invoice_number || 'N/A'}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-sm text-secondary-500">Invoice Date</label>
-                    <p className="font-semibold text-secondary-900">
+                    <p className="font-semibold text-secondary-900 truncate">
                       {invoiceData?.invoice_date 
                         ? new Date(invoiceData.invoice_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
                         : 'N/A'}
                     </p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-sm text-secondary-500">Status</label>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
                         invoiceData?.paid ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                       }`}>
                         {invoiceData?.paid ? 'Paid' : 'Pending'}
@@ -170,31 +170,31 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
                 </div>
                 {invoiceData?.customer_data ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <label className="text-sm text-secondary-500">Name</label>
-                      <p className="font-semibold text-secondary-900">{invoiceData.customer_data.name || 'N/A'}</p>
+                      <p className="font-semibold text-secondary-900 truncate" title={invoiceData.customer_data.name}>{invoiceData.customer_data.name || 'N/A'}</p>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="text-sm text-secondary-500">IC Number</label>
-                      <p className="font-medium text-secondary-700">{invoiceData.customer_data.ic_number || 'N/A'}</p>
+                      <p className="font-medium text-secondary-700 truncate" title={invoiceData.customer_data.ic_number}>{invoiceData.customer_data.ic_number || 'N/A'}</p>
                     </div>
-                    <div className="flex items-start gap-2">
-                      <Mail className="w-4 h-4 text-secondary-400 mt-1" />
-                      <div className="flex-1">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Mail className="w-4 h-4 text-secondary-400 mt-1 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
                         <label className="text-sm text-secondary-500">Email</label>
-                        <p className="font-medium text-secondary-700">{invoiceData.customer_data.email || 'N/A'}</p>
+                        <p className="font-medium text-secondary-700 truncate" title={invoiceData.customer_data.email}>{invoiceData.customer_data.email || 'N/A'}</p>
                       </div>
                     </div>
-                    <div className="flex items-start gap-2">
-                      <Phone className="w-4 h-4 text-secondary-400 mt-1" />
-                      <div className="flex-1">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Phone className="w-4 h-4 text-secondary-400 mt-1 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
                         <label className="text-sm text-secondary-500">Phone</label>
-                        <p className="font-medium text-secondary-700">{invoiceData.customer_data.phone || 'N/A'}</p>
+                        <p className="font-medium text-secondary-700 truncate" title={invoiceData.customer_data.phone}>{invoiceData.customer_data.phone || 'N/A'}</p>
                       </div>
                     </div>
-                    <div className="flex items-start gap-2 md:col-span-2">
-                      <MapPin className="w-4 h-4 text-secondary-400 mt-1" />
-                      <div className="flex-1">
+                    <div className="flex items-start gap-2 md:col-span-2 min-w-0">
+                      <MapPin className="w-4 h-4 text-secondary-400 mt-1 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
                         <label className="text-sm text-secondary-500">Address</label>
                         <p className="font-medium text-secondary-700">
                           {invoiceData.customer_data.address ? `${invoiceData.customer_data.address}, ` : ''}
@@ -220,51 +220,49 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
                   </span>
                 </div>
                 {invoiceData?.items && invoiceData.items.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Description</th>
-                          <th className="text-center">Qty</th>
-                          <th className="text-right">Unit Price</th>
-                          <th className="text-right">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {invoiceData.items.map((item: any, index: number) => (
-                          <tr key={item.id || index}>
-                            <td>
-                              <div className="font-medium text-secondary-900">{item.description || 'N/A'}</div>
-                              {item.inv_item_type && (
-                                <div className="text-xs text-secondary-500 capitalize">{item.inv_item_type}</div>
-                              )}
-                            </td>
-                            <td className="text-center">
-                              <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-sm">
-                                {item.qty || 0}
-                              </span>
-                            </td>
-                            <td className="text-right text-secondary-700">
-                              {item.unit_price ? `MYR ${parseFloat(item.unit_price).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '-'}
-                            </td>
-                            <td className="text-right font-semibold text-secondary-900">
-                              MYR {parseFloat(item.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-secondary-50">
-                          <td colSpan={3} className="text-right font-bold text-secondary-900">
-                            Total
+                  <table className="table w-full">
+                    <thead>
+                      <tr>
+                        <th className="w-[40%]">Description</th>
+                        <th className="text-center w-[10%]">Qty</th>
+                        <th className="text-right w-[25%]">Unit Price</th>
+                        <th className="text-right w-[25%]">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoiceData.items.map((item: any, index: number) => (
+                        <tr key={item.id || index}>
+                          <td>
+                            <div className="font-medium text-secondary-900 truncate" title={item.description}>{item.description || 'N/A'}</div>
+                            {item.inv_item_type && (
+                              <div className="text-xs text-secondary-500 capitalize">{item.inv_item_type}</div>
+                            )}
                           </td>
-                          <td className="text-right font-bold text-primary-600 text-lg">
-                            MYR {parseFloat(invoiceData.total_amount || invoiceData.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          <td className="text-center">
+                            <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-sm">
+                              {item.qty || 0}
+                            </span>
+                          </td>
+                          <td className="text-right text-secondary-700">
+                            {item.unit_price ? `MYR ${parseFloat(item.unit_price).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '-'}
+                          </td>
+                          <td className="text-right font-semibold text-secondary-900">
+                            MYR {parseFloat(item.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                           </td>
                         </tr>
-                      </tfoot>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-secondary-50">
+                        <td colSpan={3} className="text-right font-bold text-secondary-900">
+                          Total
+                        </td>
+                        <td className="text-right font-bold text-primary-600 text-lg">
+                          MYR {parseFloat(invoiceData.total_amount || invoiceData.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 ) : (
                   <p className="text-secondary-500">No invoice items found</p>
                 )}
@@ -283,54 +281,54 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
                   </span>
                 </div>
                 {invoiceData?.linked_payments && invoiceData.linked_payments.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Method</th>
-                          <th>Bank/Terminal</th>
-                          <th className="text-right">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {invoiceData.linked_payments.map((payment: any, index: number) => (
-                          <tr key={payment.id || index}>
-                            <td>
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-secondary-400" />
+                  <table className="table w-full">
+                    <thead>
+                      <tr>
+                        <th className="w-[20%]">Date</th>
+                        <th className="w-[25%]">Method</th>
+                        <th className="w-[25%]">Bank/Terminal</th>
+                        <th className="text-right w-[30%]">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoiceData.linked_payments.map((payment: any, index: number) => (
+                        <tr key={payment.id || index}>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-secondary-400 flex-shrink-0" />
+                              <span className="truncate">
                                 {payment.payment_date 
                                   ? new Date(payment.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
                                   : 'N/A'}
-                              </div>
-                            </td>
-                            <td>
-                              <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-sm capitalize">
-                                {payment.payment_method_v2 || payment.payment_method || 'N/A'}
                               </span>
-                              {payment.epp_type && (
-                                <span className="ml-1 text-xs text-secondary-500">({payment.epp_type})</span>
-                              )}
-                            </td>
-                            <td>
-                              <div className="text-sm text-secondary-700">
-                                {payment.issuer_bank || payment.terminal || '-'}
-                              </div>
-                              {payment.epp_month && (
-                                <div className="text-xs text-secondary-500">{payment.epp_month} months</div>
-                              )}
-                            </td>
-                            <td className="text-right font-semibold text-green-600">
-                              <div className="flex items-center justify-end gap-1">
-                                <DollarSign className="w-4 h-4" />
-                                MYR {parseFloat(payment.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-sm capitalize inline-block">
+                              {payment.payment_method_v2 || payment.payment_method || 'N/A'}
+                            </span>
+                            {payment.epp_type && (
+                              <span className="ml-1 text-xs text-secondary-500 block truncate">({payment.epp_type})</span>
+                            )}
+                          </td>
+                          <td>
+                            <div className="text-sm text-secondary-700 truncate" title={payment.issuer_bank || payment.terminal}>
+                              {payment.issuer_bank || payment.terminal || '-'}
+                            </div>
+                            {payment.epp_month && (
+                              <div className="text-xs text-secondary-500">{payment.epp_month} months</div>
+                            )}
+                          </td>
+                          <td className="text-right font-semibold text-green-600">
+                            <div className="flex items-center justify-end gap-1">
+                              <DollarSign className="w-4 h-4" />
+                              <span>MYR {parseFloat(payment.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 ) : (
                   <p className="text-secondary-500">No payments found</p>
                 )}
