@@ -413,10 +413,14 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     <td>
                       <div className="flex flex-col">
                         <span className="font-medium text-secondary-900">
-                          {payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'N/A'}
+                          {payment.payment_date 
+                            ? new Date(payment.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                            : new Date(payment.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                         </span>
                         <span className="text-xs text-secondary-500">
-                          {payment.payment_date ? new Date(payment.payment_date).toLocaleTimeString() : ''}
+                          {payment.payment_date 
+                            ? new Date(payment.payment_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                            : new Date(payment.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                     </td>
@@ -554,7 +558,14 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       <div>
                         <p className="text-xs text-secondary-500">Payment Date</p>
                         <p className="text-sm font-medium text-secondary-900">
-                          {viewingPayment.payment_date ? new Date(viewingPayment.payment_date).toLocaleDateString() : 'N/A'}
+                          {viewingPayment.payment_date 
+                            ? new Date(viewingPayment.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                            : new Date(viewingPayment.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </p>
+                        <p className="text-xs text-secondary-500 mt-0.5">
+                          {viewingPayment.payment_date 
+                            ? new Date(viewingPayment.payment_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                            : new Date(viewingPayment.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                     </div>
