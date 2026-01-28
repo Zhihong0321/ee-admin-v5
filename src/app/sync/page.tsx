@@ -19,7 +19,11 @@ import {
 } from "./components/forms";
 import { LogViewer } from "./components/logs";
 import { fetchSyncLogs, clearSyncLogs } from "./actions";
-import { patchFileUrlsToAbsolute, patchChineseFilenames } from "./actions";
+import { 
+  patchFileUrlsToAbsolute, 
+  patchChineseFilenames, 
+  updateInvoicePaymentPercentages 
+} from "./actions";
 import { migrateBubbleFilesToLocal, randomTestMigration } from "./actions/bubble-file-migration";
 
 export default function SyncPage() {
@@ -40,9 +44,11 @@ export default function SyncPage() {
   const [isPatchingChinese, setIsPatchingChinese] = useState(false);
   const [isMigratingBubbleFiles, setIsMigratingBubbleFiles] = useState(false);
   const [isRandomTesting, setIsRandomTesting] = useState(false);
+  const [isRecalculatingPercentages, setIsRecalculatingPercentages] = useState(false);
   const [patchResults, setPatchResults] = useState<any>(null);
   const [migrationResults, setMigrationResults] = useState<any>(null);
   const [randomTestResults, setRandomTestResults] = useState<any>(null);
+  const [recalculateResults, setRecalculateResults] = useState<any>(null);
 
   // Logs state
   const [logs, setLogs] = useState<string[]>([]);
@@ -283,6 +289,25 @@ Continue?`
       setRandomTestResults({ success: false, error: String(error) });
     } finally {
       setIsRandomTesting(false);
+    }
+  };
+
+  const handleRecalculatePercentages = async () => {
+    if (!confirm(
+      "This will recalculate the 'percent_of_total_amount' for all invoices based on linked payments.\n\nContinue?"
+    )) return;
+
+    setIsRecalculatingPercentages(true);
+    setRecalculateResults(null);
+
+    try {
+      const res = await updateInvoicePaymentPercentages();
+      setRecalculateResults(res);
+      await loadLogs();
+    } catch (error) {
+      setRecalculateResults({ success: false, error: String(error) });
+    } finally {
+      setIsRecalculatingPercentages(false);
     }
   };
 
@@ -620,6 +645,58 @@ Continue?`
                 </>
               ) : (
                 <p className="font-medium">✗ Error: {patchResults.error}</p>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Data Maintenance */}
+      <section className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
+        <h2 className="text-xl font-semibold text-secondary-900 mb-4 flex items-center gap-2">
+          <svg className="h-5 w-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+          Data Maintenance
+        </h2>
+        <p className="text-sm text-secondary-500 mb-6">
+          Repair and recalculate calculated fields in the database.
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex items-start gap-4 p-4 bg-secondary-50 rounded-lg border border-secondary-200">
+            <div className="flex-1">
+              <h3 className="font-medium text-secondary-900 mb-1">Recalculate Payment Percentages</h3>
+              <p className="text-sm text-secondary-600 mb-3">
+                Re-scan all invoices and payments to update the <code>percent_of_total_amount</code> column.
+              </p>
+              <div className="text-xs text-secondary-500">
+                Formula: (Total Verified + Submitted Payments / Invoice Total Amount) * 100
+              </div>
+            </div>
+            <button
+              onClick={handleRecalculatePercentages}
+              disabled={isRecalculatingPercentages}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-secondary-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+            >
+              {isRecalculatingPercentages ? 'Processing...' : 'Recalculate Now'}
+            </button>
+          </div>
+
+          {/* Results Display */}
+          {recalculateResults && (
+            <div className={`p-4 rounded-lg border ${
+              recalculateResults.success
+                ? 'bg-green-50 border-green-200 text-green-800'
+                : 'bg-red-50 border-red-200 text-red-800'
+            }`}>
+              {recalculateResults.success ? (
+                <>
+                  <p className="font-medium mb-2">✓ Calculation complete!</p>
+                  <p className="text-sm">{recalculateResults.message}</p>
+                </>
+              ) : (
+                <p className="font-medium">✗ Error: {recalculateResults.error}</p>
               )}
             </div>
           )}

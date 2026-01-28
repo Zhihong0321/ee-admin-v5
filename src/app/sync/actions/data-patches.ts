@@ -72,72 +72,110 @@ import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
  * - Used by: src/app/sync/page.tsx (Update Payment Percentages button)
  */
 export async function updateInvoicePaymentPercentages() {
-  logSyncActivity(`Starting update of invoice payment percentages...`, 'INFO');
+  logSyncActivity(`Starting optimized update of invoice payment percentages...`, 'INFO');
 
   try {
+    // 1. Fetch all payments and submitted_payments into a combined map for O(1) lookup
+    // We use a Map to handle thousands of payments efficiently
+    const [allVerifiedPayments, allSubmittedPayments] = await Promise.all([
+      db.select({ bubble_id: payments.bubble_id, amount: payments.amount }).from(payments),
+      db.select({ bubble_id: submitted_payments.bubble_id, amount: submitted_payments.amount }).from(submitted_payments)
+    ]);
+
+    const paymentAmountMap = new Map<string, number>();
+    
+    // Add submitted payments first
+    allSubmittedPayments.forEach(p => {
+      if (p.bubble_id && p.amount) {
+        paymentAmountMap.set(p.bubble_id, parseFloat(p.amount));
+      }
+    });
+
+    // Add/Overwrite with verified payments (verified should take precedence if IDs overlap)
+    allVerifiedPayments.forEach(p => {
+      if (p.bubble_id && p.amount) {
+        paymentAmountMap.set(p.bubble_id, parseFloat(p.amount));
+      }
+    });
+
+    // 2. Fetch all invoices that have a total amount and are not deleted
     const allInvoices = await db.select({
       id: invoices.id,
       bubble_id: invoices.bubble_id,
+      invoice_number: invoices.invoice_number,
       total_amount: invoices.total_amount,
+      amount: invoices.amount, // Legacy fallback
       linked_payment: invoices.linked_payment,
     })
     .from(invoices)
-    .where(sql`${invoices.total_amount} IS NOT NULL AND ${invoices.total_amount} > 0`);
+    .where(and(
+      sql`${invoices.status} != 'deleted'`,
+      sql`(${invoices.total_amount} IS NOT NULL AND ${invoices.total_amount} > 0) OR (${invoices.amount} IS NOT NULL AND ${invoices.amount} > 0)`
+    ));
+
+    logSyncActivity(`Processing ${allInvoices.length} invoices for percentage recalculation...`, 'INFO');
 
     let updatedCount = 0;
     let skippedCount = 0;
+    let overpaidCount = 0;
 
+    // 3. Process each invoice
     for (const invoice of allInvoices) {
-      if (!invoice.linked_payment || invoice.linked_payment.length === 0) {
-        skippedCount++;
-        continue;
-      }
-
-      const totalAmount = parseFloat(invoice.total_amount || '0');
-      if (totalAmount <= 0) {
+      const targetAmount = parseFloat(invoice.total_amount || invoice.amount || '0');
+      
+      if (targetAmount <= 0) {
         skippedCount++;
         continue;
       }
 
       let totalPaid = 0;
-
-      for (const paymentBubbleId of invoice.linked_payment) {
-        const payment = await db.query.payments.findFirst({
-          where: eq(payments.bubble_id, paymentBubbleId),
-        });
-
-        const submittedPayment = await db.query.submitted_payments.findFirst({
-          where: eq(submitted_payments.bubble_id, paymentBubbleId),
-        });
-
-        if (payment && payment.amount) {
-          totalPaid += parseFloat(payment.amount);
-        } else if (submittedPayment && submittedPayment.amount) {
-          totalPaid += parseFloat(submittedPayment.amount);
+      if (invoice.linked_payment && Array.isArray(invoice.linked_payment)) {
+        for (const paymentId of invoice.linked_payment) {
+          totalPaid += paymentAmountMap.get(paymentId) || 0;
         }
       }
 
-      const percentage = (totalPaid / totalAmount) * 100;
+      // Calculate percentage and clamp it between 0 and 100
+      // Senior Architect Note: We clamp to 100 to avoid UI overflow, 
+      // but we log if it's overpaid for auditing.
+      let percentage = (totalPaid / targetAmount) * 100;
+      
+      if (percentage > 100) {
+        overpaidCount++;
+        percentage = 100;
+      } else if (percentage < 0) {
+        percentage = 0;
+      }
 
-      await db.execute(sql`
-        UPDATE invoice
-        SET percent_of_total_amount = ${percentage}, updated_at = NOW()
-        WHERE id = ${invoice.id}
-      `);
+      // Only update if it actually changes something (or force update timestamps)
+      await db.update(invoices)
+        .set({ 
+          percent_of_total_amount: percentage.toFixed(2),
+          updated_at: new Date()
+        })
+        .where(eq(invoices.id, invoice.id));
 
       updatedCount++;
-      logSyncActivity(`Updated invoice ${invoice.bubble_id}: ${percentage.toFixed(2)}% paid (${totalPaid}/${totalAmount})`, 'INFO');
+      
+      if (updatedCount % 100 === 0) {
+        logSyncActivity(`Progress: Updated ${updatedCount} invoices...`, 'INFO');
+      }
     }
 
-    logSyncActivity(`Payment percentage update complete: ${updatedCount} updated, ${skippedCount} skipped`, 'INFO');
+    logSyncActivity(`Payment percentage update complete.`, 'INFO');
+    logSyncActivity(`- Total Updated: ${updatedCount}`, 'INFO');
+    logSyncActivity(`- Total Skipped: ${skippedCount}`, 'INFO');
+    logSyncActivity(`- Overpaid Invoices Detected: ${overpaidCount}`, 'INFO');
 
     revalidatePath("/invoices");
+    revalidatePath("/sync");
 
     return {
       success: true,
       updated: updatedCount,
       skipped: skippedCount,
-      message: `Updated ${updatedCount} invoices, skipped ${skippedCount} invoices without payments.`
+      overpaid: overpaidCount,
+      message: `Successfully recalculated percentages for ${updatedCount} invoices. ${overpaidCount} were found to be fully paid (capped at 100%).`
     };
   } catch (error) {
     logSyncActivity(`Payment percentage update CRASHED: ${String(error)}`, 'ERROR');
