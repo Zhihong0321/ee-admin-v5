@@ -11,47 +11,52 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const searchValue = searchParams.get("search");
-    const groupBy = searchParams.get("group") || "need-attention"; // Default to need-attention
+    const groupBy = searchParams.get("group") || "pending"; // Default to pending
     const searchQuery = searchValue ? searchValue.toLowerCase() : "";
 
     console.log("Invoices API called with:", { searchQuery, groupBy });
 
-    // Determine which invoices to fetch based on groupBy
-    let whereCondition;
+    // ALWAYS filter by percent_of_total_amount > 0 as per requirement
+    // Milestone: Invoice with Payment (>0% payment, deposited invoice)
+    let whereCondition = and(
+      sql`${invoices.total_amount} > 0`,
+      sql`${invoices.percent_of_total_amount} > 0`
+    );
 
-    if (groupBy === "need-attention") {
-      // Default: Invoices needing attention (not approved yet)
+    // Filter by status group
+    if (groupBy === "pending") {
+      // Pending: status is null, empty, or literally 'pending' (case insensitive)
       whereCondition = and(
-        sql`${invoices.total_amount} > 0`,
-        sql`${invoices.linked_seda_registration} IS NOT NULL`,
+        whereCondition,
         or(
           isNull(sedaRegistration.seda_status),
-          sql`${sedaRegistration.seda_status} != 'APPROVED BY SEDA'`
+          sql`${sedaRegistration.seda_status} = ''`,
+          sql`LOWER(${sedaRegistration.seda_status}) = 'pending'`,
+          sql`LOWER(${sedaRegistration.seda_status}) = 'not set'`
         )
       );
-    } else if (groupBy === "no-seda") {
-      // Invoices without SEDA registration
+    } else if (groupBy === "submitted") {
       whereCondition = and(
-        sql`${invoices.total_amount} > 0`,
-        isNull(invoices.linked_seda_registration)
+        whereCondition,
+        sql`LOWER(${sedaRegistration.seda_status}) = 'submitted'`
       );
-    } else if (groupBy === "seda-status") {
-      // Only invoices WITH SEDA registration (all)
+    } else if (groupBy === "approved") {
       whereCondition = and(
-        sql`${invoices.total_amount} > 0`,
-        sql`${invoices.linked_seda_registration} IS NOT NULL`
+        whereCondition,
+        or(
+          sql`LOWER(${sedaRegistration.seda_status}) = 'approved'`,
+          sql`LOWER(${sedaRegistration.seda_status}) = 'approved by seda'`
+        )
       );
-    } else {
-      // All invoices with payment > 0
-      whereCondition = sql`${invoices.total_amount} > 0`;
     }
 
-    // Fetch invoices
+    // Fetch invoices with all fields needed for form validation
     const allInvoices = await db
       .select({
         invoice_bubble_id: invoices.bubble_id,
         invoice_number: invoices.invoice_number,
         total_amount: invoices.total_amount,
+        percent_of_total_amount: invoices.percent_of_total_amount,
         customer_name: customers.name,
         customer_bubble_id: invoices.linked_customer,
         agent_bubble_id: invoices.linked_agent,
@@ -66,8 +71,21 @@ export async function GET(request: NextRequest) {
         seda_modified_date: sedaRegistration.modified_date,
         seda_updated_at: sedaRegistration.updated_at,
         seda_installation_address: sedaRegistration.installation_address,
+        seda_ic_no: sedaRegistration.ic_no,
+        seda_email: sedaRegistration.email,
 
-        // Agent name (invoice.linked_agent → agents.bubble_id)
+        // Validation fields
+        mykad_pdf: sedaRegistration.mykad_pdf,
+        ic_copy_front: sedaRegistration.ic_copy_front,
+        tnb_bill_1: sedaRegistration.tnb_bill_1,
+        tnb_bill_2: sedaRegistration.tnb_bill_2,
+        tnb_bill_3: sedaRegistration.tnb_bill_3,
+        tnb_meter: sedaRegistration.tnb_meter,
+        e_contact_name: sedaRegistration.e_contact_name,
+        e_contact_no: sedaRegistration.e_contact_no,
+        e_contact_relationship: sedaRegistration.e_contact_relationship,
+
+        // Agent name
         agent_name: agents.name,
       })
       .from(invoices)
@@ -78,7 +96,7 @@ export async function GET(request: NextRequest) {
       .orderBy(
         desc(sql`COALESCE(${sedaRegistration.modified_date}, ${sedaRegistration.updated_at}, ${invoices.updated_at})`)
       )
-      .limit(500);
+      .limit(1000);
 
     console.log("Fetched invoices:", allInvoices.length);
 
@@ -97,36 +115,37 @@ export async function GET(request: NextRequest) {
     console.log("Filtered invoices:", filtered.length);
 
     // Group the results
-    if (groupBy === "need-attention") {
-      // Group by seda_status (same as seda-status but for attention view)
-      const grouped: Record<string, typeof filtered> = {};
-      filtered.forEach(invoice => {
-        const status = invoice.seda_status || "No Status";
-        if (!grouped[status]) grouped[status] = [];
-        grouped[status].push(invoice);
+    if (groupBy === "pending" || groupBy === "submitted" || groupBy === "approved") {
+      // Enrichment: Calculate form completion and payment status
+      const enriched = filtered.map(inv => {
+        const hasName = !!inv.customer_name;
+        const hasAddress = !!inv.seda_installation_address;
+        const hasMykad = !!(inv.mykad_pdf || inv.ic_copy_front);
+        const hasBills = !!(inv.tnb_bill_1 && inv.tnb_bill_2 && inv.tnb_bill_3);
+        const hasMeter = !!inv.tnb_meter;
+        const hasEmergency = !!(inv.e_contact_name && inv.e_contact_no && inv.e_contact_relationship);
+        const has5Percent = parseFloat(inv.percent_of_total_amount || "0") >= 5;
+
+        const completed_count = [hasName, hasAddress, hasMykad, hasBills, hasMeter, hasEmergency, has5Percent].filter(Boolean).length;
+        const is_form_completed = completed_count === 7;
+
+        return {
+          ...inv,
+          completed_count,
+          is_form_completed,
+          has_5_percent: has5Percent
+        };
       });
 
-      const response = Object.entries(grouped).map(([status, invoices]) => ({
-        group: status,
-        group_type: "need-attention",
-        count: invoices.length,
-        invoices
-      }));
+      // Group by normalized status
+      const grouped: Record<string, typeof enriched> = {};
+      enriched.forEach(invoice => {
+        let status = "Pending";
+        const rawStatus = invoice.seda_status?.toLowerCase();
 
-      // Sort groups: "No Status" first, then by count DESC
-      response.sort((a, b) => {
-        if (a.group === "No Status") return -1;
-        if (b.group === "No Status") return 1;
-        return b.count - a.count; // Largest count first
-      });
+        if (rawStatus === "submitted") status = "Submitted";
+        else if (rawStatus === "approved" || rawStatus === "approved by seda") status = "Approved";
 
-      return NextResponse.json(response);
-
-    } else if (groupBy === "seda-status") {
-      // Group by seda_status
-      const grouped: Record<string, typeof filtered> = {};
-      filtered.forEach(invoice => {
-        const status = invoice.seda_status || "No Status";
         if (!grouped[status]) grouped[status] = [];
         grouped[status].push(invoice);
       });
@@ -138,19 +157,18 @@ export async function GET(request: NextRequest) {
         invoices
       }));
 
-      // Sort groups: "No Status" first, then by count DESC
+      // Sort: Put the requested group first if it exists, otherwise sort by status
       response.sort((a, b) => {
-        if (a.group === "No Status") return -1;
-        if (b.group === "No Status") return 1;
-        return b.count - a.count;
+        const statusOrder = ["Pending", "Submitted", "Approved"];
+        return statusOrder.indexOf(a.group) - statusOrder.indexOf(b.group);
       });
 
       return NextResponse.json(response);
 
     } else {
-      // no-seda: return as single flat list
+      // Generic fallback
       return NextResponse.json([{
-        group: "Without SEDA",
+        group: "Results",
         group_type: groupBy,
         count: filtered.length,
         invoices: filtered

@@ -99,9 +99,12 @@ export default function SedaDetailPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            {customer?.name || seda.customer_name || "Unknown Customer"}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-gray-900">
+              {customer?.name || seda.customer_name || "Unknown Customer"}
+            </h1>
+            <StatusBadge status={seda.seda_status || "Pending"} />
+          </div>
           <p className="text-gray-600 mt-1">SEDA Registration Details</p>
         </div>
         <DownloadButton

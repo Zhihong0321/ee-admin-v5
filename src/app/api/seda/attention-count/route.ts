@@ -5,7 +5,7 @@ import { gt, sql, or, eq, and, isNull } from "drizzle-orm";
 
 /**
  * GET /api/seda/attention-count
- * Count invoices needing attention: payment > 0% AND seda_status != APPROVED BY SEDA
+ * Count invoices in "Pending" status with payment > 0%
  */
 export async function GET(request: NextRequest) {
   try {
@@ -15,10 +15,13 @@ export async function GET(request: NextRequest) {
       .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
       .where(
         and(
-          sql`CAST(${invoices.total_amount} AS FLOAT) > 0`,
+          sql`${invoices.total_amount} > 0`,
+          sql`${invoices.percent_of_total_amount} > 0`,
           or(
             isNull(sedaRegistration.seda_status),
-            sql`${sedaRegistration.seda_status} != 'APPROVED BY SEDA'`
+            sql`${sedaRegistration.seda_status} = ''`,
+            sql`LOWER(${sedaRegistration.seda_status}) = 'pending'`,
+            sql`LOWER(${sedaRegistration.seda_status}) = 'not set'`
           )
         )
       );

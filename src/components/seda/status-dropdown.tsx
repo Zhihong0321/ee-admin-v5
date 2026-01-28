@@ -20,12 +20,9 @@ export function StatusDropdown({
 
   const getStatusOptions = () => {
     return [
-      { value: "", label: "Not Set" },
       { value: "Pending", label: "Pending" },
-      { value: "VERIFIED", label: "VERIFIED" },
-      { value: "APPROVED BY SEDA", label: "APPROVED BY SEDA" },
-      { value: "INCOMPLETE", label: "INCOMPLETE" },
-      { value: "DEMO", label: "DEMO" },
+      { value: "Submitted", label: "Submitted" },
+      { value: "Approved", label: "Approved" },
     ];
   };
 

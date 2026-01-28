@@ -7,6 +7,7 @@ interface InvoiceNeedingSeda {
   invoice_bubble_id: string;
   invoice_number: string | null;
   total_amount: string | null;
+  percent_of_total_amount: string | null;
   customer_name: string | null;
   customer_bubble_id: string | null;
   agent_bubble_id: string | null;
@@ -20,6 +21,9 @@ interface InvoiceNeedingSeda {
   seda_modified_date: string | null;
   seda_updated_at: string | null;
   seda_installation_address: string | null;
+  completed_count: number;
+  is_form_completed: boolean;
+  has_5_percent: boolean;
 }
 
 interface InvoiceGroup {
@@ -32,7 +36,7 @@ interface InvoiceGroup {
 export default function SedaListPage() {
   const [data, setData] = useState<InvoiceGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<string>("need-attention");
+  const [activeTab, setActiveTab] = useState<string>("pending");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -101,8 +105,7 @@ export default function SedaListPage() {
   };
 
   const getPaymentPercentage = (invoice: InvoiceNeedingSeda): number => {
-    // percent_paid field was removed, return 0 as placeholder
-    return 0;
+    return parseFloat(invoice.percent_of_total_amount || "0");
   };
 
   const getPaymentColor = (percent: number): string => {
@@ -144,22 +147,22 @@ export default function SedaListPage() {
 
   const tabs = [
     {
-      id: "need-attention",
-      label: "Need Attention",
-      description: "Not approved yet",
+      id: "pending",
+      label: "Pending Verification",
+      description: "Admin check required",
       icon: AlertCircle
     },
     {
-      id: "no-seda",
-      label: "Without SEDA",
-      description: "Invoices without SEDA registration",
-      icon: Receipt
+      id: "submitted",
+      label: "Submitted to SEDA",
+      description: "Waiting for approval",
+      icon: Eye
     },
     {
-      id: "seda-status",
-      label: "By SEDA Status",
-      description: "All SEDA grouped by approval status",
-      icon: Eye
+      id: "approved",
+      label: "Approved by SEDA",
+      description: "Completed registrations",
+      icon: Receipt
     },
   ];
 
@@ -256,7 +259,7 @@ export default function SedaListPage() {
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Total Invoices</p>
+                <p className="text-sm font-medium text-slate-500">Total Paid Invoices</p>
                 <p className="text-3xl font-bold text-slate-900 mt-2">{totalCount}</p>
               </div>
               <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
@@ -268,13 +271,13 @@ export default function SedaListPage() {
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Without SEDA</p>
-                <p className="text-3xl font-bold text-slate-900 mt-2">
-                  {data.reduce((sum, g) => sum + g.invoices.filter(i => !i.linked_seda_registration).length, 0)}
+                <p className="text-sm font-medium text-slate-500">Ready to Submit</p>
+                <p className="text-3xl font-bold text-emerald-600 mt-2">
+                  {data.reduce((sum, g) => sum + g.invoices.filter(i => i.is_form_completed && i.has_5_percent).length, 0)}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-orange-600" />
+              <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
           </div>
@@ -282,13 +285,13 @@ export default function SedaListPage() {
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">With SEDA</p>
-                <p className="text-3xl font-bold text-slate-900 mt-2">
-                  {data.reduce((sum, g) => sum + g.invoices.filter(i => i.linked_seda_registration).length, 0)}
+                <p className="text-sm font-medium text-slate-500">Incomplete Forms</p>
+                <p className="text-3xl font-bold text-orange-600 mt-2">
+                  {data.reduce((sum, g) => sum + g.invoices.filter(i => !i.is_form_completed).length, 0)}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
-                <Eye className="w-6 h-6 text-emerald-600" />
+              <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center">
+                <Eye className="w-6 h-6 text-orange-600" />
               </div>
             </div>
           </div>
@@ -344,14 +347,14 @@ export default function SedaListPage() {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50">
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-48">
-                            SEDA Status
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-40">
+                            Submission Ready
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             Customer
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-40">
-                            Agent
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">
+                            Form Progress
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">
                             Payment
@@ -367,17 +370,19 @@ export default function SedaListPage() {
                       <tbody className="divide-y divide-slate-100">
                         {group.invoices.map((invoice) => {
                           const percent = getPaymentPercentage(invoice);
+                          const isReady = invoice.is_form_completed && invoice.has_5_percent;
+
                           return (
                             <tr key={invoice.invoice_bubble_id} className="hover:bg-slate-50 transition-colors">
-                              {/* SEDA Status */}
+                              {/* Submission Ready */}
                               <td className="px-6 py-4">
-                                {invoice.linked_seda_registration ? (
-                                  <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full border ${getStatusBadgeColor(invoice.seda_status)}`}>
-                                    {invoice.seda_status || "Not Set"}
+                                {isReady ? (
+                                  <span className="inline-flex items-center px-3 py-1 text-xs font-bold rounded-full bg-emerald-500 text-white border border-emerald-600 shadow-sm animate-pulse">
+                                    READY
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-red-50 text-red-700 border border-red-200">
-                                    Not Created
+                                  <span className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                                    INCOMPLETE
                                   </span>
                                 )}
                               </td>
@@ -387,27 +392,43 @@ export default function SedaListPage() {
                                 <div className="text-sm text-slate-900 font-medium max-w-xs truncate">
                                   {invoice.customer_name || "N/A"}
                                 </div>
+                                <div className="text-xs text-slate-400 mt-1">
+                                  {invoice.invoice_number}
+                                </div>
                               </td>
 
-                              {/* Agent */}
+                              {/* Form Progress */}
                               <td className="px-6 py-4">
-                                <div className="text-sm text-slate-600">
-                                  {invoice.agent_name || "N/A"}
+                                <div className="flex flex-col gap-1">
+                                  <div className="text-xs font-semibold text-slate-700">
+                                    {invoice.completed_count}/7 Complete
+                                  </div>
+                                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                      className={`h-full transition-all ${
+                                        invoice.completed_count === 7 ? "bg-emerald-500" : "bg-blue-400"
+                                      }`}
+                                      style={{ width: `${(invoice.completed_count / 7) * 100}%` }}
+                                    />
+                                  </div>
                                 </div>
                               </td>
 
                               {/* Payment */}
                               <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-20 bg-slate-100 rounded-full h-2 overflow-hidden">
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center justify-between text-[10px] font-bold">
+                                    <span className={percent >= 5 ? "text-emerald-600" : "text-red-600"}>
+                                      {percent.toFixed(1)}%
+                                    </span>
+                                    {percent >= 5 && <span className="text-emerald-600">✓ 5%</span>}
+                                  </div>
+                                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                     <div
                                       className={`h-full ${getPaymentColor(percent)} transition-all`}
                                       style={{ width: `${Math.min(percent, 100)}%` }}
                                     />
                                   </div>
-                                  <span className="text-sm font-semibold text-slate-700">
-                                    {percent.toFixed(0)}%
-                                  </span>
                                 </div>
                               </td>
 
