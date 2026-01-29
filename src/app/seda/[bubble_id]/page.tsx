@@ -153,6 +153,13 @@ export default function SedaDetailPage() {
           <InfoRow label="Name" value={customer?.name || seda.customer_name} />
           <InfoRow label="Email" value={seda.email} />
           <InfoRow label="IC Number" value={seda.ic_no} />
+        </div>
+      </div>
+
+      {/* Emergency Contact */}
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Emergency Contact</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <InfoRow label="Emergency Contact Name" value={seda.e_contact_name} />
           <InfoRow label="Emergency Contact No" value={seda.e_contact_no} />
           <InfoRow label="Emergency Contact Relationship" value={seda.e_contact_relationship} />
