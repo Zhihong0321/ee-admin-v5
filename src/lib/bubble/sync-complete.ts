@@ -15,6 +15,7 @@ import { syncFilesByCategory } from "@/app/manage-company/storage-actions";
 import { logSyncActivity } from "@/lib/logger";
 import { createProgressSession, updateProgress, getProgress } from "@/lib/progress-tracker";
 import { BUBBLE_BASE_URL, BUBBLE_API_HEADERS } from "./client";
+import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
 
 /**
  * ============================================================================
@@ -262,14 +263,14 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
     }), results);
 
     // 5. Sync SEDA
-    await syncTable('seda_registration', sedaRegistration, sedaRegistration.bubble_id, (b) => ({
-      state: b.State, city: b.City, agent: b.Agent,
-      project_price: b["Project Price"], linked_customer: b["Linked Customer"],
-      customer_signature: b["Customer Signature"], ic_copy_front: b["IC Copy Front"],
-      ic_copy_back: b["IC Copy Back"], tnb_bill_1: b["TNB Bill 1"],
-      tnb_bill_2: b["TNB Bill 2"], tnb_bill_3: b["TNB Bill 3"],
-      updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
-    }), results);
+    await syncTable('seda_registration', sedaRegistration, sedaRegistration.bubble_id, (b) => {
+      const mapped = mapSedaRegistrationFields(b);
+      return {
+        ...mapped,
+        updated_at: new Date(b["Modified Date"]),
+        last_synced_at: new Date()
+      };
+    }, results);
 
     // 6. Sync Invoice Templates
     await syncTable('invoice_template', invoice_templates, invoice_templates.bubble_id, (b) => ({

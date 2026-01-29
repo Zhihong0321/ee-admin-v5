@@ -16,6 +16,7 @@ import { invoices, payments, sedaRegistration, invoice_items, users } from "@/db
 import { logSyncActivity } from "@/lib/logger";
 import { eq } from "drizzle-orm";
 import { patchSchemaFromJson, type SchemaPatchResult } from "./schema-patcher";
+import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
 
 /**
  * ============================================================================
@@ -273,73 +274,10 @@ async function syncSedaRegistration(seda: any): Promise<void> {
   if (!bubbleId) throw new Error("SEDA registration missing 'unique id' or '_id' field");
 
   try {
-    // Parse array fields properly
-    const linkedInvoice = parseCommaSeparated(seda["Linked Invoice"]);
-    const roofImages = parseCommaSeparated(seda["Roof Images"]);
-    const siteImages = parseCommaSeparated(seda["Site Images"]);
-    const drawingPdfSystem = parseCommaSeparated(seda["Drawing PDF System"]);
-    const drawingSystemActual = parseCommaSeparated(seda["Drawing System Actual"]);
-    const drawingEngineeringSedaPdf = parseCommaSeparated(seda["Drawing Engineering SEDA PDF"]);
-
+    const mapped = mapSedaRegistrationFields(seda);
     const vals = {
+      ...mapped,
       bubble_id: bubbleId,
-      seda_status: seda["SEDA Status"] || null,
-      state: seda["State"] || null,
-      city: seda["City"] || null,
-      agent: seda["Agent"] || null,
-      project_price: parseAmount(seda["Project Price"]),
-      linked_customer: seda["Linked Customer"] || null,
-      customer_signature: seda["Customer Signature"] || null,
-      ic_copy_front: seda["IC Copy Front"] || null,
-      ic_copy_back: seda["IC Copy Back"] || null,
-      tnb_bill_1: seda["TNB Bill 1"] || null,
-      tnb_bill_2: seda["TNB Bill 2"] || null,
-      tnb_bill_3: seda["TNB Bill 3"] || null,
-      nem_cert: seda["NEM Cert"] || null,
-      mykad_pdf: seda["MyKAD PDF"] || null,
-      property_ownership_prove: seda["Property Ownership Prove"] || null,
-      roof_images: roofImages,
-      site_images: siteImages,
-      drawing_pdf_system: drawingPdfSystem,
-      drawing_system_actual: drawingSystemActual,
-      drawing_engineering_seda_pdf: drawingEngineeringSedaPdf,
-      system_size: parseAmount(seda["System Size"]),
-      system_size_in_form_kwp: parseAmount(seda["System Size in Form (kwp)"]),
-      inverter_kwac: parseAmount(seda["Inverter kWac"]),
-      sunpeak_hours: parseAmount(seda["Sunpeak Hours"]),
-      estimated_monthly_saving: parseAmount(seda["Estimated Monthly Saving"]),
-      average_tnb: parseAmount(seda["Average TNB"]),
-      nem_application_no: seda["NEM Application No"] || null,
-      nem_type: seda["NEM Type"] || null,
-      phase_type: seda["Phase Type"] || null,
-      tnb_account_no: seda["TNB Account No"] || null,
-      tnb_meter: seda["TNB Meter"] || null,
-      tnb_meter_status: seda["TNB Meter Status"] || null,
-      tnb_meter_install_date: parseBubbleDate(seda["TNB Meter Install Date"]),
-      first_completion_date: parseBubbleDate(seda["First Completion Date"]),
-      inverter_serial_no: seda["Inverter Serial No"] || null,
-      special_remark: seda["Special Remark"] || null,
-      email: seda["Email"] || null,
-      ic_no: seda["IC No"] || null,
-      e_contact_name: seda["E Contact Name"] || null,
-      e_contact_no: seda["E Contact No"] || null,
-      e_contact_relationship: seda["E Contact Relationship"] || null,
-      e_contact_mykad: seda["E Contact MyKAD"] || null,
-      e_email: seda["E Email"] || null,
-      redex_status: seda["REDEX Status"] || null,
-      redex_remark: seda["REDEX Remark"] || null,
-      g_electric_folder_link: seda["G Electric Folder Link"] || null,
-      g_roof_folder_link: seda["G Roof Folder Link"] || null,
-      installation_address: seda["Installation Address"] || null,
-      price_category: seda["Price Category"] || null,
-      linked_invoice: linkedInvoice,
-      slug: seda["Slug"] || null,
-      drawing_system_submitted: seda["Drawing System Submitted"] || null,
-      request_drawing_date: parseBubbleDate(seda["Request Drawing Date"]),
-      reg_status: seda["Reg Status"] || null,
-      created_by: seda["Created By"] || null,
-      created_date: parseBubbleDate(seda["Created Date"]),
-      modified_date: parseBubbleDate(seda["Modified Date"]),
       created_at: parseBubbleDate(seda["Created Date"]) || new Date(),
       updated_at: parseBubbleDate(seda["Modified Date"]) || new Date(),
       last_synced_at: new Date(),

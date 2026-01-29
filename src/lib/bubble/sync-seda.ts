@@ -14,6 +14,7 @@ import { sedaRegistration } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
 import { eq } from "drizzle-orm";
 import { fetchBubbleRecordsWithConstraints } from "./fetch-helpers";
+import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
 
 /**
  * ============================================================================
@@ -119,28 +120,9 @@ export async function syncSedaRegistrations(dateFrom: string, dateTo?: string) {
           bubbleModifiedDate > new Date(existingRecord.last_synced_at);
 
         if (shouldUpdate) {
+          const mappedFields = mapSedaRegistrationFields(seda);
           const vals = {
-            seda_status: seda["SEDA Status"],
-            state: seda.State,
-            city: seda.City,
-            agent: seda.Agent,
-            project_price: seda["Project Price"],
-            linked_customer: seda["Linked Customer"],
-            customer_signature: seda["Customer Signature"],
-            ic_copy_front: seda["IC Copy Front"],
-            ic_copy_back: seda["IC Copy Back"],
-            tnb_bill_1: seda["TNB Bill 1"],
-            tnb_bill_2: seda["TNB Bill 2"],
-            tnb_bill_3: seda["TNB Bill 3"],
-            nem_cert: seda["NEM Cert"],
-            mykad_pdf: seda["Mykad PDF"],
-            property_ownership_prove: seda["Property Ownership Prove"],
-            check_tnb_bill_and_meter_image: seda["Check TNB Bill and Meter Image"],
-            roof_images: seda["Roof Images"],
-            site_images: seda["Site Images"],
-            drawing_pdf_system: seda["Drawing PDF System"],
-            drawing_system_actual: seda["Drawing System Actual"],
-            drawing_engineering_seda_pdf: seda["Drawing Engineering Seda PDF"],
+            ...mappedFields,
             modified_date: bubbleModifiedDate,
             updated_at: bubbleModifiedDate,
             last_synced_at: new Date()
