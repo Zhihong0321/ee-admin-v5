@@ -37,27 +37,16 @@ export async function getSubmittedPayments(search?: string) {
         attachment: submitted_payments.attachment,
         remark: submitted_payments.remark,
         agent_name: agents.name,
-        agent_bubble_id: submitted_payments.linked_agent,
         customer_name: customers.name,
-        customer_bubble_id: submitted_payments.linked_customer,
         created_at: submitted_payments.created_at,
         linked_invoice: submitted_payments.linked_invoice,
       })
       .from(submitted_payments)
-      .leftJoin(users, eq(submitted_payments.linked_agent, users.bubble_id))
-      .leftJoin(agents, eq(users.linked_agent_profile, agents.bubble_id))
+      .leftJoin(agents, eq(submitted_payments.linked_agent, agents.bubble_id))
       .leftJoin(customers, eq(submitted_payments.linked_customer, customers.customer_id))
       .where(filters)
       .orderBy(desc(submitted_payments.created_at))
       .limit(50);
-
-    console.log(`[DEBUG] Sample submitted payment:`, data[0] ? {
-      id: data[0].id,
-      linked_agent: data[0].agent_bubble_id,
-      agent_name: data[0].agent_name,
-      linked_customer: data[0].customer_bubble_id,
-      customer_name: data[0].customer_name
-    } : 'No data');
 
     return data;
   } catch (error) {
@@ -89,27 +78,16 @@ export async function getVerifiedPayments(search?: string) {
         attachment: payments.attachment,
         remark: payments.remark,
         agent_name: agents.name,
-        agent_bubble_id: payments.linked_agent,
         customer_name: customers.name,
-        customer_bubble_id: payments.linked_customer,
         created_at: payments.created_at,
         linked_invoice: payments.linked_invoice,
       })
       .from(payments)
-      .leftJoin(users, eq(payments.linked_agent, users.bubble_id))
-      .leftJoin(agents, eq(users.linked_agent_profile, agents.bubble_id))
+      .leftJoin(agents, eq(payments.linked_agent, agents.bubble_id))
       .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
       .where(filters)
       .orderBy(desc(payments.payment_date), desc(payments.created_at))
       .limit(50);
-
-    console.log(`[DEBUG] Sample verified payment:`, data[0] ? {
-      id: data[0].id,
-      linked_agent: data[0].agent_bubble_id,
-      agent_name: data[0].agent_name,
-      linked_customer: data[0].customer_bubble_id,
-      customer_name: data[0].customer_name
-    } : 'No data');
 
     return data;
   } catch (error) {
