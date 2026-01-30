@@ -578,10 +578,11 @@ export default function UsersPage() {
                   Cancel
                 </button>
                 <button
-                  type="submit"
+                  type="button"
                   onClick={(e) => {
                     console.log('🔴 Save button clicked! v2025-01-30-2100');
-                    // Let form submit naturally
+                    const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+                    handleUpdateUser(fakeEvent);
                   }}
                   className="btn-primary"
                 >
