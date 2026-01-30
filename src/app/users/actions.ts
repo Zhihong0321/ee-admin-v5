@@ -87,14 +87,37 @@ export async function getUsers(search?: string) {
 export async function createAgentForUser(userId: number, agentData: Partial<typeof agents.$inferInsert>) {
   try {
     const user = await db.query.users.findFirst({
-      where: eq(users.id, userId)
+      where: eq(users.id, userId),
+      with: { agent: true }
     });
 
     if (!user) {
       return { success: false, error: "User not found" };
     }
 
-    if (user.linked_agent_profile) {
+    // If user has linked_agent_profile but agent doesn't exist, create with that bubble_id
+    if (user.linked_agent_profile && !user.agent) {
+      const newAgent = await db
+        .insert(agents)
+        .values({
+          bubble_id: user.linked_agent_profile, // Use existing link
+          name: agentData.name,
+          email: agentData.email,
+          contact: agentData.contact,
+          address: agentData.address,
+          banker: agentData.banker,
+          bankin_account: agentData.bankin_account,
+          agent_type: 'manual',
+          created_at: new Date(),
+          updated_at: new Date(),
+        })
+        .returning();
+
+      revalidatePath("/users");
+      return { success: true, agent: newAgent[0] };
+    }
+
+    if (user.agent) {
       return { success: false, error: "User already has a linked agent profile" };
     }
 
