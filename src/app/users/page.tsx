@@ -579,14 +579,34 @@ export default function UsersPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={(e) => {
-                    console.log('🔴 Save button clicked! v2025-01-30-2100');
-                    const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
-                    handleUpdateUser(fakeEvent);
+                  onClick={async () => {
+                    if (!editingUser) return;
+                    
+                    try {
+                      const result = await updateUserProfile(editingUser.id, {
+                        name: editingUser.agent_name,
+                        email: editingUser.agent_email,
+                        contact: editingUser.agent_contact,
+                        address: editingUser.agent_address,
+                        banker: editingUser.agent_banker,
+                        bankin_account: editingUser.agent_bankin_account,
+                      }, editingUser.access_level);
+
+                      if (result.success) {
+                        alert('Saved successfully!');
+                        setIsEditModalOpen(false);
+                        fetchData();
+                        loadAvailableTags();
+                      } else {
+                        alert(`Failed: ${result.error || 'Unknown error'}`);
+                      }
+                    } catch (error) {
+                      alert(`Error: ${error instanceof Error ? error.message : String(error)}`);
+                    }
                   }}
                   className="btn-primary"
                 >
-                  Save Profile v2
+                  Save Changes
                 </button>
               </div>
             </form>
