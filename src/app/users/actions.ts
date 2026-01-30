@@ -97,6 +97,15 @@ export async function createAgentForUser(userId: number, agentData: Partial<type
 
     // If user has linked_agent_profile but agent doesn't exist, create with that bubble_id
     if (user.linked_agent_profile && !user.agent) {
+      // Check if agent with this bubble_id already exists
+      const existingAgent = await db.query.agents.findFirst({
+        where: eq(agents.bubble_id, user.linked_agent_profile)
+      });
+
+      if (existingAgent) {
+        return { success: false, error: "Agent with this bubble_id already exists" };
+      }
+
       const newAgent = await db
         .insert(agents)
         .values({
