@@ -138,10 +138,14 @@ export async function updateUserProfile(userId: number, agentData: Partial<typeo
       if (result.length > 0) {
         console.log('Updated agent data:', result[0]);
       } else {
-        console.log('⚠️ WARNING: No rows updated - WHERE clause may not match');
+        console.log('❌❌❌ CRITICAL: No rows updated - linked_agent_profile exists but no matching agent!');
+        console.log('linked_agent_profile value:', user.linked_agent_profile);
+        console.log('This user has a BROKEN agent link!');
+        return { success: false, error: 'Agent profile link is broken. Please contact support.' };
       }
     } else {
       console.log('⚠️ No linked_agent_profile - skipping agent update');
+      return { success: false, error: 'User has no linked agent profile' };
     }
 
     console.log('========================');
