@@ -94,6 +94,19 @@ export default function UsersPage() {
     e.preventDefault();
     if (!editingUser) return;
 
+    console.log('=== FORM SUBMISSION DEBUG ===');
+    console.log('User ID:', editingUser.id);
+    console.log('Agent data being sent:', {
+      name: editingUser.agent_name,
+      email: editingUser.agent_email,
+      contact: editingUser.agent_contact,
+      address: editingUser.agent_address,
+      banker: editingUser.agent_banker,
+      bankin_account: editingUser.agent_bankin_account,
+    });
+    console.log('Access level:', editingUser.access_level);
+    console.log('========================');
+
     try {
       const result = await updateUserProfile(editingUser.id, {
         name: editingUser.agent_name,

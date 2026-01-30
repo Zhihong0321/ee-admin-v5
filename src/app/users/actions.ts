@@ -85,18 +85,31 @@ export async function getUsers(search?: string) {
 }
 
 export async function updateUserProfile(userId: number, agentData: Partial<typeof agents.$inferInsert>, tags?: string[]) {
+  console.log('=== SERVER ACTION DEBUG ===');
+  console.log('Received userId:', userId);
+  console.log('Received agentData:', agentData);
+  console.log('Received tags:', tags);
+  
   try {
     // First find the user to get the agent link
     const user = await db.query.users.findFirst({
       where: eq(users.id, userId)
     });
 
+    console.log('Found user:', {
+      id: user?.id,
+      bubble_id: user?.bubble_id,
+      linked_agent_profile: user?.linked_agent_profile
+    });
+
     if (!user) {
+      console.log('❌ User not found');
       return { success: false, error: "User not found" };
     }
 
     // Update access_level on the user table if tags provided
     if (tags) {
+      console.log('Updating user tags...');
       await db
         .update(users)
         .set({
@@ -104,19 +117,34 @@ export async function updateUserProfile(userId: number, agentData: Partial<typeo
           updated_at: new Date(),
         })
         .where(eq(users.id, userId));
+      console.log('✅ Tags updated');
     }
 
     // Update agent profile if link exists
     if (user.linked_agent_profile) {
-      await db
+      console.log('Updating agent profile with bubble_id:', user.linked_agent_profile);
+      console.log('Agent update data:', agentData);
+      
+      const result = await db
         .update(agents)
         .set({
           ...agentData,
           updated_at: new Date(),
         })
-        .where(eq(agents.bubble_id, user.linked_agent_profile));
+        .where(eq(agents.bubble_id, user.linked_agent_profile))
+        .returning();
+      
+      console.log('✅ Agent update result - rows affected:', result.length);
+      if (result.length > 0) {
+        console.log('Updated agent data:', result[0]);
+      } else {
+        console.log('⚠️ WARNING: No rows updated - WHERE clause may not match');
+      }
+    } else {
+      console.log('⚠️ No linked_agent_profile - skipping agent update');
     }
 
+    console.log('========================');
     revalidatePath("/users");
     return { success: true };
   } catch (error) {
