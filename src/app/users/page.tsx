@@ -576,12 +576,12 @@ export default function UsersPage() {
                 <button
                   type="submit"
                   onClick={(e) => {
-                    console.log('Save button clicked!');
+                    console.log('🔴 Save button clicked! v2025-01-30-2100');
                     // Let form submit naturally
                   }}
                   className="btn-primary"
                 >
-                  Save Profile
+                  Save Profile v2
                 </button>
               </div>
             </form>
