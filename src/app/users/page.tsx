@@ -412,6 +412,8 @@ export default function UsersPage() {
             </div>
             
             <form onSubmit={handleUpdateUser} className="p-6 space-y-6">
+              {/* Debug: Log when form mounts */}
+              {console.log('Edit form rendered for user:', editingUser?.id, editingUser?.agent_name)}
               {/* Profile Picture Display */}
               <div className="flex flex-col items-center justify-center pb-6 border-b border-secondary-100">
                 <div className="relative group">
@@ -575,6 +577,10 @@ export default function UsersPage() {
                 </button>
                 <button
                   type="submit"
+                  onClick={(e) => {
+                    console.log('Save button clicked!');
+                    // Let form submit naturally
+                  }}
                   className="btn-primary"
                 >
                   Save Profile
