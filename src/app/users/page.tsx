@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, User, Mail, Phone, MapPin, Edit2, Shield, Briefcase, Building2, Calendar, X, PlusCircle, RefreshCw } from "lucide-react";
-import { getUsers, updateUserProfile, getAllUniqueTags, triggerProfileSync, syncUserFromBubble } from "./actions";
+import { getUsers, updateUserProfile, getAllUniqueTags, triggerProfileSync, syncUserFromBubble, createAgentForUser } from "./actions";
 
 export default function UsersPage() {
   const [search, setSearch] = useState("");
@@ -597,6 +597,27 @@ export default function UsersPage() {
                         setIsEditModalOpen(false);
                         fetchData();
                         loadAvailableTags();
+                      } else if (result.error?.includes('no linked agent') || result.error?.includes('broken')) {
+                        // Offer to create agent profile
+                        const createNew = confirm(`${result.error}\n\nWould you like to create a new agent profile for this user?`);
+                        if (createNew) {
+                          const createResult = await createAgentForUser(editingUser.id, {
+                            name: editingUser.agent_name,
+                            email: editingUser.agent_email,
+                            contact: editingUser.agent_contact,
+                            address: editingUser.agent_address,
+                            banker: editingUser.agent_banker,
+                            bankin_account: editingUser.agent_bankin_account,
+                          });
+                          
+                          if (createResult.success) {
+                            alert('Agent profile created and linked successfully!');
+                            setIsEditModalOpen(false);
+                            fetchData();
+                          } else {
+                            alert(`Failed to create agent: ${createResult.error}`);
+                          }
+                        }
                       } else {
                         alert(`Failed: ${result.error || 'Unknown error'}`);
                       }

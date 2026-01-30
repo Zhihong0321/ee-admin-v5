@@ -84,6 +84,54 @@ export async function getUsers(search?: string) {
   }
 }
 
+export async function createAgentForUser(userId: number, agentData: Partial<typeof agents.$inferInsert>) {
+  try {
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId)
+    });
+
+    if (!user) {
+      return { success: false, error: "User not found" };
+    }
+
+    if (user.linked_agent_profile) {
+      return { success: false, error: "User already has a linked agent profile" };
+    }
+
+    // Create new agent with user's bubble_id as the agent bubble_id
+    const newAgent = await db
+      .insert(agents)
+      .values({
+        bubble_id: user.bubble_id + '_agent', // Create unique agent bubble_id
+        name: agentData.name,
+        email: agentData.email,
+        contact: agentData.contact,
+        address: agentData.address,
+        banker: agentData.banker,
+        bankin_account: agentData.bankin_account,
+        agent_type: 'manual',
+        created_at: new Date(),
+        updated_at: new Date(),
+      })
+      .returning();
+
+    // Link the agent to the user
+    await db
+      .update(users)
+      .set({
+        linked_agent_profile: newAgent[0].bubble_id,
+        updated_at: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    revalidatePath("/users");
+    return { success: true, agent: newAgent[0] };
+  } catch (error) {
+    console.error("Error creating agent:", error);
+    return { success: false, error: `Failed to create agent: ${String(error)}` };
+  }
+}
+
 export async function updateUserProfile(userId: number, agentData: Partial<typeof agents.$inferInsert>, tags?: string[]) {
   console.log('=== SERVER ACTION DEBUG ===');
   console.log('Received userId:', userId);
