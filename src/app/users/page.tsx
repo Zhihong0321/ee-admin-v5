@@ -92,7 +92,11 @@ export default function UsersPage() {
 
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingUser) return;
+    console.log('🟢 handleUpdateUser CALLED');
+    if (!editingUser) {
+      console.log('❌ No editingUser');
+      return;
+    }
 
     console.log('=== FORM SUBMISSION DEBUG ===');
     console.log('User ID:', editingUser.id);
