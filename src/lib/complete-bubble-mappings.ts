@@ -329,8 +329,15 @@ function convertBubbleValue(value: any, type: FieldMappingConfig['type']): any {
 
     case 'timestamp':
       if (value instanceof Date) return value;
-      if (typeof value === 'string') return new Date(value);
-      if (typeof value === 'number') return new Date(value);
+      if (typeof value === 'string') {
+        if (!value.trim()) return null;
+        const parsed = new Date(value);
+        return isNaN(parsed.getTime()) ? null : parsed;
+      }
+      if (typeof value === 'number') {
+        const parsed = new Date(value);
+        return isNaN(parsed.getTime()) ? null : parsed;
+      }
       return null;
 
     case 'array':

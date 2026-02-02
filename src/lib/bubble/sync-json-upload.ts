@@ -71,9 +71,11 @@ function parseCommaSeparated(value?: string | string[] | any): string[] | null {
 }
 
 // Parse Bubble date string to Date object
-function parseBubbleDate(dateStr?: string): Date | null {
-  if (!dateStr || dateStr === "") return null;
-  const date = new Date(dateStr);
+function parseBubbleDate(dateStr?: string | any): Date | null {
+  if (!dateStr || dateStr === "" || typeof dateStr !== 'string') return null;
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+  const date = new Date(trimmed);
   return isNaN(date.getTime()) ? null : date;
 }
 
