@@ -42,6 +42,9 @@ export async function GET(
         property_ownership_prove: sedaRegistration.property_ownership_prove,
         nem_cert: sedaRegistration.nem_cert,
         e_contact_mykad: sedaRegistration.e_contact_mykad,
+        drawing_system_submitted: sedaRegistration.drawing_system_submitted,
+        g_electric_folder_link: sedaRegistration.g_electric_folder_link,
+        g_roof_folder_link: sedaRegistration.g_roof_folder_link,
         roof_images: sedaRegistration.roof_images,
         site_images: sedaRegistration.site_images,
         drawing_pdf_system: sedaRegistration.drawing_pdf_system,
@@ -86,14 +89,16 @@ export async function GET(
     // Add all files to ZIP
     for (const file of files) {
       try {
-        console.log(`Downloading: ${file.newName} from ${file.url}`);
+        console.log(`[Download] Attempting: ${file.newName} from ${file.url}`);
         const fileBuffer = await downloadFile(file.url);
         zip.file(file.newName, fileBuffer);
         successCount++;
-        console.log(`✓ Successfully added: ${file.newName} (${fileBuffer.length} bytes)`);
-      } catch (error) {
+        console.log(`[Download] ✓ Success: ${file.newName} (${fileBuffer.length} bytes)`);
+      } catch (error: any) {
         failCount++;
-        console.error(`✗ Failed to download file: ${file.url}`, error);
+        console.error(`[Download] ✗ Failed: ${file.newName}`);
+        console.error(`[Download]   URL: ${file.url}`);
+        console.error(`[Download]   Error: ${error?.message || error}`);
         // Continue with other files even if one fails
       }
     }

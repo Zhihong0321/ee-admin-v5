@@ -24,6 +24,9 @@ export const FILE_MAPPINGS: FileFieldMapping[] = [
   { field: "property_ownership_prove", displayName: "PropertyOwnership", isArray: false },
   { field: "nem_cert", displayName: "NEMCert", isArray: false },
   { field: "e_contact_mykad", displayName: "EmergencyMyKad", isArray: false },
+  { field: "drawing_system_submitted", displayName: "DrawingSystemSubmitted", isArray: false },
+  { field: "g_electric_folder_link", displayName: "GElectricFolder", isArray: false },
+  { field: "g_roof_folder_link", displayName: "GRoofFolder", isArray: false },
 
   // Array files (multiple images/PDFs)
   { field: "roof_images", displayName: "RoofImage", isArray: true },
@@ -160,7 +163,17 @@ export function extractAllFiles(sedaData: any, customerName: string) {
   for (const mapping of FILE_MAPPINGS) {
     const fieldValue = sedaData[mapping.field];
 
-    console.log(`[extractAllFiles] Field "${mapping.field}":`, fieldValue ? "HAS VALUE" : "NULL/EMPTY");
+    // Detailed logging for ownership document
+    if (mapping.field === 'property_ownership_prove') {
+      console.log(`[extractAllFiles] Field "${mapping.field}":`, {
+        value: fieldValue,
+        type: typeof fieldValue,
+        isEmpty: !fieldValue,
+        isWhitespace: fieldValue?.trim?.() === '',
+      });
+    } else {
+      console.log(`[extractAllFiles] Field "${mapping.field}":`, fieldValue ? "HAS VALUE" : "NULL/EMPTY");
+    }
 
     if (!fieldValue) continue;
 
