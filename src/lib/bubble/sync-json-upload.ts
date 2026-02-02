@@ -30,6 +30,7 @@ export interface JsonUploadSyncResult {
   entityType: EntityType;
   processed: number;
   synced: number;
+  skipped: number;
   errors: string[];
   validationError?: string;
   schemaPatch?: SchemaPatchResult;
@@ -81,83 +82,165 @@ function parseAmount(amount?: string | number): string | null {
   return String(amount);
 }
 
-// Upsert function for invoices - FULL OVERWRITE mode
-async function upsertInvoice(bubbleId: string, vals: any): Promise<void> {
+// Upsert function for invoices - ONLY overwrite if JSON is newer
+async function upsertInvoice(bubbleId: string, vals: any, jsonModifiedDate: Date | null): Promise<{ updated: boolean; reason?: string }> {
   const existing = await db.query.invoices.findFirst({
     where: eq(invoices.bubble_id, bubbleId)
   });
 
   if (existing) {
-    // FULL OVERWRITE - replace all fields with JSON data
+    // Check if JSON data is newer than existing record
+    // Note: invoices table doesn't have modified_date, use updated_at
+    const existingDate = existing.updated_at || existing.created_at;
+    
+    if (jsonModifiedDate && existingDate) {
+      // If existing record is newer or same, skip update
+      if (existingDate > jsonModifiedDate) {
+        return { updated: false, reason: 'existing_is_newer' };
+      }
+      // If dates are equal, check if data is actually different
+      if (existingDate.getTime() === jsonModifiedDate.getTime()) {
+        // Optionally skip if same timestamp to avoid unnecessary updates
+        return { updated: false, reason: 'same_timestamp' };
+      }
+    }
+    
+    // JSON is newer - perform update
     await db.update(invoices)
       .set(vals)
       .where(eq(invoices.bubble_id, bubbleId));
+    return { updated: true };
   } else {
     await db.insert(invoices).values(vals);
+    return { updated: true };
   }
 }
 
-// Upsert function for payments - FULL OVERWRITE mode
-async function upsertPayment(bubbleId: string, vals: any): Promise<void> {
+// Upsert function for payments - ONLY overwrite if JSON is newer
+async function upsertPayment(bubbleId: string, vals: any, jsonModifiedDate: Date | null): Promise<{ updated: boolean; reason?: string }> {
   const existing = await db.query.payments.findFirst({
     where: eq(payments.bubble_id, bubbleId)
   });
 
   if (existing) {
-    // FULL OVERWRITE - replace all fields with JSON data
+    // Check if JSON data is newer than existing record
+    const existingDate = existing.updated_at || existing.modified_date || existing.created_at;
+    
+    if (jsonModifiedDate && existingDate) {
+      // If existing record is newer or same, skip update
+      if (existingDate > jsonModifiedDate) {
+        return { updated: false, reason: 'existing_is_newer' };
+      }
+      // If dates are equal, skip to avoid unnecessary updates
+      if (existingDate.getTime() === jsonModifiedDate.getTime()) {
+        return { updated: false, reason: 'same_timestamp' };
+      }
+    }
+    
+    // JSON is newer - perform update
     await db.update(payments)
       .set(vals)
       .where(eq(payments.bubble_id, bubbleId));
+    return { updated: true };
   } else {
     await db.insert(payments).values(vals);
+    return { updated: true };
   }
 }
 
-// Upsert function for SEDA registrations - FULL OVERWRITE mode
-async function upsertSedaRegistration(bubbleId: string, vals: any): Promise<void> {
+// Upsert function for SEDA registrations - ONLY overwrite if JSON is newer
+async function upsertSedaRegistration(bubbleId: string, vals: any, jsonModifiedDate: Date | null): Promise<{ updated: boolean; reason?: string }> {
   const existing = await db.query.sedaRegistration.findFirst({
     where: eq(sedaRegistration.bubble_id, bubbleId)
   });
 
   if (existing) {
-    // FULL OVERWRITE - replace all fields with JSON data
+    // Check if JSON data is newer than existing record
+    const existingDate = existing.updated_at || existing.modified_date || existing.created_at;
+    
+    if (jsonModifiedDate && existingDate) {
+      // If existing record is newer or same, skip update
+      if (existingDate > jsonModifiedDate) {
+        return { updated: false, reason: 'existing_is_newer' };
+      }
+      // If dates are equal, skip to avoid unnecessary updates
+      if (existingDate.getTime() === jsonModifiedDate.getTime()) {
+        return { updated: false, reason: 'same_timestamp' };
+      }
+    }
+    
+    // JSON is newer - perform update
     await db.update(sedaRegistration)
       .set(vals)
       .where(eq(sedaRegistration.bubble_id, bubbleId));
+    return { updated: true };
   } else {
     await db.insert(sedaRegistration).values(vals);
+    return { updated: true };
   }
 }
 
-// Upsert function for invoice items - FULL OVERWRITE mode
-async function upsertInvoiceItem(bubbleId: string, vals: any): Promise<void> {
+// Upsert function for invoice items - ONLY overwrite if JSON is newer
+async function upsertInvoiceItem(bubbleId: string, vals: any, jsonModifiedDate: Date | null): Promise<{ updated: boolean; reason?: string }> {
   const existing = await db.query.invoice_items.findFirst({
     where: eq(invoice_items.bubble_id, bubbleId)
   });
 
   if (existing) {
-    // FULL OVERWRITE - replace all fields with JSON data
+    // Check if JSON data is newer than existing record
+    const existingDate = existing.updated_at || existing.modified_date || existing.created_at;
+    
+    if (jsonModifiedDate && existingDate) {
+      // If existing record is newer or same, skip update
+      if (existingDate > jsonModifiedDate) {
+        return { updated: false, reason: 'existing_is_newer' };
+      }
+      // If dates are equal, skip to avoid unnecessary updates
+      if (existingDate.getTime() === jsonModifiedDate.getTime()) {
+        return { updated: false, reason: 'same_timestamp' };
+      }
+    }
+    
+    // JSON is newer - perform update
     await db.update(invoice_items)
       .set(vals)
       .where(eq(invoice_items.bubble_id, bubbleId));
+    return { updated: true };
   } else {
     await db.insert(invoice_items).values(vals);
+    return { updated: true };
   }
 }
 
-// Upsert function for users - FULL OVERWRITE mode
-async function upsertUser(bubbleId: string, vals: any): Promise<void> {
+// Upsert function for users - ONLY overwrite if JSON is newer
+async function upsertUser(bubbleId: string, vals: any, jsonModifiedDate: Date | null): Promise<{ updated: boolean; reason?: string }> {
   const existing = await db.query.users.findFirst({
     where: eq(users.bubble_id, bubbleId)
   });
 
   if (existing) {
-    // FULL OVERWRITE - replace all fields with JSON data
+    // Check if JSON data is newer than existing record
+    const existingDate = existing.updated_at || existing.created_at;
+    
+    if (jsonModifiedDate && existingDate) {
+      // If existing record is newer or same, skip update
+      if (existingDate > jsonModifiedDate) {
+        return { updated: false, reason: 'existing_is_newer' };
+      }
+      // If dates are equal, skip to avoid unnecessary updates
+      if (existingDate.getTime() === jsonModifiedDate.getTime()) {
+        return { updated: false, reason: 'same_timestamp' };
+      }
+    }
+    
+    // JSON is newer - perform update
     await db.update(users)
       .set(vals)
       .where(eq(users.bubble_id, bubbleId));
+    return { updated: true };
   } else {
     await db.insert(users).values(vals);
+    return { updated: true };
   }
 }
 
@@ -166,7 +249,7 @@ async function upsertUser(bubbleId: string, vals: any): Promise<void> {
  * INVOICE SYNC FUNCTION
  * ============================================================================
  */
-async function syncInvoice(inv: any): Promise<void> {
+async function syncInvoice(inv: any): Promise<{ updated: boolean; reason?: string }> {
   const bubbleId = inv["unique id"] || inv._id;
   if (!bubbleId) throw new Error("Invoice missing 'unique id' or '_id' field");
 
@@ -174,6 +257,9 @@ async function syncInvoice(inv: any): Promise<void> {
     // Parse array fields properly
     const linkedPayment = parseCommaSeparated(inv["Linked Payment"]);
     const linkedInvoiceItem = parseCommaSeparated(inv["Linked Invoice Item"]);
+    
+    // Parse Modified Date for comparison
+    const jsonModifiedDate = parseBubbleDate(inv["Modified Date"]);
 
     const vals = {
       bubble_id: bubbleId,
@@ -192,12 +278,13 @@ async function syncInvoice(inv: any): Promise<void> {
       case_status: inv["Case Status"] || null,
       invoice_date: parseBubbleDate(inv["Invoice Date"]),
       created_at: parseBubbleDate(inv["Created Date"]) || new Date(),
-      updated_at: parseBubbleDate(inv["Modified Date"]) || new Date(),
+      updated_at: jsonModifiedDate || new Date(),
+      modified_date: jsonModifiedDate,
       created_by: inv["Created By"] || inv["Creator"] || null,
       dealercode: inv["Dealercode"] || null,
     };
 
-    await upsertInvoice(bubbleId, vals);
+    return await upsertInvoice(bubbleId, vals, jsonModifiedDate);
   } catch (error: any) {
     // Extract column name from Postgres error if available
     let columnInfo = '';
@@ -216,13 +303,16 @@ async function syncInvoice(inv: any): Promise<void> {
  * PAYMENT SYNC FUNCTION
  * ============================================================================
  */
-async function syncPayment(pay: any): Promise<void> {
+async function syncPayment(pay: any): Promise<{ updated: boolean; reason?: string }> {
   const bubbleId = pay["unique id"] || pay._id;
   if (!bubbleId) throw new Error("Payment missing 'unique id' or '_id' field");
 
   try {
     // Parse array fields properly
     const attachment = parseCommaSeparated(pay["Attachment"]);
+    
+    // Parse Modified Date for comparison
+    const jsonModifiedDate = parseBubbleDate(pay["Modified Date"]);
 
     const vals = {
       bubble_id: bubbleId,
@@ -236,7 +326,7 @@ async function syncPayment(pay: any): Promise<void> {
       linked_invoice: pay["Linked Invoice"] || null,
       created_by: pay["Created By"] || null,
       created_date: parseBubbleDate(pay["Created Date"]),
-      modified_date: parseBubbleDate(pay["Modified Date"]),
+      modified_date: jsonModifiedDate,
       payment_index: pay["Payment Index"] ? Number(pay["Payment Index"]) : null,
       epp_month: pay["EPP Month"] ? Number(pay["EPP Month"]) : null,
       bank_charges: pay["Bank Charges"] ? Number(pay["Bank Charges"]) : null,
@@ -247,11 +337,11 @@ async function syncPayment(pay: any): Promise<void> {
       issuer_bank: pay["Issuer Bank"] || null,
       epp_type: pay["EPP Type"] || null,
       created_at: parseBubbleDate(pay["Created Date"]) || new Date(),
-      updated_at: parseBubbleDate(pay["Modified Date"]) || new Date(),
+      updated_at: jsonModifiedDate || new Date(),
       last_synced_at: new Date(),
     };
 
-    await upsertPayment(bubbleId, vals);
+    return await upsertPayment(bubbleId, vals, jsonModifiedDate);
   } catch (error: any) {
     let columnInfo = '';
     if (error?.message) {
@@ -269,21 +359,25 @@ async function syncPayment(pay: any): Promise<void> {
  * SEDA REGISTRATION SYNC FUNCTION
  * ============================================================================
  */
-async function syncSedaRegistration(seda: any): Promise<void> {
+async function syncSedaRegistration(seda: any): Promise<{ updated: boolean; reason?: string }> {
   const bubbleId = seda["unique id"] || seda._id;
   if (!bubbleId) throw new Error("SEDA registration missing 'unique id' or '_id' field");
 
   try {
+    // Parse Modified Date for comparison
+    const jsonModifiedDate = parseBubbleDate(seda["Modified Date"]);
+    
     const mapped = mapSedaRegistrationFields(seda);
     const vals = {
       ...mapped,
       bubble_id: bubbleId,
       created_at: parseBubbleDate(seda["Created Date"]) || new Date(),
-      updated_at: parseBubbleDate(seda["Modified Date"]) || new Date(),
+      updated_at: jsonModifiedDate || new Date(),
+      modified_date: jsonModifiedDate,
       last_synced_at: new Date(),
     };
 
-    await upsertSedaRegistration(bubbleId, vals);
+    return await upsertSedaRegistration(bubbleId, vals, jsonModifiedDate);
   } catch (error: any) {
     let columnInfo = '';
     if (error?.message) {
@@ -301,9 +395,12 @@ async function syncSedaRegistration(seda: any): Promise<void> {
  * INVOICE ITEM SYNC FUNCTION
  * ============================================================================
  */
-async function syncInvoiceItem(item: any): Promise<void> {
+async function syncInvoiceItem(item: any): Promise<{ updated: boolean; reason?: string }> {
   const bubbleId = item["unique id"] || item._id;
   if (!bubbleId) throw new Error("Invoice item missing 'unique id' or '_id' field");
+
+  // Parse Modified Date for comparison
+  const jsonModifiedDate = parseBubbleDate(item["Modified Date"]);
 
   const vals = {
     bubble_id: bubbleId,
@@ -313,7 +410,7 @@ async function syncInvoiceItem(item: any): Promise<void> {
     unit_price: parseAmount(item["Unit Price"]),
     created_by: item["Created By"] || null,
     created_date: parseBubbleDate(item["Created Date"]),
-    modified_date: parseBubbleDate(item["Modified Date"]),
+    modified_date: jsonModifiedDate,
     is_a_package: item["Is a Package"] || item["Is A Package"] || false,
     inv_item_type: item["Inv Item Type"] || null,
     linked_package: item["Linked Package"] || null,
@@ -323,11 +420,11 @@ async function syncInvoiceItem(item: any): Promise<void> {
     linked_voucher: item["Linked Voucher"] || null,
     voucher_remark: item["Voucher Remark"] || null,
     created_at: parseBubbleDate(item["Created Date"]) || new Date(),
-    updated_at: parseBubbleDate(item["Modified Date"]) || new Date(),
+    updated_at: jsonModifiedDate || new Date(),
     last_synced_at: new Date(),
   };
 
-  await upsertInvoiceItem(bubbleId, vals);
+  return await upsertInvoiceItem(bubbleId, vals, jsonModifiedDate);
 }
 
 /**
@@ -335,13 +432,16 @@ async function syncInvoiceItem(item: any): Promise<void> {
  * USER SYNC FUNCTION
  * ============================================================================
  */
-async function syncUser(user: any): Promise<void> {
+async function syncUser(user: any): Promise<{ updated: boolean; reason?: string }> {
   const bubbleId = user["unique id"] || user._id;
   if (!bubbleId) throw new Error("User missing 'unique id' or '_id' field");
 
   try {
     // Parse array field for access_level
     const accessLevel = parseCommaSeparated(user["Access Level"]);
+    
+    // Parse Modified Date for comparison
+    const jsonModifiedDate = parseBubbleDate(user["Modified Date"]);
 
     const vals = {
       bubble_id: bubbleId,
@@ -354,11 +454,11 @@ async function syncUser(user: any): Promise<void> {
       access_level: accessLevel,
       created_date: parseBubbleDate(user["Created Date"]),
       created_at: parseBubbleDate(user["Created Date"]) || new Date(),
-      updated_at: parseBubbleDate(user["Modified Date"]) || new Date(),
+      updated_at: jsonModifiedDate || new Date(),
       last_synced_at: new Date(),
     };
 
-    await upsertUser(bubbleId, vals);
+    return await upsertUser(bubbleId, vals, jsonModifiedDate);
   } catch (error: any) {
     let columnInfo = '';
     if (error?.message) {
@@ -395,6 +495,7 @@ export async function syncJsonWithValidation(
     entityType,
     processed: 0,
     synced: 0,
+    skipped: 0,
     errors: []
   };
 
@@ -405,7 +506,7 @@ export async function syncJsonWithValidation(
   }
 
   // Select sync function based on entity type
-  let syncFn: ((data: any) => Promise<void>) | null = null;
+  let syncFn: ((data: any) => Promise<{ updated: boolean; reason?: string }>) | null = null;
   let tableName = "";
 
   switch (entityType) {
@@ -460,10 +561,15 @@ export async function syncJsonWithValidation(
   // STEP 1: VALIDATE FIRST ENTRY
   logSyncActivity(`Step 1: Validating first entry...`, 'INFO');
   try {
-    await syncFn(jsonData[0]);
-    result.synced = 1;
+    const firstResult = await syncFn(jsonData[0]);
     result.processed = 1;
-    logSyncActivity(`✓ First entry validation passed`, 'INFO');
+    if (firstResult.updated) {
+      result.synced = 1;
+      logSyncActivity(`✓ First entry validation passed (updated)`, 'INFO');
+    } else {
+      result.skipped = 1;
+      logSyncActivity(`✓ First entry validation passed (skipped: ${firstResult.reason})`, 'INFO');
+    }
   } catch (err) {
     const errorMsg = `First entry validation failed: ${err}`;
     result.validationError = errorMsg;
@@ -477,12 +583,16 @@ export async function syncJsonWithValidation(
   for (let i = 1; i < jsonData.length; i++) {
     result.processed++;
     try {
-      await syncFn(jsonData[i]);
-      result.synced++;
+      const syncResult = await syncFn(jsonData[i]);
+      if (syncResult.updated) {
+        result.synced++;
+      } else {
+        result.skipped++;
+      }
 
       // Log progress every 100 records
-      if (result.synced % 100 === 0) {
-        logSyncActivity(`Progress: ${result.synced}/${jsonData.length} synced`, 'INFO');
+      if ((result.synced + result.skipped) % 100 === 0) {
+        logSyncActivity(`Progress: ${result.synced} synced, ${result.skipped} skipped`, 'INFO');
       }
     } catch (err) {
       const errorMsg = `Entry ${i + 1}: ${err}`;
@@ -493,7 +603,7 @@ export async function syncJsonWithValidation(
 
   result.success = result.errors.length === 0 || result.synced > 0;
 
-  logSyncActivity(`${tableName} sync complete: ${result.synced}/${result.processed} synced`, result.success ? 'INFO' : 'ERROR');
+  logSyncActivity(`${tableName} sync complete: ${result.synced} synced, ${result.skipped} skipped, ${result.errors.length} errors`, result.success ? 'INFO' : 'ERROR');
 
   if (result.errors.length > 0) {
     logSyncActivity(`Errors encountered: ${result.errors.length}`, 'ERROR');
