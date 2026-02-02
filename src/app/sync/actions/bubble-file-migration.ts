@@ -272,3 +272,121 @@ export async function randomTestMigration() {
     return { success: false, error: error.message };
   }
 }
+
+export async function migrateSedaFilesToLocalByBubbleId(bubbleId: string) {
+  const sedaConfig = FILE_FIELDS_CONFIG.find((config) => config.tableName === 'seda_registration');
+
+  if (!sedaConfig) {
+    return { success: false, error: 'SEDA config not found' };
+  }
+
+  try {
+    const selectFields: Record<string, any> = {
+      id: (sedaConfig.table as any)[sedaConfig.idField],
+      bubble_id: (sedaConfig.table as any).bubble_id,
+    };
+
+    for (const field of sedaConfig.fields) {
+      selectFields[field.name] = (sedaConfig.table as any)[field.name];
+    }
+
+    const sedaRecords = await db
+      .select(selectFields)
+      .from(sedaConfig.table)
+      .where(eq((sedaConfig.table as any).bubble_id, bubbleId))
+      .limit(1);
+
+    if (sedaRecords.length === 0) {
+      return { success: false, error: 'SEDA registration not found' };
+    }
+
+    const record = sedaRecords[0] as Record<string, any>;
+    const migrated: Array<{ field: string; url: string; newUrl: string }> = [];
+    const skipped: Array<{ field: string; url: string; reason: string }> = [];
+    const failed: Array<{ field: string; url: string; error: string }> = [];
+    const missing: Array<{ field: string; reason: string }> = [];
+
+    for (const fieldConfig of sedaConfig.fields) {
+      const fieldName = fieldConfig.name;
+
+      if (fieldConfig.type === 'array') {
+        const urls = Array.isArray(record[fieldName]) ? [...record[fieldName]] : [];
+
+        if (!Array.isArray(record[fieldName]) || urls.length === 0) {
+          missing.push({ field: fieldName, reason: 'empty array' });
+          continue;
+        }
+
+        let hasChanges = false;
+
+        for (let i = 0; i < urls.length; i++) {
+          const url = urls[i];
+          if (!url || typeof url !== 'string' || url.trim() === '') {
+            missing.push({ field: fieldName, reason: 'empty url' });
+            continue;
+          }
+
+          if (!isBubbleUrl(url)) {
+            skipped.push({ field: fieldName, url, reason: 'already local or not external' });
+            continue;
+          }
+
+          try {
+            const filename = generateFilename(url, record.id, i);
+            const targetPath = path.join(STORAGE_ROOT, fieldConfig.subfolder, filename);
+            const newUrl = `${FILE_BASE_URL}/api/files/${fieldConfig.subfolder}/${filename}`;
+            await downloadFile(url, targetPath);
+            urls[i] = newUrl;
+            hasChanges = true;
+            migrated.push({ field: fieldName, url, newUrl });
+          } catch (error: any) {
+            failed.push({ field: fieldName, url, error: error.message || String(error) });
+          }
+        }
+
+        if (hasChanges) {
+          await db
+            .update(sedaConfig.table)
+            .set({ [fieldName]: urls })
+            .where(eq((sedaConfig.table as any)[sedaConfig.idField], record.id));
+        }
+      } else {
+        const url = record[fieldName] as string | null;
+
+        if (!url || typeof url !== 'string' || url.trim() === '') {
+          missing.push({ field: fieldName, reason: 'empty url' });
+          continue;
+        }
+
+        if (!isBubbleUrl(url)) {
+          skipped.push({ field: fieldName, url, reason: 'already local or not external' });
+          continue;
+        }
+
+        try {
+          const filename = generateFilename(url, record.id);
+          const targetPath = path.join(STORAGE_ROOT, fieldConfig.subfolder, filename);
+          const newUrl = `${FILE_BASE_URL}/api/files/${fieldConfig.subfolder}/${filename}`;
+          await downloadFile(url, targetPath);
+          await db
+            .update(sedaConfig.table)
+            .set({ [fieldName]: newUrl })
+            .where(eq((sedaConfig.table as any)[sedaConfig.idField], record.id));
+          migrated.push({ field: fieldName, url, newUrl });
+        } catch (error: any) {
+          failed.push({ field: fieldName, url, error: error.message || String(error) });
+        }
+      }
+    }
+
+    return {
+      success: true,
+      migrated,
+      skipped,
+      failed,
+      missing,
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message || String(error) };
+  }
+}
