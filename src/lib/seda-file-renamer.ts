@@ -150,6 +150,8 @@ export async function downloadFile(url: string): Promise<Buffer> {
 export function extractAllFiles(sedaData: any, customerName: string) {
   const files: { url: string; newName: string }[] = [];
 
+  console.log(`[Download] Checking ${FILE_MAPPINGS.length} document fields...`);
+
   for (const mapping of FILE_MAPPINGS) {
     const fieldValue = sedaData[mapping.field];
 
@@ -161,6 +163,9 @@ export function extractAllFiles(sedaData: any, customerName: string) {
     if (mapping.isArray) {
       // Handle array fields
       const urls = Array.isArray(fieldValue) ? fieldValue : [];
+      if (urls.length > 0) {
+        console.log(`[Download] Found ${urls.length} files in ${mapping.field}`);
+      }
       urls.forEach((url: string, index: number) => {
         if (url && url.trim() !== "") {
           const newName = generateFileName(
@@ -182,9 +187,11 @@ export function extractAllFiles(sedaData: any, customerName: string) {
           fieldValue
         );
         files.push({ url: fieldValue, newName });
+        console.log(`[Download] Found file in ${mapping.field}: ${fieldValue.substring(0, 50)}...`);
       }
     }
   }
 
+  console.log(`[Download] Total files found: ${files.length}`);
   return files;
 }
