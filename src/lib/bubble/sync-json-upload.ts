@@ -12,7 +12,7 @@
  */
 
 import { db } from "@/lib/db";
-import { invoices, payments, sedaRegistration, invoice_items, users } from "@/db/schema";
+import { invoices, payments, sedaRegistration, invoice_items, users, agents } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
 import { eq } from "drizzle-orm";
 import { patchSchemaFromJson, type SchemaPatchResult } from "./schema-patcher";
@@ -23,7 +23,7 @@ import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
  * TYPE DEFINITIONS
  * ============================================================================
  */
-export type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user';
+export type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user' | 'agent';
 
 export interface JsonUploadSyncResult {
   success: boolean;
@@ -31,6 +31,7 @@ export interface JsonUploadSyncResult {
   processed: number;
   synced: number;
   skipped: number;
+  merged?: number;  // For SEDA merge mode - records that had fields filled
   errors: string[];
   validationError?: string;
   schemaPatch?: SchemaPatchResult;
@@ -148,35 +149,59 @@ async function upsertPayment(bubbleId: string, vals: any, jsonModifiedDate: Date
   }
 }
 
-// Upsert function for SEDA registrations - ONLY overwrite if JSON is newer
-async function upsertSedaRegistration(bubbleId: string, vals: any, jsonModifiedDate: Date | null): Promise<{ updated: boolean; reason?: string }> {
+// Helper: Check if a value is effectively empty (null, undefined, empty string, empty array)
+function isEmptyValue(value: any): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === 'string' && value.trim() === '') return true;
+  if (Array.isArray(value) && value.length === 0) return true;
+  return false;
+}
+
+// Upsert function for SEDA registrations - MERGE MODE: only fill empty columns
+async function upsertSedaRegistrationMerge(bubbleId: string, vals: any): Promise<{ updated: boolean; inserted: boolean; fieldsFilled: number; reason?: string }> {
   const existing = await db.query.sedaRegistration.findFirst({
     where: eq(sedaRegistration.bubble_id, bubbleId)
   });
 
   if (existing) {
-    // Check if JSON data is newer than existing record
-    const existingDate = existing.updated_at || existing.modified_date || existing.created_at;
-    
-    if (jsonModifiedDate && existingDate) {
-      // If existing record is newer or same, skip update
-      if (existingDate > jsonModifiedDate) {
-        return { updated: false, reason: 'existing_is_newer' };
-      }
-      // If dates are equal, skip to avoid unnecessary updates
-      if (existingDate.getTime() === jsonModifiedDate.getTime()) {
-        return { updated: false, reason: 'same_timestamp' };
+    // MERGE MODE: Build update object with only empty fields from DB that have values in JSON
+    const mergeUpdates: any = {};
+    let fieldsFilled = 0;
+
+    // Iterate through all fields in vals (except bubble_id, timestamps)
+    for (const [key, value] of Object.entries(vals)) {
+      // Skip bubble_id and auto-managed timestamps
+      if (key === 'bubble_id' || key === 'created_at' || key === 'id') continue;
+      
+      // Skip if JSON value is empty
+      if (isEmptyValue(value)) continue;
+      
+      // Check if existing DB value is empty
+      const existingValue = (existing as any)[key];
+      if (isEmptyValue(existingValue)) {
+        // DB is empty, JSON has value -> fill it
+        mergeUpdates[key] = value;
+        fieldsFilled++;
       }
     }
-    
-    // JSON is newer - perform update
+
+    if (fieldsFilled === 0) {
+      return { updated: false, inserted: false, fieldsFilled: 0, reason: 'no_empty_fields_to_fill' };
+    }
+
+    // Always update updated_at and last_synced_at
+    mergeUpdates.updated_at = new Date();
+    mergeUpdates.last_synced_at = new Date();
+
     await db.update(sedaRegistration)
-      .set(vals)
+      .set(mergeUpdates)
       .where(eq(sedaRegistration.bubble_id, bubbleId));
-    return { updated: true };
+    
+    return { updated: true, inserted: false, fieldsFilled };
   } else {
+    // New record - insert all values
     await db.insert(sedaRegistration).values(vals);
-    return { updated: true };
+    return { updated: false, inserted: true, fieldsFilled: 0 };
   }
 }
 
@@ -356,28 +381,26 @@ async function syncPayment(pay: any): Promise<{ updated: boolean; reason?: strin
 
 /**
  * ============================================================================
- * SEDA REGISTRATION SYNC FUNCTION
+ * SEDA REGISTRATION SYNC FUNCTION - MERGE MODE
  * ============================================================================
+ * Only fills empty columns in DB with data from JSON (never overwrites existing data)
  */
-async function syncSedaRegistration(seda: any): Promise<{ updated: boolean; reason?: string }> {
+async function syncSedaRegistration(seda: any): Promise<{ updated: boolean; inserted: boolean; fieldsFilled: number; reason?: string }> {
   const bubbleId = seda["unique id"] || seda._id;
   if (!bubbleId) throw new Error("SEDA registration missing 'unique id' or '_id' field");
 
   try {
-    // Parse Modified Date for comparison
-    const jsonModifiedDate = parseBubbleDate(seda["Modified Date"]);
-    
     const mapped = mapSedaRegistrationFields(seda);
     const vals = {
       ...mapped,
       bubble_id: bubbleId,
       created_at: parseBubbleDate(seda["Created Date"]) || new Date(),
-      updated_at: jsonModifiedDate || new Date(),
-      modified_date: jsonModifiedDate,
+      updated_at: parseBubbleDate(seda["Modified Date"]) || new Date(),
+      modified_date: parseBubbleDate(seda["Modified Date"]),
       last_synced_at: new Date(),
     };
 
-    return await upsertSedaRegistration(bubbleId, vals, jsonModifiedDate);
+    return await upsertSedaRegistrationMerge(bubbleId, vals);
   } catch (error: any) {
     let columnInfo = '';
     if (error?.message) {
@@ -471,6 +494,78 @@ async function syncUser(user: any): Promise<{ updated: boolean; reason?: string 
   }
 }
 
+// Upsert function for agents - ONLY overwrite if JSON is newer
+async function upsertAgent(bubbleId: string, vals: any, jsonModifiedDate: Date | null): Promise<{ updated: boolean; reason?: string }> {
+  const existing = await db.query.agents.findFirst({
+    where: eq(agents.bubble_id, bubbleId)
+  });
+
+  if (existing) {
+    // Check if JSON data is newer than existing record
+    const existingDate = existing.updated_at || existing.created_at;
+    
+    if (jsonModifiedDate && existingDate) {
+      // If existing record is newer or same, skip update
+      if (existingDate > jsonModifiedDate) {
+        return { updated: false, reason: 'existing_is_newer' };
+      }
+      // If dates are equal, skip to avoid unnecessary updates
+      if (existingDate.getTime() === jsonModifiedDate.getTime()) {
+        return { updated: false, reason: 'same_timestamp' };
+      }
+    }
+    
+    // JSON is newer - perform update
+    await db.update(agents)
+      .set(vals)
+      .where(eq(agents.bubble_id, bubbleId));
+    return { updated: true };
+  } else {
+    await db.insert(agents).values(vals);
+    return { updated: true };
+  }
+}
+
+/**
+ * ============================================================================
+ * AGENT SYNC FUNCTION
+ * ============================================================================
+ */
+async function syncAgent(agent: any): Promise<{ updated: boolean; reason?: string }> {
+  const bubbleId = agent["unique id"] || agent._id;
+  if (!bubbleId) throw new Error("Agent missing 'unique id' or '_id' field");
+
+  try {
+    // Parse Modified Date for comparison
+    const jsonModifiedDate = parseBubbleDate(agent["Modified Date"]);
+
+    const vals = {
+      bubble_id: bubbleId,
+      name: agent["Name"] || null,
+      email: agent["Email"] || null,
+      contact: agent["Contact"] || null,
+      agent_type: agent["Agent Type"] || null,
+      address: agent["Address"] || null,
+      bankin_account: agent["Bankin Account"] || null,
+      banker: agent["Banker"] || null,
+      created_at: parseBubbleDate(agent["Created Date"]) || new Date(),
+      updated_at: jsonModifiedDate || new Date(),
+      last_synced_at: new Date(),
+    };
+
+    return await upsertAgent(bubbleId, vals, jsonModifiedDate);
+  } catch (error: any) {
+    let columnInfo = '';
+    if (error?.message) {
+      const columnMatch = error.message.match(/column "([^"]+)"/);
+      if (columnMatch) {
+        columnInfo = `Column: ${columnMatch[1]} | `;
+      }
+    }
+    throw new Error(`Agent ${bubbleId} sync failed: ${columnInfo}${error?.message || error}`);
+  }
+}
+
 /**
  * ============================================================================
  * MAIN SYNC FUNCTION - WITH FIRST ENTRY VALIDATION
@@ -496,6 +591,7 @@ export async function syncJsonWithValidation(
     processed: 0,
     synced: 0,
     skipped: 0,
+    merged: 0,
     errors: []
   };
 
@@ -505,8 +601,11 @@ export async function syncJsonWithValidation(
     return result;
   }
 
+  // Track if this is SEDA merge mode (different return type)
+  const isSedaMerge = entityType === 'seda_registration';
+
   // Select sync function based on entity type
-  let syncFn: ((data: any) => Promise<{ updated: boolean; reason?: string }>) | null = null;
+  let syncFn: any = null;
   let tableName = "";
 
   switch (entityType) {
@@ -529,6 +628,10 @@ export async function syncJsonWithValidation(
     case 'user':
       syncFn = syncUser;
       tableName = "users";
+      break;
+    case 'agent':
+      syncFn = syncAgent;
+      tableName = "agents";
       break;
     default:
       result.validationError = `Unknown entity type: ${entityType}`;
@@ -563,12 +666,28 @@ export async function syncJsonWithValidation(
   try {
     const firstResult = await syncFn(jsonData[0]);
     result.processed = 1;
-    if (firstResult.updated) {
-      result.synced = 1;
-      logSyncActivity(`✓ First entry validation passed (updated)`, 'INFO');
+    
+    if (isSedaMerge) {
+      // SEDA merge mode: check updated/inserted/fieldsFilled
+      if (firstResult.inserted) {
+        result.synced = 1;
+        logSyncActivity(`✓ First entry validation passed (new record inserted)`, 'INFO');
+      } else if (firstResult.updated) {
+        result.merged = 1;
+        logSyncActivity(`✓ First entry validation passed (merged, ${firstResult.fieldsFilled} fields filled)`, 'INFO');
+      } else {
+        result.skipped = 1;
+        logSyncActivity(`✓ First entry validation passed (skipped: ${firstResult.reason})`, 'INFO');
+      }
     } else {
-      result.skipped = 1;
-      logSyncActivity(`✓ First entry validation passed (skipped: ${firstResult.reason})`, 'INFO');
+      // Standard mode: check updated flag
+      if (firstResult.updated) {
+        result.synced = 1;
+        logSyncActivity(`✓ First entry validation passed (updated)`, 'INFO');
+      } else {
+        result.skipped = 1;
+        logSyncActivity(`✓ First entry validation passed (skipped: ${firstResult.reason})`, 'INFO');
+      }
     }
   } catch (err) {
     const errorMsg = `First entry validation failed: ${err}`;
@@ -584,15 +703,32 @@ export async function syncJsonWithValidation(
     result.processed++;
     try {
       const syncResult = await syncFn(jsonData[i]);
-      if (syncResult.updated) {
-        result.synced++;
+      
+      if (isSedaMerge) {
+        // SEDA merge mode
+        if (syncResult.inserted) {
+          result.synced++;
+        } else if (syncResult.updated) {
+          result.merged!++;
+        } else {
+          result.skipped++;
+        }
       } else {
-        result.skipped++;
+        // Standard mode
+        if (syncResult.updated) {
+          result.synced++;
+        } else {
+          result.skipped++;
+        }
       }
 
       // Log progress every 100 records
-      if ((result.synced + result.skipped) % 100 === 0) {
-        logSyncActivity(`Progress: ${result.synced} synced, ${result.skipped} skipped`, 'INFO');
+      if ((result.synced + result.skipped + (result.merged || 0)) % 100 === 0) {
+        if (isSedaMerge) {
+          logSyncActivity(`Progress: ${result.synced} inserted, ${result.merged} merged, ${result.skipped} skipped`, 'INFO');
+        } else {
+          logSyncActivity(`Progress: ${result.synced} synced, ${result.skipped} skipped`, 'INFO');
+        }
       }
     } catch (err) {
       const errorMsg = `Entry ${i + 1}: ${err}`;
@@ -601,9 +737,13 @@ export async function syncJsonWithValidation(
     }
   }
 
-  result.success = result.errors.length === 0 || result.synced > 0;
+  result.success = result.errors.length === 0 || result.synced > 0 || (result.merged || 0) > 0;
 
-  logSyncActivity(`${tableName} sync complete: ${result.synced} synced, ${result.skipped} skipped, ${result.errors.length} errors`, result.success ? 'INFO' : 'ERROR');
+  if (isSedaMerge) {
+    logSyncActivity(`${tableName} sync complete: ${result.synced} inserted, ${result.merged} merged, ${result.skipped} skipped, ${result.errors.length} errors`, result.success ? 'INFO' : 'ERROR');
+  } else {
+    logSyncActivity(`${tableName} sync complete: ${result.synced} synced, ${result.skipped} skipped, ${result.errors.length} errors`, result.success ? 'INFO' : 'ERROR');
+  }
 
   if (result.errors.length > 0) {
     logSyncActivity(`Errors encountered: ${result.errors.length}`, 'ERROR');

@@ -12,7 +12,7 @@
 import { useState } from "react";
 import { Upload, RefreshCw, Loader2, XCircle, CheckCircle2, FileJson, Database } from "lucide-react";
 
-type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user';
+type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user' | 'agent';
 
 interface EntityOption {
   value: EntityType;
@@ -26,6 +26,7 @@ const ENTITY_OPTIONS: EntityOption[] = [
   { value: 'seda_registration', label: 'SEDA Registrations', color: 'purple' },
   { value: 'invoice_item', label: 'Invoice Items', color: 'orange' },
   { value: 'user', label: 'Users', color: 'cyan' },
+  { value: 'agent', label: 'Agents', color: 'amber' },
 ];
 
 interface JsonUploadSyncFormProps {
@@ -90,6 +91,7 @@ export function JsonUploadSyncForm({
       case 'purple': return 'text-purple-400 bg-purple-500/20 border-purple-500/30';
       case 'orange': return 'text-orange-400 bg-orange-500/20 border-orange-500/30';
       case 'cyan': return 'text-cyan-400 bg-cyan-500/20 border-cyan-500/30';
+      case 'amber': return 'text-amber-400 bg-amber-500/20 border-amber-500/30';
       default: return 'text-gray-400 bg-gray-500/20 border-gray-500/30';
     }
   };
@@ -226,14 +228,26 @@ export function JsonUploadSyncForm({
               <p className="font-bold">JSON Upload Sync Completed Successfully</p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className={`grid gap-3 ${results.result.entityType === 'seda_registration' ? 'grid-cols-2 md:grid-cols-6' : 'grid-cols-2 md:grid-cols-5'}`}>
               <div className="text-center p-3 bg-white/5 rounded-lg">
                 <p className="text-2xl font-bold text-white">{results.result.processed}</p>
                 <p className="text-[10px] uppercase font-bold text-indigo-300">Processed</p>
               </div>
               <div className="text-center p-3 bg-white/5 rounded-lg">
                 <p className="text-2xl font-bold text-white">{results.result.synced}</p>
-                <p className="text-[10px] uppercase font-bold text-indigo-300">Synced</p>
+                <p className="text-[10px] uppercase font-bold text-indigo-300">
+                  {results.result.entityType === 'seda_registration' ? 'Inserted' : 'Synced'}
+                </p>
+              </div>
+              {results.result.entityType === 'seda_registration' && (
+                <div className="text-center p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                  <p className="text-2xl font-bold text-purple-300">{results.result.merged || 0}</p>
+                  <p className="text-[10px] uppercase font-bold text-purple-400">Merged</p>
+                </div>
+              )}
+              <div className="text-center p-3 bg-white/5 rounded-lg">
+                <p className="text-2xl font-bold text-white">{results.result.skipped}</p>
+                <p className="text-[10px] uppercase font-bold text-indigo-300">Skipped</p>
               </div>
               <div className="text-center p-3 bg-white/5 rounded-lg">
                 <p className="text-2xl font-bold text-white">{results.result.errors.length}</p>
@@ -246,6 +260,16 @@ export function JsonUploadSyncForm({
                 <p className="text-[10px] uppercase font-bold text-indigo-300">Table</p>
               </div>
             </div>
+            
+            {/* SEDA Merge Mode Info */}
+            {results.result.entityType === 'seda_registration' && (
+              <div className="mt-3 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                <p className="text-xs text-purple-300">
+                  <span className="font-bold">Merge Mode:</span> Only empty fields were filled with JSON data. 
+                  Existing data was preserved.
+                </p>
+              </div>
+            )}
 
             {results.result.errors.length > 0 && (
               <div className="mt-4">

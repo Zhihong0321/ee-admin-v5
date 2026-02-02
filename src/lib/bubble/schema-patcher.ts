@@ -13,7 +13,7 @@ import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import { logSyncActivity } from "@/lib/logger";
 
-export type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user';
+export type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user' | 'agent';
 
 /**
  * Map entity types to actual database table names
@@ -22,6 +22,7 @@ const TABLE_NAMES: Record<EntityType, string> = {
   'invoice': 'invoice',
   'payment': 'payment',
   'seda_registration': 'seda_registration',
+  'agent': 'agent',
   'invoice_item': 'invoice_item',
   'user': 'user',
 };
