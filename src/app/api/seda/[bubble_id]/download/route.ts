@@ -111,6 +111,7 @@ export async function GET(
     // Create ZIP file
     const zip = new JSZip();
     let successCount = 0;
+    let failCount = 0;
 
     // Add all files to ZIP
     for (const file of files) {
@@ -119,6 +120,8 @@ export async function GET(
         zip.file(file.newName, fileBuffer);
         successCount++;
       } catch (error) {
+        failCount++;
+        console.log(`[Route] Failed to download ${file.newName}: ${(error as Error).message}`);
         // Continue with other files even if one fails
       }
     }
@@ -129,6 +132,8 @@ export async function GET(
         { status: 500 }
       );
     }
+
+    console.log(`[Route] Downloaded ${successCount} files, ${failCount} failed`);
 
     // Generate ZIP buffer
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });

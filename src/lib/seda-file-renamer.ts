@@ -112,11 +112,22 @@ export async function downloadFile(url: string): Promise<Buffer> {
     throw new Error("Invalid URL: URL is empty");
   }
 
-  // Handle local /api/files/ URLs
-  if (url.startsWith("/api/files/") || url.startsWith("/storage/")) {
-    // Extract path from URL
-    const localPath = url.replace("/api/files/", "").replace("/storage/", "");
-    const fullPath = path.join(process.cwd(), "storage", localPath);
+  // Handle local /api/files/ URLs (including absolute URLs)
+  if (url.includes("/api/files/") || url.includes("/storage/")) {
+    // Extract path from URL - handle absolute URLs like https://domain/api/files/...
+    let urlPath = url;
+    try {
+      const urlObj = new URL(url);
+      urlPath = urlObj.pathname;
+    } catch {
+      // Already a path, use as-is
+    }
+
+    // Remove /api/files/ or /storage/ prefix
+    const localPath = urlPath.replace(/^\/api\/files\//, "").replace(/^\/storage\//, "");
+    const fullPath = path.join("/storage", localPath);
+
+    console.log(`[downloadFile] Local file: ${fullPath}`);
 
     // Check if file exists
     if (!fs.existsSync(fullPath)) {
@@ -124,10 +135,12 @@ export async function downloadFile(url: string): Promise<Buffer> {
     }
 
     const buffer = fs.readFileSync(fullPath);
+    console.log(`[downloadFile] Success: ${buffer.length} bytes`);
     return buffer;
   }
 
   // Handle external URLs (Bubble.io, etc.)
+  console.log(`[downloadFile] External URL: ${url.substring(0, 50)}...`);
   try {
     const response = await fetch(url);
 
@@ -137,8 +150,10 @@ export async function downloadFile(url: string): Promise<Buffer> {
 
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    console.log(`[downloadFile] Success: ${buffer.length} bytes`);
     return buffer;
   } catch (error: any) {
+    console.log(`[downloadFile] Failed: ${error.message}`);
     throw new Error(`Failed to download external file: ${error.message}`);
   }
 }
