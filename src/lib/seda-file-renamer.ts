@@ -112,15 +112,11 @@ export async function downloadFile(url: string): Promise<Buffer> {
     throw new Error("Invalid URL: URL is empty");
   }
 
-  console.log(`[downloadFile] Attempting to download: ${url}`);
-
   // Handle local /api/files/ URLs
   if (url.startsWith("/api/files/") || url.startsWith("/storage/")) {
     // Extract path from URL
     const localPath = url.replace("/api/files/", "").replace("/storage/", "");
     const fullPath = path.join(process.cwd(), "storage", localPath);
-
-    console.log(`[downloadFile] Local file path: ${fullPath}`);
 
     // Check if file exists
     if (!fs.existsSync(fullPath)) {
@@ -128,13 +124,11 @@ export async function downloadFile(url: string): Promise<Buffer> {
     }
 
     const buffer = fs.readFileSync(fullPath);
-    console.log(`[downloadFile] Successfully read local file: ${buffer.length} bytes`);
     return buffer;
   }
 
   // Handle external URLs (Bubble.io, etc.)
   try {
-    console.log(`[downloadFile] Fetching external URL: ${url}`);
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -143,7 +137,6 @@ export async function downloadFile(url: string): Promise<Buffer> {
 
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    console.log(`[downloadFile] Successfully downloaded external file: ${buffer.length} bytes`);
     return buffer;
   } catch (error: any) {
     throw new Error(`Failed to download external file: ${error.message}`);
@@ -151,37 +144,23 @@ export async function downloadFile(url: string): Promise<Buffer> {
 }
 
 /**
- * Extract all file URLs from SEDA registration data
+ * Extract ALL file URLs from SEDA registration data
  * Returns array of { url, newName } objects
  */
 export function extractAllFiles(sedaData: any, customerName: string) {
   const files: { url: string; newName: string }[] = [];
 
-  console.log(`[extractAllFiles] Processing SEDA data for customer: ${customerName}`);
-  console.log(`[extractAllFiles] Total field mappings to check: ${FILE_MAPPINGS.length}`);
-
   for (const mapping of FILE_MAPPINGS) {
     const fieldValue = sedaData[mapping.field];
 
-    // Detailed logging for ownership document
-    if (mapping.field === 'property_ownership_prove') {
-      console.log(`[extractAllFiles] Field "${mapping.field}":`, {
-        value: fieldValue,
-        type: typeof fieldValue,
-        isEmpty: !fieldValue,
-        isWhitespace: fieldValue?.trim?.() === '',
-      });
-    } else {
-      console.log(`[extractAllFiles] Field "${mapping.field}":`, fieldValue ? "HAS VALUE" : "NULL/EMPTY");
-    }
-
     if (!fieldValue) continue;
+
+    // Handle whitespace-only strings
+    if (typeof fieldValue === 'string' && fieldValue.trim() === '') continue;
 
     if (mapping.isArray) {
       // Handle array fields
       const urls = Array.isArray(fieldValue) ? fieldValue : [];
-      console.log(`[extractAllFiles] Array field "${mapping.field}" has ${urls.length} items`);
-
       urls.forEach((url: string, index: number) => {
         if (url && url.trim() !== "") {
           const newName = generateFileName(
@@ -191,7 +170,6 @@ export function extractAllFiles(sedaData: any, customerName: string) {
             url
           );
           files.push({ url, newName });
-          console.log(`[extractAllFiles] Added: ${newName}`);
         }
       });
     } else {
@@ -204,11 +182,9 @@ export function extractAllFiles(sedaData: any, customerName: string) {
           fieldValue
         );
         files.push({ url: fieldValue, newName });
-        console.log(`[extractAllFiles] Added: ${newName}`);
       }
     }
   }
 
-  console.log(`[extractAllFiles] Total files extracted: ${files.length}`);
   return files;
 }

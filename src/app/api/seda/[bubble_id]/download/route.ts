@@ -3,11 +3,13 @@ import { db } from "@/lib/db";
 import { sedaRegistration, customers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import JSZip from "jszip";
+import fs from "fs";
+import path from "path";
 import {
-  extractAllFiles,
-  downloadFile,
   sanitizeCustomerName,
 } from "@/lib/seda-file-renamer";
+
+const STORAGE_ROOT = '/storage';
 
 interface RouteContext {
   params: Promise<{
@@ -16,8 +18,37 @@ interface RouteContext {
 }
 
 /**
+ * Recursively scan directory for files
+ */
+function scanDirectory(dirPath: string, basePath: string = ''): string[] {
+  const files: string[] = [];
+
+  if (!fs.existsSync(dirPath)) return files;
+
+  try {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      const relativePath = basePath ? path.join(basePath, entry.name) : entry.name;
+
+      if (entry.isDirectory()) {
+        files.push(...scanDirectory(fullPath, relativePath));
+      } else if (entry.isFile()) {
+        files.push(relativePath);
+      }
+    }
+  } catch (error) {
+    // Skip directories we can't read
+  }
+
+  return files;
+}
+
+/**
  * GET /api/seda/[bubble_id]/download
- * Download all SEDA documents as a ZIP file with renamed filenames
+ * Download ALL SEDA documents from storage as a ZIP file
+ * Scans the actual storage folder instead of relying on database URLs
  */
 export async function GET(
   request: NextRequest,
@@ -31,25 +62,6 @@ export async function GET(
       .select({
         bubble_id: sedaRegistration.bubble_id,
         linked_customer: sedaRegistration.linked_customer,
-        mykad_pdf: sedaRegistration.mykad_pdf,
-        ic_copy_front: sedaRegistration.ic_copy_front,
-        ic_copy_back: sedaRegistration.ic_copy_back,
-        tnb_bill_1: sedaRegistration.tnb_bill_1,
-        tnb_bill_2: sedaRegistration.tnb_bill_2,
-        tnb_bill_3: sedaRegistration.tnb_bill_3,
-        tnb_meter: sedaRegistration.tnb_meter,
-        customer_signature: sedaRegistration.customer_signature,
-        property_ownership_prove: sedaRegistration.property_ownership_prove,
-        nem_cert: sedaRegistration.nem_cert,
-        e_contact_mykad: sedaRegistration.e_contact_mykad,
-        drawing_system_submitted: sedaRegistration.drawing_system_submitted,
-        g_electric_folder_link: sedaRegistration.g_electric_folder_link,
-        g_roof_folder_link: sedaRegistration.g_roof_folder_link,
-        roof_images: sedaRegistration.roof_images,
-        site_images: sedaRegistration.site_images,
-        drawing_pdf_system: sedaRegistration.drawing_pdf_system,
-        drawing_system_actual: sedaRegistration.drawing_system_actual,
-        drawing_engineering_seda_pdf: sedaRegistration.drawing_engineering_seda_pdf,
         customer_name: customers.name,
       })
       .from(sedaRegistration)
@@ -68,15 +80,28 @@ export async function GET(
     const customerName = seda.customer_name || "UnknownCustomer";
     const sanitizedName = sanitizeCustomerName(customerName);
 
-    // Extract all file URLs with new names
-    const files = extractAllFiles(seda, customerName);
-
-    console.log(`Found ${files.length} files for download`);
-    files.forEach(f => console.log(`  - ${f.newName}: ${f.url}`));
-
-    if (files.length === 0) {
+    // Check if storage exists
+    if (!fs.existsSync(STORAGE_ROOT)) {
       return NextResponse.json(
-        { error: "No documents found for this SEDA registration" },
+        { error: "Storage folder not found" },
+        { status: 404 }
+      );
+    }
+
+    // Scan storage for all files
+    const allFiles = scanDirectory(STORAGE_ROOT);
+
+    // Filter files related to this SEDA registration
+    // Match by bubble_id or customer_id
+    const relatedFiles = allFiles.filter(filePath => {
+      const lowerPath = filePath.toLowerCase();
+      return lowerPath.includes(bubble_id.toLowerCase()) ||
+             (seda.linked_customer && lowerPath.includes(seda.linked_customer.toLowerCase()));
+    });
+
+    if (relatedFiles.length === 0) {
+      return NextResponse.json(
+        { error: "No documents found for this SEDA registration in storage" },
         { status: 404 }
       );
     }
@@ -84,30 +109,29 @@ export async function GET(
     // Create ZIP file
     const zip = new JSZip();
     let successCount = 0;
-    let failCount = 0;
 
-    // Add all files to ZIP
-    for (const file of files) {
+    // Add all files to ZIP with clean names
+    for (const relativePath of relatedFiles) {
       try {
-        console.log(`[Download] Attempting: ${file.newName} from ${file.url}`);
-        const fileBuffer = await downloadFile(file.url);
-        zip.file(file.newName, fileBuffer);
+        const fullPath = path.join(STORAGE_ROOT, relativePath);
+        const fileBuffer = fs.readFileSync(fullPath);
+
+        // Generate clean filename: CustomerName_OriginalFileName.ext
+        const originalName = path.basename(relativePath);
+        const ext = path.extname(originalName);
+        const baseName = path.basename(originalName, ext);
+        const cleanName = `${sanitizedName}_${baseName}${ext}`;
+
+        zip.file(cleanName, fileBuffer);
         successCount++;
-        console.log(`[Download] ✓ Success: ${file.newName} (${fileBuffer.length} bytes)`);
-      } catch (error: any) {
-        failCount++;
-        console.error(`[Download] ✗ Failed: ${file.newName}`);
-        console.error(`[Download]   URL: ${file.url}`);
-        console.error(`[Download]   Error: ${error?.message || error}`);
-        // Continue with other files even if one fails
+      } catch (error) {
+        // Skip files that can't be read
       }
     }
 
-    console.log(`Download complete: ${successCount} succeeded, ${failCount} failed`);
-
     if (successCount === 0) {
       return NextResponse.json(
-        { error: "Failed to download any files. All files are missing or inaccessible." },
+        { error: "Failed to read any files" },
         { status: 500 }
       );
     }
@@ -126,7 +150,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("Error downloading SEDA documents:", error);
     return NextResponse.json(
       { error: "Failed to download documents" },
       { status: 500 }
