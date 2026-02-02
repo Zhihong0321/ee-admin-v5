@@ -12,7 +12,7 @@
  */
 
 import { db } from "@/lib/db";
-import { invoices, payments, sedaRegistration, invoice_items, users, agents } from "@/db/schema";
+import { invoices, payments, sedaRegistration, invoice_items, users, agents, submitted_payments } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
 import { eq } from "drizzle-orm";
 import { patchSchemaFromJson, type SchemaPatchResult } from "./schema-patcher";
@@ -23,7 +23,7 @@ import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
  * TYPE DEFINITIONS
  * ============================================================================
  */
-export type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user' | 'agent';
+export type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user' | 'agent' | 'submitted_payment';
 
 export interface JsonUploadSyncResult {
   success: boolean;
@@ -566,6 +566,95 @@ async function syncAgent(agent: any): Promise<{ updated: boolean; reason?: strin
   }
 }
 
+// Upsert function for submitted payments - ONLY overwrite if JSON is newer
+async function upsertSubmittedPayment(bubbleId: string, vals: any, jsonModifiedDate: Date | null): Promise<{ updated: boolean; reason?: string }> {
+  const existing = await db.query.submitted_payments.findFirst({
+    where: eq(submitted_payments.bubble_id, bubbleId)
+  });
+
+  if (existing) {
+    // Check if JSON data is newer than existing record
+    const existingDate = existing.updated_at || existing.modified_date || existing.created_at;
+    
+    if (jsonModifiedDate && existingDate) {
+      // If existing record is newer or same, skip update
+      if (existingDate > jsonModifiedDate) {
+        return { updated: false, reason: 'existing_is_newer' };
+      }
+      // If dates are equal, skip to avoid unnecessary updates
+      if (existingDate.getTime() === jsonModifiedDate.getTime()) {
+        return { updated: false, reason: 'same_timestamp' };
+      }
+    }
+    
+    // JSON is newer - perform update
+    await db.update(submitted_payments)
+      .set(vals)
+      .where(eq(submitted_payments.bubble_id, bubbleId));
+    return { updated: true };
+  } else {
+    await db.insert(submitted_payments).values(vals);
+    return { updated: true };
+  }
+}
+
+/**
+ * ============================================================================
+ * SUBMITTED PAYMENT SYNC FUNCTION
+ * ============================================================================
+ */
+async function syncSubmittedPayment(submittedPay: any): Promise<{ updated: boolean; reason?: string }> {
+  const bubbleId = submittedPay["unique id"] || submittedPay._id;
+  if (!bubbleId) throw new Error("Submitted payment missing 'unique id' or '_id' field");
+
+  try {
+    // Parse array fields properly
+    const attachment = parseCommaSeparated(submittedPay["Attachment"]);
+    
+    // Parse Modified Date for comparison
+    const jsonModifiedDate = parseBubbleDate(submittedPay["Modified Date"]);
+
+    const vals = {
+      bubble_id: bubbleId,
+      amount: parseAmount(submittedPay["Amount"]),
+      payment_date: parseBubbleDate(submittedPay["Payment Date"]),
+      payment_method: submittedPay["Payment Method"] || null,
+      payment_method_v2: submittedPay["Payment Method V2"] || submittedPay["Payment Method v2"] || null,
+      remark: submittedPay["Remark"] || null,
+      linked_agent: submittedPay["Linked Agent"] || null,
+      linked_customer: submittedPay["Linked Customer"] || null,
+      linked_invoice: submittedPay["Linked Invoice"] || null,
+      created_by: submittedPay["Created By"] || null,
+      created_date: parseBubbleDate(submittedPay["Created Date"]),
+      modified_date: jsonModifiedDate,
+      payment_index: submittedPay["Payment Index"] ? Number(submittedPay["Payment Index"]) : null,
+      epp_month: submittedPay["EPP Month"] ? Number(submittedPay["EPP Month"]) : null,
+      bank_charges: submittedPay["Bank Charges"] ? Number(submittedPay["Bank Charges"]) : null,
+      terminal: submittedPay["Terminal"] || null,
+      attachment: attachment,
+      verified_by: submittedPay["Verified By"] || null,
+      edit_history: submittedPay["Edit History"] || null,
+      issuer_bank: submittedPay["Issuer Bank"] || null,
+      epp_type: submittedPay["EPP Type"] || null,
+      status: submittedPay["Status"] || null,
+      created_at: parseBubbleDate(submittedPay["Created Date"]) || new Date(),
+      updated_at: jsonModifiedDate || new Date(),
+      last_synced_at: new Date(),
+    };
+
+    return await upsertSubmittedPayment(bubbleId, vals, jsonModifiedDate);
+  } catch (error: any) {
+    let columnInfo = '';
+    if (error?.message) {
+      const columnMatch = error.message.match(/column "([^"]+)"/);
+      if (columnMatch) {
+        columnInfo = `Column: ${columnMatch[1]} | `;
+      }
+    }
+    throw new Error(`Submitted Payment ${bubbleId} sync failed: ${columnInfo}${error?.message || error}`);
+  }
+}
+
 /**
  * ============================================================================
  * MAIN SYNC FUNCTION - WITH FIRST ENTRY VALIDATION
@@ -632,6 +721,10 @@ export async function syncJsonWithValidation(
     case 'agent':
       syncFn = syncAgent;
       tableName = "agents";
+      break;
+    case 'submitted_payment':
+      syncFn = syncSubmittedPayment;
+      tableName = "submitted_payments";
       break;
     default:
       result.validationError = `Unknown entity type: ${entityType}`;
