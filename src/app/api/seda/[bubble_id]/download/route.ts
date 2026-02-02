@@ -53,7 +53,13 @@ export async function GET(
   request: NextRequest,
   { params }: RouteContext
 ) {
+  console.log('========================================');
+  console.log('[DOWNLOAD ROUTE CALLED]');
+  console.log('========================================');
+
   try {
+    const { bubble_id } = await params;
+    console.log('[DOWNLOAD] bubble_id:', bubble_id);
     const { bubble_id } = await params;
 
     // Fetch SEDA registration with customer
@@ -159,8 +165,10 @@ export async function GET(
       },
     });
   } catch (error) {
+    console.log('[DOWNLOAD] ERROR:', error);
+    console.log('[DOWNLOAD] Stack:', (error as Error).stack);
     return NextResponse.json(
-      { error: "Failed to download documents" },
+      { error: "Failed to download documents", details: (error as Error).message },
       { status: 500 }
     );
   }
