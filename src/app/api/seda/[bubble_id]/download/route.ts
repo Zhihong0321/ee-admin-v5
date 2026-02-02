@@ -7,9 +7,40 @@ import fs from "fs";
 import path from "path";
 import {
   sanitizeCustomerName,
+  getFileExtension,
 } from "@/lib/seda-file-renamer";
 
 const STORAGE_ROOT = '/storage';
+
+/**
+ * Check if URL is from Bubble.io or external storage
+ */
+function isExternalUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.toLowerCase();
+  return lower.includes('bubble.io') ||
+         lower.includes('bubbleapps.io') ||
+         lower.includes('s3.amazonaws.com') ||
+         lower.includes('amazonaws.com') ||
+         (lower.startsWith('http://') && !lower.includes('/api/files/')) ||
+         (lower.startsWith('https://') && !lower.includes('/api/files/')) ||
+         lower.startsWith('//');
+}
+
+/**
+ * Download file from external URL (Bubble.io, S3, etc.)
+ */
+async function downloadExternalFile(url: string): Promise<Buffer> {
+  const fullUrl = url.startsWith('//') ? `https:${url}` : url;
+  const response = await fetch(fullUrl);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
 
 interface RouteContext {
   params: Promise<{
@@ -47,8 +78,8 @@ function scanDirectory(dirPath: string, basePath: string = ''): string[] {
 
 /**
  * GET /api/seda/[bubble_id]/download
- * Download ALL SEDA documents from storage as a ZIP file
- * Scans the actual storage folder instead of relying on database URLs
+ * Download ALL SEDA documents from storage AND database URLs
+ * Handles both local /storage files AND external Bubble.io URLs
  */
 export async function GET(
   request: NextRequest,
@@ -57,12 +88,31 @@ export async function GET(
   try {
     const { bubble_id } = await params;
 
-    // Fetch SEDA registration with customer
+    // Fetch SEDA registration with ALL document fields
     const sedaData = await db
       .select({
         bubble_id: sedaRegistration.bubble_id,
         linked_customer: sedaRegistration.linked_customer,
         customer_name: customers.name,
+        mykad_pdf: sedaRegistration.mykad_pdf,
+        ic_copy_front: sedaRegistration.ic_copy_front,
+        ic_copy_back: sedaRegistration.ic_copy_back,
+        tnb_bill_1: sedaRegistration.tnb_bill_1,
+        tnb_bill_2: sedaRegistration.tnb_bill_2,
+        tnb_bill_3: sedaRegistration.tnb_bill_3,
+        tnb_meter: sedaRegistration.tnb_meter,
+        customer_signature: sedaRegistration.customer_signature,
+        property_ownership_prove: sedaRegistration.property_ownership_prove,
+        nem_cert: sedaRegistration.nem_cert,
+        e_contact_mykad: sedaRegistration.e_contact_mykad,
+        drawing_system_submitted: sedaRegistration.drawing_system_submitted,
+        g_electric_folder_link: sedaRegistration.g_electric_folder_link,
+        g_roof_folder_link: sedaRegistration.g_roof_folder_link,
+        roof_images: sedaRegistration.roof_images,
+        site_images: sedaRegistration.site_images,
+        drawing_pdf_system: sedaRegistration.drawing_pdf_system,
+        drawing_system_actual: sedaRegistration.drawing_system_actual,
+        drawing_engineering_seda_pdf: sedaRegistration.drawing_engineering_seda_pdf,
       })
       .from(sedaRegistration)
       .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))
@@ -80,59 +130,114 @@ export async function GET(
     const customerName = seda.customer_name || "UnknownCustomer";
     const sanitizedName = sanitizeCustomerName(customerName);
 
-    // Check if storage exists
-    if (!fs.existsSync(STORAGE_ROOT)) {
-      return NextResponse.json(
-        { error: "Storage folder not found" },
-        { status: 404 }
-      );
-    }
-
-    // Scan storage for all files
-    const allFiles = scanDirectory(STORAGE_ROOT);
-
-    // Filter files related to this SEDA registration
-    // Match by bubble_id or customer_id
-    const relatedFiles = allFiles.filter(filePath => {
-      const lowerPath = filePath.toLowerCase();
-      return lowerPath.includes(bubble_id.toLowerCase()) ||
-             (seda.linked_customer && lowerPath.includes(seda.linked_customer.toLowerCase()));
-    });
-
-    if (relatedFiles.length === 0) {
-      return NextResponse.json(
-        { error: "No documents found for this SEDA registration in storage" },
-        { status: 404 }
-      );
-    }
-
-    // Create ZIP file
     const zip = new JSZip();
-    let successCount = 0;
+    let fileCount = 0;
+    const addedFiles = new Set<string>(); // Track filenames to avoid duplicates
 
-    // Add all files to ZIP with clean names
-    for (const relativePath of relatedFiles) {
-      try {
-        const fullPath = path.join(STORAGE_ROOT, relativePath);
-        const fileBuffer = fs.readFileSync(fullPath);
+    // STEP 1: Scan local storage folder for files
+    if (fs.existsSync(STORAGE_ROOT)) {
+      const allFiles = scanDirectory(STORAGE_ROOT);
 
-        // Generate clean filename: CustomerName_OriginalFileName.ext
-        const originalName = path.basename(relativePath);
-        const ext = path.extname(originalName);
-        const baseName = path.basename(originalName, ext);
-        const cleanName = `${sanitizedName}_${baseName}${ext}`;
+      for (const relativePath of allFiles) {
+        const lowerPath = relativePath.toLowerCase();
+        // Match files by bubble_id or customer_id
+        if (lowerPath.includes(bubble_id.toLowerCase()) ||
+            (seda.linked_customer && lowerPath.includes(seda.linked_customer.toLowerCase()))) {
 
-        zip.file(cleanName, fileBuffer);
-        successCount++;
-      } catch (error) {
-        // Skip files that can't be read
+          try {
+            const fullPath = path.join(STORAGE_ROOT, relativePath);
+            const fileBuffer = fs.readFileSync(fullPath);
+            const originalName = path.basename(relativePath);
+            const cleanName = `${sanitizedName}_${originalName}`;
+
+            if (!addedFiles.has(cleanName)) {
+              zip.file(cleanName, fileBuffer);
+              addedFiles.add(cleanName);
+              fileCount++;
+            }
+          } catch (error) {
+            // Skip files that can't be read
+          }
+        }
       }
     }
 
-    if (successCount === 0) {
+    // STEP 2: Download external URLs from database (Bubble.io, S3, etc.)
+    const fieldMappings = [
+      { field: 'mykad_pdf', name: 'MyKadPDF' },
+      { field: 'ic_copy_front', name: 'MyKadFront' },
+      { field: 'ic_copy_back', name: 'MyKadBack' },
+      { field: 'tnb_bill_1', name: 'TNB_Bill1' },
+      { field: 'tnb_bill_2', name: 'TNB_Bill2' },
+      { field: 'tnb_bill_3', name: 'TNB_Bill3' },
+      { field: 'tnb_meter', name: 'TNB_Meter' },
+      { field: 'customer_signature', name: 'Signature' },
+      { field: 'property_ownership_prove', name: 'Ownership' },
+      { field: 'nem_cert', name: 'NEM_Cert' },
+      { field: 'e_contact_mykad', name: 'EmergencyMyKad' },
+      { field: 'drawing_system_submitted', name: 'DrawingSubmitted' },
+      { field: 'g_electric_folder_link', name: 'GElectricFolder' },
+      { field: 'g_roof_folder_link', name: 'GRoofFolder' },
+    ];
+
+    const arrayFieldMappings = [
+      { field: 'roof_images', name: 'RoofImage' },
+      { field: 'site_images', name: 'SiteImage' },
+      { field: 'drawing_pdf_system', name: 'DrawingSystem' },
+      { field: 'drawing_system_actual', name: 'DrawingActual' },
+      { field: 'drawing_engineering_seda_pdf', name: 'DrawingSEDA' },
+    ];
+
+    // Process single file fields
+    for (const mapping of fieldMappings) {
+      const url = seda[mapping.field];
+      if (url && isExternalUrl(url)) {
+        try {
+          const buffer = await downloadExternalFile(url);
+          const ext = getFileExtension(url);
+          const filename = `${sanitizedName}_${mapping.name}.${ext}`;
+
+          if (!addedFiles.has(filename)) {
+            zip.file(filename, buffer);
+            addedFiles.add(filename);
+            fileCount++;
+          }
+        } catch (error) {
+          // Skip failed downloads
+        }
+      }
+    }
+
+    // Process array file fields
+    for (const mapping of arrayFieldMappings) {
+      const urls = seda[mapping.field];
+      if (Array.isArray(urls)) {
+        for (let i = 0; i < urls.length; i++) {
+          const url = urls[i];
+          if (url && isExternalUrl(url)) {
+            try {
+              const buffer = await downloadExternalFile(url);
+              const ext = getFileExtension(url);
+              const index = String(i + 1).padStart(2, '0');
+              const filename = `${sanitizedName}_${mapping.name}${index}.${ext}`;
+
+              if (!addedFiles.has(filename)) {
+                zip.file(filename, buffer);
+                addedFiles.add(filename);
+                fileCount++;
+              }
+            } catch (error) {
+              // Skip failed downloads
+            }
+          }
+        }
+      }
+    }
+
+    if (fileCount === 0) {
       return NextResponse.json(
-        { error: "Failed to read any files" },
-        { status: 500 }
+        { error: "No documents found for this SEDA registration" },
+        { status: 404 }
       );
     }
 
