@@ -98,6 +98,16 @@ export async function GET(
     const customerName = seda.customer_name || "UnknownCustomer";
     const sanitizedName = sanitizeCustomerName(customerName);
 
+    // DEBUG: Log what we found
+    console.log('[DEBUG] SEDA Data:', JSON.stringify({
+      bubble_id: seda.bubble_id,
+      customer_name: customerName,
+      has_mykad_pdf: !!seda.mykad_pdf,
+      has_ic_front: !!seda.ic_copy_front,
+      roof_images_count: Array.isArray(seda.roof_images) ? seda.roof_images.length : 0,
+      mykad_preview: seda.mykad_pdf || 'NULL',
+    }));
+
     // Extract all file URLs with new names
     const files = extractAllFiles(seda, customerName);
 
