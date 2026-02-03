@@ -149,51 +149,53 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
   };
 
   return (
-    <div className="card shadow-elevation-md">
-      {/* Tabs */}
-      <div className="flex border-b border-secondary-200 bg-secondary-50">
-        <button
-          onClick={() => handleTabChange("tagged")}
-          className={`flex items-center gap-2 px-6 py-4 font-medium transition-all ${
-            activeTab === "tagged"
-              ? "border-b-2 border-primary-600 text-primary-600 bg-white"
-              : "text-secondary-600 hover:text-secondary-900"
-          }`}
-        >
-          <Tag className="w-4 h-4" />
-          Tagged Invoices ({initialInvoices.length})
-        </button>
-        <button
-          onClick={() => handleTabChange("all")}
-          className={`flex items-center gap-2 px-6 py-4 font-medium transition-all ${
-            activeTab === "all"
-              ? "border-b-2 border-primary-600 text-primary-600 bg-white"
-              : "text-secondary-600 hover:text-secondary-900"
-          }`}
-        >
-          <List className="w-4 h-4" />
-          All Invoices
-        </button>
-      </div>
-
-      {/* Search Bar */}
-      <div className="p-6 border-b border-secondary-200">
-        <form onSubmit={handleSearch} className="flex gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search by invoice, customer, agent, or address..."
-              className="input pl-12 pr-4 w-full"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+    <div className="space-y-4">
+      {/* Tabs + Search in one row */}
+      <div className="card shadow-elevation-md">
+        <div className="flex items-center justify-between border-b border-secondary-200 bg-secondary-50">
+          {/* Tabs */}
+          <div className="flex">
+            <button
+              onClick={() => handleTabChange("tagged")}
+              className={`flex items-center gap-2 px-6 py-4 font-medium transition-all ${
+                activeTab === "tagged"
+                  ? "border-b-2 border-primary-600 text-primary-600 bg-white"
+                  : "text-secondary-600 hover:text-secondary-900"
+              }`}
+            >
+              <Tag className="w-4 h-4" />
+              Tagged ({initialInvoices.length})
+            </button>
+            <button
+              onClick={() => handleTabChange("all")}
+              className={`flex items-center gap-2 px-6 py-4 font-medium transition-all ${
+                activeTab === "all"
+                  ? "border-b-2 border-primary-600 text-primary-600 bg-white"
+                  : "text-secondary-600 hover:text-secondary-900"
+              }`}
+            >
+              <List className="w-4 h-4" />
+              All
+            </button>
           </div>
-          <button type="submit" disabled={isPending} className="btn-primary px-8">
-            {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "Search"}
-          </button>
-        </form>
-      </div>
+
+          {/* Search in same row */}
+          <form onSubmit={handleSearch} className="flex gap-2 px-6 py-2">
+            <div className="relative w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search..."
+                className="input pl-10 pr-4 py-2 text-sm"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <button type="submit" disabled={isPending} className="btn-primary px-4 py-2 text-sm">
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Search"}
+            </button>
+          </form>
+        </div>
 
       {/* Table */}
       <div className="overflow-x-auto">
@@ -263,6 +265,7 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {/* Detail Modal */}
