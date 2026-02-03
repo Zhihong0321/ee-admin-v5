@@ -14,8 +14,10 @@ import {
   Download,
   ExternalLink,
   Trash2,
+  Tag,
+  List,
 } from "lucide-react";
-import { uploadEngineeringFile, deleteEngineeringFile } from "./actions";
+import { uploadEngineeringFile, deleteEngineeringFile, getEngineeringInvoices } from "./actions";
 
 interface EngineeringInvoice {
   id: number;
@@ -47,6 +49,26 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
   const [selectedInvoice, setSelectedInvoice] = useState<EngineeringInvoice | null>(null);
   const [uploadingType, setUploadingType] = useState<string | null>(null);
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"tagged" | "all">("tagged");
+  const [allInvoices, setAllInvoices] = useState<EngineeringInvoice[]>([]);
+  const [loadingAll, setLoadingAll] = useState(false);
+
+  const handleTabChange = async (tab: "tagged" | "all") => {
+    setActiveTab(tab);
+    if (tab === "all" && allInvoices.length === 0) {
+      setLoadingAll(true);
+      try {
+        const data = await getEngineeringInvoices(search);
+        setAllInvoices(data);
+      } catch (error) {
+        console.error("Failed to load all invoices", error);
+      } finally {
+        setLoadingAll(false);
+      }
+    }
+  };
+
+  const displayedInvoices = activeTab === "tagged" ? initialInvoices : allInvoices;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +150,32 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
 
   return (
     <div className="card shadow-elevation-md">
+      {/* Tabs */}
+      <div className="flex border-b border-secondary-200 bg-secondary-50">
+        <button
+          onClick={() => handleTabChange("tagged")}
+          className={`flex items-center gap-2 px-6 py-4 font-medium transition-all ${
+            activeTab === "tagged"
+              ? "border-b-2 border-primary-600 text-primary-600 bg-white"
+              : "text-secondary-600 hover:text-secondary-900"
+          }`}
+        >
+          <Tag className="w-4 h-4" />
+          Tagged Invoices ({initialInvoices.length})
+        </button>
+        <button
+          onClick={() => handleTabChange("all")}
+          className={`flex items-center gap-2 px-6 py-4 font-medium transition-all ${
+            activeTab === "all"
+              ? "border-b-2 border-primary-600 text-primary-600 bg-white"
+              : "text-secondary-600 hover:text-secondary-900"
+          }`}
+        >
+          <List className="w-4 h-4" />
+          All Invoices
+        </button>
+      </div>
+
       {/* Search Bar */}
       <div className="p-6 border-b border-secondary-200">
         <form onSubmit={handleSearch} className="flex gap-4">
@@ -164,14 +212,20 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
             </tr>
           </thead>
           <tbody>
-            {initialInvoices.length === 0 ? (
+            {loadingAll && activeTab === "all" ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  <td colSpan={9} className="py-6"><div className="h-4 bg-secondary-100 rounded w-full"></div></td>
+                </tr>
+              ))
+            ) : displayedInvoices.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-20 text-center text-secondary-500">
                   No invoices found matching your criteria.
                 </td>
               </tr>
             ) : (
-              initialInvoices.map((inv) => (
+              displayedInvoices.map((inv) => (
                 <tr key={inv.id}>
                   <td className="font-semibold text-secondary-900 truncate">{inv.invoice_number}</td>
                   <td className="font-medium text-secondary-700 truncate">{inv.customer_name}</td>
