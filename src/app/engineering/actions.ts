@@ -133,3 +133,47 @@ export async function uploadEngineeringFile(
     return { success: false, error: String(error) };
   }
 }
+
+/**
+ * Delete a file from engineering/drawing records
+ */
+export async function deleteEngineeringFile(
+  sedaBubbleId: string,
+  fileUrl: string,
+  fileType: "system" | "engineering" | "roof"
+) {
+  try {
+    const seda = await db.query.sedaRegistration.findFirst({
+      where: eq(sedaRegistration.bubble_id, sedaBubbleId),
+    });
+
+    if (!seda) throw new Error("SEDA registration not found");
+
+    let fieldName: keyof typeof sedaRegistration;
+    let currentArray: string[] = [];
+
+    if (fileType === "system") {
+      fieldName = "drawing_pdf_system";
+      currentArray = seda.drawing_pdf_system || [];
+    } else if (fileType === "engineering") {
+      fieldName = "drawing_engineering_seda_pdf";
+      currentArray = seda.drawing_engineering_seda_pdf || [];
+    } else {
+      fieldName = "roof_images";
+      currentArray = seda.roof_images || [];
+    }
+
+    const updatedArray = currentArray.filter((url) => url !== fileUrl);
+
+    await db
+      .update(sedaRegistration)
+      .set({ [fieldName]: updatedArray })
+      .where(eq(sedaRegistration.bubble_id, sedaBubbleId));
+
+    revalidatePath("/engineering");
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting engineering file:", error);
+    return { success: false, error: String(error) };
+  }
+}

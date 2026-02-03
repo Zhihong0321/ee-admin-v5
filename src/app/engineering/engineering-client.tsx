@@ -13,8 +13,9 @@ import {
   X,
   Download,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
-import { uploadEngineeringFile } from "./actions";
+import { uploadEngineeringFile, deleteEngineeringFile } from "./actions";
 
 interface EngineeringInvoice {
   id: number;
@@ -45,6 +46,7 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
   const [search, setSearch] = useState(initialSearch);
   const [selectedInvoice, setSelectedInvoice] = useState<EngineeringInvoice | null>(null);
   const [uploadingType, setUploadingType] = useState<string | null>(null);
+  const [deletingFile, setDeletingFile] = useState<string | null>(null);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +55,39 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
     });
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "system" | "engineering" | "roof") => {
+  const handleDelete = async (url: string, type: "system" | "engineering" | "roof") => {
+    if (!selectedInvoice?.seda_bubble_id || !confirm("Delete this file?")) return;
+
+    setDeletingFile(url);
+    try {
+      const result = await deleteEngineeringFile(selectedInvoice.seda_bubble_id, url, type);
+      if (result.success) {
+        startTransition(() => {
+          router.refresh();
+          if (selectedInvoice) {
+            const updated = { ...selectedInvoice };
+            if (type === "system") {
+              updated.drawing_pdf_system = updated.drawing_pdf_system?.filter(u => u !== url) || null;
+              updated.systemDrawingCount--;
+            } else if (type === "engineering") {
+              updated.drawing_engineering_seda_pdf = updated.drawing_engineering_seda_pdf?.filter(u => u !== url) || null;
+              updated.engineeringDrawingCount--;
+            } else {
+              updated.roof_images = updated.roof_images?.filter(u => u !== url) || null;
+              updated.roofImageCount--;
+            }
+            setSelectedInvoice(updated);
+          }
+        });
+      } else {
+        alert("Delete failed: " + result.error);
+      }
+    } catch (error) {
+      alert("An error occurred during delete");
+    } finally {
+      setDeletingFile(null);
+    }
+  };  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "system" | "engineering" | "roof") => {
     if (!selectedInvoice?.seda_bubble_id || !e.target.files?.[0]) return;
 
     setUploadingType(type);
@@ -118,15 +152,15 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
         <table className="table">
           <thead>
             <tr>
-              <th>Invoice No.</th>
-              <th>Customer</th>
-              <th>Agent</th>
-              <th>Address</th>
-              <th className="text-right">Amount</th>
-              <th className="text-center">System Drawing</th>
-              <th className="text-center">Roof Images</th>
-              <th className="text-center">Eng Drawing</th>
-              <th className="text-right">Actions</th>
+              <th className="w-32">Invoice No.</th>
+              <th className="w-40">Customer</th>
+              <th className="w-32">Agent</th>
+              <th className="w-64">Address</th>
+              <th className="text-right w-28">Amount</th>
+              <th className="text-center w-28">System Drawing</th>
+              <th className="text-center w-28">Roof Images</th>
+              <th className="text-center w-28">Eng Drawing</th>
+              <th className="text-right w-24">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -139,10 +173,10 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
             ) : (
               initialInvoices.map((inv) => (
                 <tr key={inv.id}>
-                  <td className="font-semibold text-secondary-900">{inv.invoice_number}</td>
-                  <td className="font-medium text-secondary-700">{inv.customer_name}</td>
-                  <td className="text-secondary-600">{inv.agent_name}</td>
-                  <td className="text-secondary-600 max-w-xs truncate">{inv.address}</td>
+                  <td className="font-semibold text-secondary-900 truncate">{inv.invoice_number}</td>
+                  <td className="font-medium text-secondary-700 truncate">{inv.customer_name}</td>
+                  <td className="text-secondary-600 truncate">{inv.agent_name}</td>
+                  <td className="text-secondary-600 truncate max-w-[16rem]" title={inv.address || ""}>{inv.address}</td>
                   <td className="text-right font-bold text-secondary-900">
                     {inv.total_amount ? `MYR ${parseFloat(inv.total_amount).toLocaleString()}` : "-"}
                   </td>
@@ -218,7 +252,7 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {selectedInvoice.drawing_pdf_system?.map((url, i) => (
-                    <FileItem key={i} url={url} label={`System Drawing ${i + 1}`} />
+                    <FileItem key={i} url={url} label={`System Drawing ${i + 1}`} onDelete={() => handleDelete(url, "system")} deleting={deletingFile === url} />
                   ))}
                   {(!selectedInvoice.drawing_pdf_system || selectedInvoice.drawing_pdf_system.length === 0) && (
                     <div className="col-span-2 py-4 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
@@ -255,6 +289,13 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                         <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 bg-white rounded-full text-secondary-900 hover:bg-secondary-100">
                           <ExternalLink className="w-4 h-4" />
                         </a>
+                        <button
+                          onClick={() => handleDelete(url, "roof")}
+                          disabled={deletingFile === url}
+                          className="p-2 bg-white rounded-full text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {deletingFile === url ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -287,7 +328,7 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {selectedInvoice.drawing_engineering_seda_pdf?.map((url, i) => (
-                    <FileItem key={i} url={url} label={`Engineering Drawing ${i + 1}`} />
+                    <FileItem key={i} url={url} label={`Engineering Drawing ${i + 1}`} onDelete={() => handleDelete(url, "engineering")} deleting={deletingFile === url} />
                   ))}
                   {(!selectedInvoice.drawing_engineering_seda_pdf || selectedInvoice.drawing_engineering_seda_pdf.length === 0) && (
                     <div className="col-span-2 py-4 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
@@ -304,7 +345,7 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
   );
 }
 
-function FileItem({ url, label }: { url: string; label: string }) {
+function FileItem({ url, label, onDelete, deleting }: { url: string; label: string; onDelete: () => void; deleting: boolean }) {
   const filename = url.split("/").pop();
   return (
     <div className="flex items-center justify-between p-3 bg-secondary-50 border border-secondary-200 rounded-xl hover:border-primary-300 transition-colors">
@@ -335,6 +376,14 @@ function FileItem({ url, label }: { url: string; label: string }) {
         >
           <Download className="w-4 h-4" />
         </a>
+        <button
+          onClick={onDelete}
+          disabled={deleting}
+          className="p-2 text-secondary-400 hover:text-red-600 transition-colors disabled:opacity-50"
+          title="Delete"
+        >
+          {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+        </button>
       </div>
     </div>
   );
