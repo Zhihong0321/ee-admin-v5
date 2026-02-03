@@ -149,18 +149,18 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="table">
+        <table className="w-full table-fixed">
           <thead>
             <tr>
-              <th className="w-32">Invoice No.</th>
-              <th className="w-40">Customer</th>
-              <th className="w-32">Agent</th>
-              <th className="w-64">Address</th>
-              <th className="text-right w-28">Amount</th>
-              <th className="text-center w-28">System Drawing</th>
-              <th className="text-center w-28">Roof Images</th>
-              <th className="text-center w-28">Eng Drawing</th>
-              <th className="text-right w-24">Actions</th>
+              <th className="w-[10%]">Invoice No.</th>
+              <th className="w-[12%]">Customer</th>
+              <th className="w-[13%]">Agent</th>
+              <th className="w-[20%]">Address</th>
+              <th className="text-right w-[11%]">Amount</th>
+              <th className="text-center w-[10%]">System Drawing</th>
+              <th className="text-center w-[9%]">Roof Images</th>
+              <th className="text-center w-[9%]">Eng Drawing</th>
+              <th className="text-right w-[6%]">Actions</th>
             </tr>
           </thead>
           <tbody>
