@@ -88,6 +88,7 @@ export default function UsersPage() {
 
   const handleEditClick = (user: any) => {
     setEditingUser({ ...user });
+    setActiveTab('profile'); // Reset to profile tab when opening modal
     setIsEditModalOpen(true);
   };
 
