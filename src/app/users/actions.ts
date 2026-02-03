@@ -66,6 +66,7 @@ export async function getUsers(search?: string) {
       user_signed_up: u.user_signed_up,
       access_level: u.access_level || [],
       joined_date: u.created_date,
+      linked_agent_profile: u.linked_agent_profile,
       agent_name: u.agent?.name || "N/A",
       agent_email: u.agent?.email || "N/A",
       agent_contact: u.agent?.contact || "N/A",
@@ -73,6 +74,8 @@ export async function getUsers(search?: string) {
       agent_address: u.agent?.address || "N/A",
       agent_banker: u.agent?.banker || "N/A",
       agent_bankin_account: u.agent?.bankin_account || "N/A",
+      agent_ic_front: u.agent?.employee_ic_front || null, // Employee IC front
+      agent_ic_back: u.agent?.employee_ic_back || null,   // Employee IC back
       last_synced_at: u.last_synced_at,
     }));
 

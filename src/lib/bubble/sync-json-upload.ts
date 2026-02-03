@@ -550,6 +550,8 @@ async function syncAgent(agent: any): Promise<{ updated: boolean; reason?: strin
       address: agent["Address"] || null,
       bankin_account: agent["Bankin Account"] || null,
       banker: agent["Banker"] || null,
+      employee_ic_front: agent["Employee IC Front"] || agent["IC Front"] || null,
+      employee_ic_back: agent["Employee IC Back"] || agent["IC Back"] || null,
       created_at: parseBubbleDate(agent["Created Date"]) || new Date(),
       updated_at: jsonModifiedDate || new Date(),
       last_synced_at: new Date(),

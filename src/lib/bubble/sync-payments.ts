@@ -291,6 +291,8 @@ export async function syncPaymentsFromBubble() {
                 address: agent.Address,
                 bankin_account: agent.bankin_account,
                 banker: agent.banker,
+                employee_ic_front: agent["Employee IC Front"] || agent["IC Front"] || null,
+                employee_ic_back: agent["Employee IC Back"] || agent["IC Back"] || null,
                 updated_at: new Date(agent["Modified Date"]),
                 last_synced_at: new Date()
               };

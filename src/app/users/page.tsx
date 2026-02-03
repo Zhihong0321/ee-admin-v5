@@ -662,24 +662,106 @@ export default function UsersPage() {
               </>
               ) : (
                 <>
-                {/* MyKad Documents Tab */}
+                {/* MyKad Documents Tab - EMPLOYEE IC for User/Agent */}
                 <div className="space-y-6">
-                  <div className="text-center p-8 bg-secondary-50 rounded-xl">
-                    <p className="text-secondary-600 text-sm mb-4">
-                      MyKad documents are stored in SEDA Registration records.
+                  <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-6 mb-6">
+                    <h3 className="font-bold text-yellow-800 mb-2 text-lg">⚠️ Employee Identification Documents</h3>
+                    <p className="text-yellow-700 text-sm">
+                      This section is for EMPLOYEE MyKad/IC documents (the agent/user themselves).<br/>
+                      <strong>NOT</strong> for customer IC in SEDA Registration!
                     </p>
-                    <p className="text-secondary-500 text-xs">
-                      User ID: {editingUser?.id} | Bubble ID: {editingUser?.bubble_id}
-                    </p>
-                    <div className="mt-6 p-6 bg-white rounded-lg border border-secondary-200">
-                      <p className="text-secondary-700 font-medium mb-2">
-                        To view MyKad documents (IC Front/Back), please:
-                      </p>
-                      <ol className="text-left text-sm text-secondary-600 space-y-2 max-w-md mx-auto">
-                        <li>1. Go to SEDA Registration page</li>
-                        <li>2. Search for registrations linked to this user</li>
-                        <li>3. View IC Copy Front and IC Copy Back in the Documents section</li>
-                      </ol>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="bg-white rounded-xl border border-secondary-200 p-6">
+                      <h3 className="font-semibold text-secondary-900 mb-4">Agent/Employee IC Documents</h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* IC Front */}
+                        <div className="space-y-3">
+                          <label className="text-sm font-semibold text-secondary-700 flex items-center gap-2">
+                            <span>IC Front (Employee)</span>
+                            {editingUser?.agent_ic_front && (
+                              <span className="badge-success text-[10px]">Uploaded</span>
+                            )}
+                          </label>
+                          {editingUser?.agent_ic_front ? (
+                            <div className="relative group">
+                              <img 
+                                src={editingUser.agent_ic_front} 
+                                alt="IC Front" 
+                                className="w-full h-48 object-cover rounded-lg border-2 border-secondary-200"
+                              />
+                              <a 
+                                href={editingUser.agent_ic_front} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-semibold rounded-lg"
+                              >
+                                View Full Size
+                              </a>
+                            </div>
+                          ) : (
+                            <div className="w-full h-48 bg-secondary-100 rounded-lg border-2 border-dashed border-secondary-300 flex items-center justify-center text-secondary-400">
+                              <div className="text-center">
+                                <p className="text-sm font-medium">No IC Front Uploaded</p>
+                                <p className="text-xs mt-1">Upload through Bubble.io</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* IC Back */}
+                        <div className="space-y-3">
+                          <label className="text-sm font-semibold text-secondary-700 flex items-center gap-2">
+                            <span>IC Back (Employee)</span>
+                            {editingUser?.agent_ic_back && (
+                              <span className="badge-success text-[10px]">Uploaded</span>
+                            )}
+                          </label>
+                          {editingUser?.agent_ic_back ? (
+                            <div className="relative group">
+                              <img 
+                                src={editingUser.agent_ic_back} 
+                                alt="IC Back" 
+                                className="w-full h-48 object-cover rounded-lg border-2 border-secondary-200"
+                              />
+                              <a 
+                                href={editingUser.agent_ic_back} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-semibold rounded-lg"
+                              >
+                                View Full Size
+                              </a>
+                            </div>
+                          ) : (
+                            <div className="w-full h-48 bg-secondary-100 rounded-lg border-2 border-dashed border-secondary-300 flex items-center justify-center text-secondary-400">
+                              <div className="text-center">
+                                <p className="text-sm font-medium">No IC Back Uploaded</p>
+                                <p className="text-xs mt-1">Upload through Bubble.io</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-sm text-blue-800">
+                          <strong>Note:</strong> Employee IC documents are synced from Bubble.io Agent Profile.<br/>
+                          These are the agent's personal identification documents, not customer documents.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-secondary-50 rounded-xl p-6">
+                      <h4 className="font-semibold text-secondary-700 mb-3">Quick Reference</h4>
+                      <ul className="text-sm text-secondary-600 space-y-2">
+                        <li>✅ <strong>This section</strong>: Agent/Employee IC (user/agent identification)</li>
+                        <li>❌ <strong>NOT here</strong>: Customer IC (found in SEDA Registration)</li>
+                        <li>📄 Documents sync from Bubble.io Agent Profile</li>
+                        <li>🔄 Click "Sync from Bubble" to refresh documents</li>
+                      </ul>
                     </div>
                   </div>
                 </div>
