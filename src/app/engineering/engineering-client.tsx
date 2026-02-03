@@ -199,7 +199,7 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full table-fixed">
+        <table className="table">
           <thead>
             <tr>
               <th className="w-[10%]">Invoice No.</th>
@@ -217,24 +217,46 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
             {loadingAll && activeTab === "all" ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="animate-pulse">
-                  <td colSpan={9} className="py-6"><div className="h-4 bg-secondary-100 rounded w-full"></div></td>
+                  <td colSpan={9}>
+                    <div className="h-4 bg-secondary-200 rounded w-3/4"></div>
+                  </td>
                 </tr>
               ))
             ) : displayedInvoices.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-20 text-center text-secondary-500">
-                  No invoices found matching your criteria.
+                <td colSpan={9} className="px-6 py-16 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="p-4 bg-secondary-100 rounded-full">
+                      <FileText className="h-8 w-8 text-secondary-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-secondary-900 mb-1">No invoices found</p>
+                      <p className="text-sm text-secondary-600">
+                        {search ? "Try adjusting your search criteria" : "No invoices with drawing tags available"}
+                      </p>
+                    </div>
+                  </div>
                 </td>
               </tr>
             ) : (
               displayedInvoices.map((inv) => (
                 <tr key={inv.id}>
-                  <td className="font-semibold text-secondary-900 truncate">{inv.invoice_number}</td>
-                  <td className="font-medium text-secondary-700 truncate">{inv.customer_name}</td>
-                  <td className="text-secondary-600 truncate">{inv.agent_name}</td>
-                  <td className="text-secondary-600 truncate max-w-[16rem]" title={inv.address || ""}>{inv.address}</td>
-                  <td className="text-right font-bold text-secondary-900">
-                    {inv.total_amount ? `MYR ${parseFloat(inv.total_amount).toLocaleString()}` : "-"}
+                  <td>
+                    <div className="font-semibold text-secondary-900 truncate">{inv.invoice_number}</div>
+                  </td>
+                  <td>
+                    <div className="font-medium text-secondary-700 truncate">{inv.customer_name}</div>
+                  </td>
+                  <td>
+                    <div className="text-secondary-600 truncate">{inv.agent_name}</div>
+                  </td>
+                  <td>
+                    <div className="text-secondary-600 truncate max-w-[16rem]" title={inv.address || ""}>{inv.address}</div>
+                  </td>
+                  <td className="text-right">
+                    <div className="font-bold text-secondary-900">
+                      {inv.total_amount ? `MYR ${parseFloat(inv.total_amount).toLocaleString()}` : "-"}
+                    </div>
                   </td>
                   <td className="text-center">
                     <span className={`badge ${inv.systemDrawingCount > 0 ? "badge-success" : "badge-secondary"}`}>
