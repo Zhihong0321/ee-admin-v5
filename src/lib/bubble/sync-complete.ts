@@ -221,8 +221,8 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
     await syncTable('agent', agents, agents.bubble_id, (b) => ({
       name: b.Name, email: b.email, contact: b.Contact, agent_type: b["Agent Type"],
       address: b.Address, bankin_account: b.bankin_account, banker: b.banker,
-      employee_ic_front: b["Employee IC Front"] || b["IC Front"] || null,  // Employee MyKad front
-      employee_ic_back: b["Employee IC Back"] || b["IC Back"] || null,      // Employee MyKad back
+      ic_front: b["IC Front"] || b["ic_front"] || null,
+      ic_back: b["IC Back"] || b["ic_back"] || null,
       updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
     }), results);
 

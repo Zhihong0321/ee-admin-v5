@@ -74,8 +74,8 @@ export async function getUsers(search?: string) {
       agent_address: u.agent?.address || "N/A",
       agent_banker: u.agent?.banker || "N/A",
       agent_bankin_account: u.agent?.bankin_account || "N/A",
-      agent_ic_front: u.agent?.employee_ic_front || null, // Employee IC front
-      agent_ic_back: u.agent?.employee_ic_back || null,   // Employee IC back
+      agent_ic_front: u.agent?.ic_front || null,
+      agent_ic_back: u.agent?.ic_back || null,
       last_synced_at: u.last_synced_at,
     }));
 

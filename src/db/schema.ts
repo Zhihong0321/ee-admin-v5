@@ -13,9 +13,8 @@ export const agents = pgTable('agent', {
   address: text('address'),
   bankin_account: text('bankin_account'),
   banker: text('banker'),
-  // Employee MyKad/IC documents (NOT customer documents)
-  employee_ic_front: text('employee_ic_front'), // Agent's IC front (employee identification)
-  employee_ic_back: text('employee_ic_back'),   // Agent's IC back (employee identification)
+  ic_front: text('ic_front'),  // Agent employee IC front (already exists in Postgres!)
+  ic_back: text('ic_back'),    // Agent employee IC back (already exists in Postgres!)
   created_at: timestamp('created_at').defaultNow(),
   updated_at: timestamp('updated_at').defaultNow(),
   last_synced_at: timestamp('last_synced_at'),

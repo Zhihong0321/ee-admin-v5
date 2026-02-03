@@ -664,11 +664,10 @@ export default function UsersPage() {
                 <>
                 {/* MyKad Documents Tab - EMPLOYEE IC for User/Agent */}
                 <div className="space-y-6">
-                  <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-6 mb-6">
-                    <h3 className="font-bold text-yellow-800 mb-2 text-lg">⚠️ Employee Identification Documents</h3>
-                    <p className="text-yellow-700 text-sm">
-                      This section is for EMPLOYEE MyKad/IC documents (the agent/user themselves).<br/>
-                      <strong>NOT</strong> for customer IC in SEDA Registration!
+                  <div className="bg-green-50 border-2 border-green-400 rounded-xl p-6 mb-6">
+                    <h3 className="font-bold text-green-800 mb-2 text-lg">✅ Employee IC Documents</h3>
+                    <p className="text-green-700 text-sm">
+                      <strong>This section shows EMPLOYEE IC</strong> (the agent/user's own identification), <strong>NOT customer IC from SEDA Registration!</strong>
                     </p>
                   </div>
 
@@ -759,7 +758,7 @@ export default function UsersPage() {
                       <ul className="text-sm text-secondary-600 space-y-2">
                         <li>✅ <strong>This section</strong>: Agent/Employee IC (user/agent identification)</li>
                         <li>❌ <strong>NOT here</strong>: Customer IC (found in SEDA Registration)</li>
-                        <li>📄 Documents sync from Bubble.io Agent Profile</li>
+                        <li>📄 Bubble field: <code className="bg-secondary-100 px-1 rounded text-xs">IC Front</code> and <code className="bg-secondary-100 px-1 rounded text-xs">IC Back</code></li>
                         <li>🔄 Click "Sync from Bubble" to refresh documents</li>
                       </ul>
                     </div>

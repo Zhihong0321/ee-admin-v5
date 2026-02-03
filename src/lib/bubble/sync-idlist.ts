@@ -393,8 +393,8 @@ export async function syncByIdList(csvData: string) {
           address: agent.Address,
           bankin_account: agent.bankin_account,
           banker: agent.banker,
-          employee_ic_front: agent["Employee IC Front"] || agent["IC Front"] || null,
-          employee_ic_back: agent["Employee IC Back"] || agent["IC Back"] || null,
+          ic_front: agent["IC Front"] || agent["ic_front"] || null,
+          ic_back: agent["IC Back"] || agent["ic_back"] || null,
           updated_at: new Date(agent["Modified Date"]),
           last_synced_at: new Date()
         };
