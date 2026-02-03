@@ -13,6 +13,7 @@ export default function UsersPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [newTagInput, setNewTagInput] = useState("");
+  const [activeTab, setActiveTab] = useState<'profile' | 'mykad'>('profile');
 
   useEffect(() => {
     fetchData();
@@ -375,7 +376,7 @@ export default function UsersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-secondary-900/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl shadow-elevation-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
             <div className="p-6 border-b border-secondary-200 flex items-center justify-between sticky top-0 bg-white z-10">
-              <div>
+              <div className="flex-1">
                 <div className="flex items-center gap-3">
                   <h2 className="text-xl font-bold text-secondary-900">Edit User Profile</h2>
                   <button 
@@ -406,6 +407,32 @@ export default function UsersPage() {
                   )}
                 </div>
                 <p className="text-sm text-secondary-500">Managing Agent: {editingUser?.agent_name}</p>
+                
+                {/* Tab Navigation */}
+                <div className="flex gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('profile')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      activeTab === 'profile'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-secondary-100 text-secondary-600 hover:bg-secondary-200'
+                    }`}
+                  >
+                    Profile
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('mykad')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      activeTab === 'mykad'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-secondary-100 text-secondary-600 hover:bg-secondary-200'
+                    }`}
+                  >
+                    MyKad Documents
+                  </button>
+                </div>
               </div>
               <button 
                 onClick={() => setIsEditModalOpen(false)}
@@ -416,6 +443,8 @@ export default function UsersPage() {
             </div>
             
             <form onSubmit={handleUpdateUser} className="p-6 space-y-6">
+              {activeTab === 'profile' ? (
+                <>
               {/* Profile Picture Display */}
               <div className="flex flex-col items-center justify-center pb-6 border-b border-secondary-100">
                 <div className="relative group">
@@ -630,6 +659,32 @@ export default function UsersPage() {
                   Save Changes
                 </button>
               </div>
+              </>
+              ) : (
+                <>
+                {/* MyKad Documents Tab */}
+                <div className="space-y-6">
+                  <div className="text-center p-8 bg-secondary-50 rounded-xl">
+                    <p className="text-secondary-600 text-sm mb-4">
+                      MyKad documents are stored in SEDA Registration records.
+                    </p>
+                    <p className="text-secondary-500 text-xs">
+                      User ID: {editingUser?.id} | Bubble ID: {editingUser?.bubble_id}
+                    </p>
+                    <div className="mt-6 p-6 bg-white rounded-lg border border-secondary-200">
+                      <p className="text-secondary-700 font-medium mb-2">
+                        To view MyKad documents (IC Front/Back), please:
+                      </p>
+                      <ol className="text-left text-sm text-secondary-600 space-y-2 max-w-md mx-auto">
+                        <li>1. Go to SEDA Registration page</li>
+                        <li>2. Search for registrations linked to this user</li>
+                        <li>3. View IC Copy Front and IC Copy Back in the Documents section</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+                </>
+              )}
             </form>
           </div>
         </div>
