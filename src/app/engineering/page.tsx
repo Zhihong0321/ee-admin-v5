@@ -7,9 +7,10 @@ import { getEngineeringInvoices } from "./actions";
 export default async function EngineeringPage({
   searchParams,
 }: {
-  searchParams: { search?: string };
+  searchParams: Promise<{ search?: string }>;
 }) {
-  const search = searchParams.search || "";
+  const params = await searchParams;
+  const search = params.search || "";
   const invoices = await getEngineeringInvoices(search);
 
   return (

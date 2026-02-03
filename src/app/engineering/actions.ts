@@ -17,7 +17,21 @@ const FILE_BASE_URL = process.env.FILE_BASE_URL || "https://admin.atap.solar";
  */
 export async function getEngineeringInvoices(search?: string) {
   try {
-    const query = db
+    let whereCondition = sql`${invoices.status} != 'deleted'`;
+
+    if (search) {
+      whereCondition = and(
+        whereCondition,
+        or(
+          ilike(invoices.invoice_number, `%${search}%`),
+          ilike(customers.name, `%${search}%`),
+          ilike(agents.name, `%${search}%`),
+          ilike(sedaRegistration.installation_address, `%${search}%`)
+        )
+      )!;
+    }
+
+    const results = await db
       .select({
         id: invoices.id,
         invoice_number: invoices.invoice_number,
@@ -36,20 +50,9 @@ export async function getEngineeringInvoices(search?: string) {
       .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
       .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
       .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
-      .where(sql`${invoices.status} != 'deleted'`);
-
-    if (search) {
-      query.where(
-        or(
-          ilike(invoices.invoice_number, `%${search}%`),
-          ilike(customers.name, `%${search}%`),
-          ilike(agents.name, `%${search}%`),
-          ilike(sedaRegistration.installation_address, `%${search}%`)
-        )
-      );
-    }
-
-    const results = await query.orderBy(desc(invoices.created_at)).limit(100);
+      .where(whereCondition)
+      .orderBy(desc(invoices.created_at))
+      .limit(100);
 
     return results.map((row) => ({
       ...row,
