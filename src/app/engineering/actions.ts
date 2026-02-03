@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { invoices, sedaRegistration, customers, agents } from "@/db/schema";
-import { eq, sql, and, desc, or, ilike } from "drizzle-orm";
+import { eq, sql, and, desc, or, ilike, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import fs from "fs";
 import path from "path";
@@ -63,6 +63,79 @@ export async function getEngineeringInvoices(search?: string) {
   } catch (error) {
     console.error("Error fetching engineering invoices:", error);
     throw new Error("Failed to fetch engineering data");
+  }
+}
+
+/**
+ * Fetch invoices with active engineering/system drawing tags from chat
+ */
+export async function getInvoicesWithDrawingTags(search?: string) {
+  try {
+    // Get invoice IDs with active engineering tags
+    const taggedInvoicesResult = await db.execute(sql`
+      SELECT DISTINCT ct.invoice_id
+      FROM chat_thread ct
+      INNER JOIN chat_message cm ON ct.id = cm.thread_id
+      WHERE cm.message_type = 'tag'
+        AND cm.tag_role = 'engineering'
+        AND cm.is_tag_active = true
+    `);
+
+    const invoiceIds = taggedInvoicesResult.rows.map((r: any) => r.invoice_id).filter(Boolean);
+
+    if (invoiceIds.length === 0) {
+      return [];
+    }
+
+    // Build where condition
+    let whereCondition = and(
+      sql`${invoices.status} != 'deleted'`,
+      inArray(invoices.bubble_id, invoiceIds)
+    )!;
+
+    if (search) {
+      whereCondition = and(
+        whereCondition,
+        or(
+          ilike(invoices.invoice_number, `%${search}%`),
+          ilike(customers.name, `%${search}%`),
+          ilike(agents.name, `%${search}%`)
+        )
+      )!;
+    }
+
+    const results = await db
+      .select({
+        id: invoices.id,
+        invoice_number: invoices.invoice_number,
+        total_amount: invoices.total_amount,
+        invoice_date: invoices.invoice_date,
+        status: invoices.status,
+        customer_name: customers.name,
+        agent_name: agents.name,
+        address: sedaRegistration.installation_address,
+        seda_bubble_id: sedaRegistration.bubble_id,
+        drawing_pdf_system: sedaRegistration.drawing_pdf_system,
+        drawing_engineering_seda_pdf: sedaRegistration.drawing_engineering_seda_pdf,
+        roof_images: sedaRegistration.roof_images,
+      })
+      .from(invoices)
+      .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
+      .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
+      .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
+      .where(whereCondition)
+      .orderBy(desc(invoices.created_at))
+      .limit(100);
+
+    return results.map((row) => ({
+      ...row,
+      systemDrawingCount: row.drawing_pdf_system?.length || 0,
+      engineeringDrawingCount: row.drawing_engineering_seda_pdf?.length || 0,
+      roofImageCount: row.roof_images?.length || 0,
+    }));
+  } catch (error) {
+    console.error("Error fetching invoices with drawing tags:", error);
+    return [];
   }
 }
 
