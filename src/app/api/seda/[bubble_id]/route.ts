@@ -123,9 +123,10 @@ export async function PATCH(
       "created_at",
       "created_date",
       "last_synced_at",
+      "updated_at",
     ]);
 
-    const updateData: Record<string, any> = { updated_at: new Date() };
+    const updateData: Record<string, any> = {};
     const unknownKeys: string[] = [];
     for (const [key, value] of Object.entries(body || {})) {
       if (DISALLOWED.has(key)) continue;
@@ -133,8 +134,13 @@ export async function PATCH(
         unknownKeys.push(key);
         continue;
       }
-      updateData[key] = value;
+      // Avoid common DB cast errors when a user clears a numeric/timestamp field.
+      // Empty-string is almost never a valid value in Postgres for these types.
+      updateData[key] = value === "" ? null : value;
     }
+
+    // Always bump updated_at server-side, never from the client.
+    updateData.updated_at = new Date();
 
     if (unknownKeys.length > 0) {
       return NextResponse.json(
@@ -171,8 +177,17 @@ export async function PATCH(
     });
   } catch (error: any) {
     console.error("Error updating SEDA:", error);
+    const details: any = {
+      message: error?.message,
+      code: error?.code,
+      detail: error?.detail,
+      hint: error?.hint,
+      constraint: error?.constraint,
+      table: error?.table,
+      column: error?.column,
+    };
     return NextResponse.json(
-      { error: "Failed to update SEDA registration", message: error.message },
+      { error: "Failed to update SEDA registration", ...details },
       { status: 500 }
     );
   }

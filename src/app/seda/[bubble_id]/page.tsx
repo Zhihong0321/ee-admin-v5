@@ -105,7 +105,15 @@ export default function SedaDetailPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || "Failed to update SEDA registration");
+        const msg = payload?.error
+          ? String(payload.error)
+          : "Failed to update SEDA registration";
+        const details = payload?.detail ? `\n${String(payload.detail)}` : "";
+        const hint = payload?.hint ? `\nHint: ${String(payload.hint)}` : "";
+        const unknown = Array.isArray(payload?.unknown_keys)
+          ? `\nUnknown keys: ${payload.unknown_keys.join(", ")}`
+          : "";
+        throw new Error(`${msg}${details}${hint}${unknown}`);
       }
 
       await fetchData(bubbleId);
