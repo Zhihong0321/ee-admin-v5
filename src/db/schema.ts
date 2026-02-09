@@ -224,6 +224,7 @@ export const sedaRegistration = pgTable('seda_registration', {
   e_contact_mykad: text('e_contact_mykad'),
   mykad_pdf: text('mykad_pdf'),
   nem_type: text('nem_type'),
+  postcode: text('postcode'),
   e_email: text('e_email'),
   redex_remark: text('redex_remark'),
   site_images: text('site_images').array(),

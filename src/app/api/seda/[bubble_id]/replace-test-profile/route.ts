@@ -79,8 +79,8 @@ export async function POST(
       );
     }
 
-    // Extract postcode from installation_address if not in customer
-    let postcode = customer_postcode || "";
+    // Get postcode from seda, customer, or extract from address
+    let postcode = seda.postcode || customer_postcode || "";
     if (!postcode && seda.installation_address) {
       const postcodeMatch = seda.installation_address.match(/\b(\d{5})\b/);
       if (postcodeMatch) postcode = postcodeMatch[1];
