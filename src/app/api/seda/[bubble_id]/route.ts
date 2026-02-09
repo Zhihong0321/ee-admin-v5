@@ -101,9 +101,7 @@ export async function GET(
 
 /**
  * PATCH /api/seda/[bubble_id]
- * Update SEDA registration fields (admin edit)
- *
- * Backwards compatible with older callers that only send `{ seda_status }`.
+ * Update SEDA registration status
  */
 export async function PATCH(
   request: NextRequest,
@@ -112,54 +110,17 @@ export async function PATCH(
   try {
     const { bubble_id } = await params;
     const body = await request.json();
+    const { seda_status } = body;
 
-    console.log("Updating SEDA:", bubble_id, Object.keys(body || {}));
+    console.log("Updating SEDA:", bubble_id, { seda_status });
 
-    // Only allow safe, human-edited fields to be updated from the UI.
-    // Do not allow changing identifiers, sync fields, or relational fields.
-    const ALLOWED_FIELDS = new Set([
-      "seda_status",
-      "email",
-      "ic_no",
-      "installation_address",
-      "city",
-      "state",
-      "system_size",
-      "system_size_in_form_kwp",
-      "inverter_kwac",
-      "inverter_serial_no",
-      "phase_type",
-      "tnb_account_no",
-      "tnb_meter_status",
-      "e_contact_name",
-      "e_contact_no",
-      "e_contact_relationship",
-      "e_email",
-      "special_remark",
-      "project_price",
-      "agent",
-      "nem_application_no",
-      "nem_type",
-      "redex_status",
-      "redex_remark",
-      "reg_status",
-      "tnb_meter_install_date",
-      "first_completion_date",
-    ]);
+    // Simple update
+    const updateData: any = {
+      updated_at: new Date(),
+    };
 
-    const updateData: Record<string, any> = { updated_at: new Date() };
-
-    for (const [key, value] of Object.entries(body || {})) {
-      if (!ALLOWED_FIELDS.has(key)) continue;
-      // Keep explicit nulls; omit undefined (doesn't exist in JSON anyway).
-      updateData[key] = value;
-    }
-
-    if (Object.keys(updateData).length === 1) {
-      return NextResponse.json(
-        { error: "No valid fields provided for update" },
-        { status: 400 }
-      );
+    if (seda_status !== undefined) {
+      updateData.seda_status = seda_status;
     }
 
     const updated = await db

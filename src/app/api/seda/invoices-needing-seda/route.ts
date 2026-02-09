@@ -73,7 +73,6 @@ export async function GET(request: NextRequest) {
         seda_installation_address: sedaRegistration.installation_address,
         seda_ic_no: sedaRegistration.ic_no,
         seda_email: sedaRegistration.email,
-        seda_profile: sedaRegistration.seda_profile,
 
         // Validation fields
         mykad_pdf: sedaRegistration.mykad_pdf,
