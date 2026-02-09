@@ -234,6 +234,10 @@ export const sedaRegistration = pgTable('seda_registration', {
   check_ownership: text('check_ownership'),
   check_fill_in_detail: text('check_fill_in_detail'),
   drawing_engineering_seda_pdf: text('drawing_engineering_seda_pdf').array(),
+  // SEDA Profile Status (from SEDA Manager API)
+  seda_profile_status: text('seda_profile_status'), // 'not_checked', 'not_found', 'profile_created', 'error'
+  seda_profile_id: text('seda_profile_id'), // Profile ID from SEDA Manager
+  seda_profile_checked_at: timestamp('seda_profile_checked_at', { withTimezone: true }), // Last check timestamp
 });
 
 // Invoice Template Table

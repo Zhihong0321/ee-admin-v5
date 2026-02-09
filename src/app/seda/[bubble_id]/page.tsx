@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, Loader2, FileText, ExternalLink, Save, X, Pencil, Check } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, ExternalLink, Save, X, Pencil, Check, RefreshCw, UserPlus, CheckCircle, XCircle, AlertCircle, Clock } from "lucide-react";
 import { StatusBadge } from "@/components/seda/status-badge";
 import { StatusDropdown } from "@/components/seda/status-dropdown";
 import { ProgressBar } from "@/components/seda/progress-bar";
@@ -219,6 +219,9 @@ export default function SedaDetailPage() {
   const [saving, setSaving] = useState(false);
   const [isRawEditing, setIsRawEditing] = useState(false);
   const [rawJson, setRawJson] = useState("");
+  const [checkingProfile, setCheckingProfile] = useState(false);
+  const [creatingProfile, setCreatingProfile] = useState(false);
+  const [profileCheckResult, setProfileCheckResult] = useState<any>(null);
 
   useEffect(() => {
     if (params.bubble_id) {
@@ -304,6 +307,88 @@ export default function SedaDetailPage() {
       alert(error instanceof Error ? error.message : "Failed to save changes");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCheckProfile = async () => {
+    setCheckingProfile(true);
+    setProfileCheckResult(null);
+    try {
+      const response = await fetch(`/api/seda/${bubbleId}/check-profile`, {
+        method: "POST",
+      });
+      const result = await response.json();
+      setProfileCheckResult(result);
+      await fetchData(bubbleId);
+    } catch (error) {
+      console.error("Error checking profile:", error);
+      setProfileCheckResult({ success: false, status: "error", message: "Failed to check profile" });
+    } finally {
+      setCheckingProfile(false);
+    }
+  };
+
+  const handleCreateProfile = async () => {
+    if (!confirm("Create a new SEDA profile for this registration?")) return;
+
+    setCreatingProfile(true);
+    setProfileCheckResult(null);
+    try {
+      const response = await fetch(`/api/seda/${bubbleId}/create-profile`, {
+        method: "POST",
+      });
+      const result = await response.json();
+      setProfileCheckResult(result);
+      if (result.success) {
+        await fetchData(bubbleId);
+      } else {
+        alert(result.message || "Failed to create profile");
+      }
+    } catch (error) {
+      console.error("Error creating profile:", error);
+      setProfileCheckResult({ success: false, status: "error", message: "Failed to create profile" });
+    } finally {
+      setCreatingProfile(false);
+    }
+  };
+
+  const getProfileStatusBadge = (status: string | null) => {
+    switch (status) {
+      case "profile_created":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+            <CheckCircle className="w-4 h-4" />
+            Profile Created
+          </span>
+        );
+      case "not_found":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+            <XCircle className="w-4 h-4" />
+            Not Found
+          </span>
+        );
+      case "no_ic":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-full bg-red-100 text-red-700 border border-red-200">
+            <AlertCircle className="w-4 h-4" />
+            No IC Number
+          </span>
+        );
+      case "error":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-full bg-red-100 text-red-700 border border-red-200">
+            <AlertCircle className="w-4 h-4" />
+            Error
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+            <Clock className="w-4 h-4" />
+            Not Checked
+          </span>
+        );
     }
   };
 
@@ -435,6 +520,74 @@ export default function SedaDetailPage() {
           checkpoints={checkpoints}
           size="lg"
         />
+      </div>
+
+      {/* SEDA Profile Status Section */}
+      <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl shadow-sm p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">SEDA Manager Profile</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              {getProfileStatusBadge(seda.seda_profile_status)}
+              {seda.seda_profile_id && (
+                <span className="text-sm text-gray-500 font-mono">
+                  ID: {seda.seda_profile_id}
+                </span>
+              )}
+              {seda.seda_profile_checked_at && (
+                <span className="text-xs text-gray-400">
+                  Last checked: {new Date(seda.seda_profile_checked_at).toLocaleString()}
+                </span>
+              )}
+            </div>
+            {seda.ic_no && (
+              <p className="text-sm text-gray-500 mt-2">
+                MyKad/IC: <span className="font-mono">{seda.ic_no}</span>
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleCheckProfile}
+              disabled={checkingProfile || creatingProfile}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg disabled:opacity-60 transition-colors"
+            >
+              {checkingProfile ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              Check Profile
+            </button>
+            {(seda.seda_profile_status === "not_found" || seda.seda_profile_status === null) && (
+              <button
+                onClick={handleCreateProfile}
+                disabled={checkingProfile || creatingProfile || !seda.ic_no}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-60 transition-colors"
+                title={!seda.ic_no ? "IC number required to create profile" : "Create profile in SEDA Manager"}
+              >
+                {creatingProfile ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <UserPlus className="w-4 h-4" />
+                )}
+                Create Profile
+              </button>
+            )}
+          </div>
+        </div>
+        {profileCheckResult && (
+          <div className={`mt-4 p-3 rounded-lg text-sm ${
+            profileCheckResult.success
+              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+              : "bg-red-100 text-red-800 border border-red-200"
+          }`}>
+            <p className="font-medium">{profileCheckResult.message}</p>
+            {profileCheckResult.error && (
+              <p className="mt-1 text-xs opacity-75">{profileCheckResult.error}</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Status Update Section */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Loader2, Eye, Receipt, AlertCircle } from "lucide-react";
+import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock } from "lucide-react";
 
 interface InvoiceNeedingSeda {
   invoice_bubble_id: string;
@@ -21,6 +21,8 @@ interface InvoiceNeedingSeda {
   seda_modified_date: string | null;
   seda_updated_at: string | null;
   seda_installation_address: string | null;
+  seda_profile_status: string | null;
+  seda_profile_id: string | null;
   completed_count: number;
   is_form_completed: boolean;
   has_5_percent: boolean;
@@ -360,6 +362,9 @@ export default function SedaListPage() {
                             Payment
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">
+                            SEDA Profile
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">
                             Last Modified
                           </th>
                           <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">
@@ -430,6 +435,31 @@ export default function SedaListPage() {
                                     />
                                   </div>
                                 </div>
+                              </td>
+
+                              {/* SEDA Profile Status */}
+                              <td className="px-6 py-4">
+                                {invoice.seda_profile_status === "profile_created" ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                    <CheckCircle className="w-3 h-3" />
+                                    Created
+                                  </span>
+                                ) : invoice.seda_profile_status === "not_found" ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                                    <XCircle className="w-3 h-3" />
+                                    Not Found
+                                  </span>
+                                ) : invoice.seda_profile_status === "error" ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700 border border-red-200">
+                                    <AlertCircle className="w-3 h-3" />
+                                    Error
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                                    <Clock className="w-3 h-3" />
+                                    Not Checked
+                                  </span>
+                                )}
                               </td>
 
                               {/* Last Modified */}
