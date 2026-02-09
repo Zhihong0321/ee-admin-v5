@@ -547,9 +547,12 @@ export default function SedaDetailPage() {
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            {seda.seda_profile_id && (
+            {seda.seda_profile_status === "profile_created" && (
               <a
-                href={`https://atap.seda.gov.my/profiles/individuals/${seda.seda_profile_id}/edit`}
+                href={seda.seda_profile_id
+                  ? `https://atap.seda.gov.my/profiles/individuals/${seda.seda_profile_id}/edit`
+                  : `https://atap.seda.gov.my/profiles/individuals?search=${encodeURIComponent(seda.ic_no || '')}`
+                }
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
