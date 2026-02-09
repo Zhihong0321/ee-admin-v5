@@ -63,8 +63,8 @@ export async function POST(
       });
     }
 
-    // 2. Call SEDA Manager API to check profile by MyKad
-    console.log("Calling SEDA Manager API for MyKad:", mykad);
+    // 2. Call SEDA Manager API to search for profile by IC/MyKad
+    console.log("Searching SEDA profile for IC:", mykad);
 
     let profileStatus = "not_found";
     let profileId: string | null = null;
@@ -73,42 +73,36 @@ export async function POST(
 
     try {
       const response = await fetch(
-        `${SEDA_MANAGER_API}/api/v1/mapper/by-mykad/${encodeURIComponent(mykad)}`,
+        `${SEDA_MANAGER_API}/api/v1/profiles/search?registration_number=${encodeURIComponent(mykad)}`,
         {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
           },
-          // 30 second timeout
           signal: AbortSignal.timeout(30000),
         }
       );
 
-      if (response.ok) {
-        apiResponse = await response.json();
-        console.log("SEDA Manager API response:", JSON.stringify(apiResponse).substring(0, 500));
+      apiResponse = await response.json().catch(() => null);
+      console.log("SEDA profile search response:", JSON.stringify(apiResponse).substring(0, 500));
 
-        // Check if profile exists in response
-        if (apiResponse && (apiResponse.profile_id || apiResponse.id || apiResponse.data)) {
-          profileStatus = "profile_created";
-          profileId = apiResponse.profile_id || apiResponse.id || null;
-        } else if (apiResponse && Object.keys(apiResponse).length > 0) {
-          // Has some data, consider it as profile found
-          profileStatus = "profile_created";
-          profileId = apiResponse.profile_id || apiResponse.id || null;
-        } else {
-          profileStatus = "not_found";
-        }
-      } else if (response.status === 404) {
+      if (response.ok && Array.isArray(apiResponse) && apiResponse.length > 0) {
+        // Profile found
+        profileStatus = "profile_created";
+        profileId = apiResponse[0]?.id?.toString() || apiResponse[0]?.profile_id?.toString() || null;
+        console.log("Profile found, ID:", profileId);
+      } else if (response.status === 404 || (apiResponse?.detail && apiResponse.detail.includes("No profiles found"))) {
         profileStatus = "not_found";
-        console.log("Profile not found in SEDA Manager");
-      } else {
+        console.log("Profile not found in SEDA");
+      } else if (!response.ok) {
         profileStatus = "error";
-        errorMessage = `API returned status ${response.status}`;
-        console.error("SEDA Manager API error:", response.status, response.statusText);
+        errorMessage = apiResponse?.detail || `API returned status ${response.status}`;
+        console.error("SEDA API error:", response.status, errorMessage);
+      } else {
+        profileStatus = "not_found";
       }
     } catch (fetchError: any) {
-      console.error("Error calling SEDA Manager API:", fetchError);
+      console.error("Error calling SEDA API:", fetchError);
       profileStatus = "error";
       errorMessage = fetchError.message || "Failed to connect to SEDA Manager API";
     }
