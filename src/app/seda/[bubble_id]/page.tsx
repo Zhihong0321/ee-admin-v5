@@ -1,12 +1,214 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, Loader2, FileText, ExternalLink } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, ExternalLink, Save, X, Pencil, Check } from "lucide-react";
 import { StatusBadge } from "@/components/seda/status-badge";
 import { StatusDropdown } from "@/components/seda/status-dropdown";
 import { ProgressBar } from "@/components/seda/progress-bar";
 import { DownloadButton } from "@/components/seda/download-button";
+
+// Define all editable fields from seda_registration schema
+const SEDA_FIELD_CONFIG: Record<string, { label: string; type: 'text' | 'textarea' | 'number' | 'date' | 'url'; section: string }> = {
+  // Customer Information
+  email: { label: "Email", type: "text", section: "customer" },
+  ic_no: { label: "IC Number", type: "text", section: "customer" },
+
+  // Emergency Contact
+  e_contact_name: { label: "Emergency Contact Name", type: "text", section: "emergency" },
+  e_contact_no: { label: "Emergency Contact No", type: "text", section: "emergency" },
+  e_contact_relationship: { label: "Relationship", type: "text", section: "emergency" },
+  e_email: { label: "Emergency Email", type: "text", section: "emergency" },
+
+  // Address & Location
+  installation_address: { label: "Installation Address", type: "textarea", section: "address" },
+  city: { label: "City", type: "text", section: "address" },
+  state: { label: "State", type: "text", section: "address" },
+
+  // Solar System Details
+  system_size: { label: "System Size (kW)", type: "number", section: "solar" },
+  system_size_in_form_kwp: { label: "System Size in Form (kWp)", type: "number", section: "solar" },
+  inverter_kwac: { label: "Inverter kW AC", type: "number", section: "solar" },
+  inverter_serial_no: { label: "Inverter Serial No", type: "text", section: "solar" },
+  phase_type: { label: "Phase Type", type: "text", section: "solar" },
+  sunpeak_hours: { label: "Sunpeak Hours", type: "number", section: "solar" },
+
+  // TNB Information
+  tnb_account_no: { label: "TNB Account No", type: "text", section: "tnb" },
+  tnb_meter_status: { label: "TNB Meter Status", type: "text", section: "tnb" },
+  tnb_meter: { label: "TNB Meter Image URL", type: "url", section: "tnb" },
+  tnb_bill_1: { label: "TNB Bill 1 URL", type: "url", section: "tnb" },
+  tnb_bill_2: { label: "TNB Bill 2 URL", type: "url", section: "tnb" },
+  tnb_bill_3: { label: "TNB Bill 3 URL", type: "url", section: "tnb" },
+  average_tnb: { label: "Average TNB", type: "number", section: "tnb" },
+
+  // Financial Information
+  project_price: { label: "Project Price (RM)", type: "number", section: "financial" },
+  estimated_monthly_saving: { label: "Est. Monthly Saving", type: "number", section: "financial" },
+  price_category: { label: "Price Category", type: "text", section: "financial" },
+
+  // NEM / SEDA
+  nem_application_no: { label: "NEM Application No", type: "text", section: "nem" },
+  nem_type: { label: "NEM Type", type: "text", section: "nem" },
+  nem_cert: { label: "NEM Certificate URL", type: "url", section: "nem" },
+  seda_status: { label: "SEDA Status", type: "text", section: "nem" },
+  reg_status: { label: "Registration Status", type: "text", section: "nem" },
+  redex_status: { label: "Redex Status", type: "text", section: "nem" },
+  redex_remark: { label: "Redex Remark", type: "textarea", section: "nem" },
+
+  // Documents
+  mykad_pdf: { label: "MyKad PDF URL", type: "url", section: "documents" },
+  ic_copy_front: { label: "IC Copy Front URL", type: "url", section: "documents" },
+  ic_copy_back: { label: "IC Copy Back URL", type: "url", section: "documents" },
+  customer_signature: { label: "Customer Signature URL", type: "url", section: "documents" },
+  property_ownership_prove: { label: "Property Ownership Proof URL", type: "url", section: "documents" },
+  e_contact_mykad: { label: "Emergency Contact MyKad URL", type: "url", section: "documents" },
+
+  // Other
+  agent: { label: "Agent", type: "text", section: "agent" },
+  special_remark: { label: "Special Remark", type: "textarea", section: "remarks" },
+  company_registration_no: { label: "Company Registration No", type: "text", section: "other" },
+  slug: { label: "Slug", type: "text", section: "other" },
+
+  // Folder Links
+  g_electric_folder_link: { label: "Google Electric Folder", type: "url", section: "folders" },
+  g_roof_folder_link: { label: "Google Roof Folder", type: "url", section: "folders" },
+
+  // Check fields
+  check_tnb_bill_and_meter_image: { label: "Check TNB Bill & Meter", type: "text", section: "checks" },
+  check_mykad: { label: "Check MyKad", type: "text", section: "checks" },
+  check_ownership: { label: "Check Ownership", type: "text", section: "checks" },
+  check_fill_in_detail: { label: "Check Fill In Detail", type: "text", section: "checks" },
+};
+
+interface EditableFieldProps {
+  fieldKey: string;
+  value: any;
+  config: { label: string; type: string };
+  onSave: (key: string, value: any) => Promise<void>;
+  saving: boolean;
+}
+
+function EditableField({ fieldKey, value, config, onSave, saving }: EditableFieldProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const [localSaving, setLocalSaving] = useState(false);
+
+  const handleSave = async () => {
+    setLocalSaving(true);
+    try {
+      await onSave(fieldKey, draft);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to save:", error);
+    } finally {
+      setLocalSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setDraft(value ?? "");
+    setIsEditing(false);
+  };
+
+  const displayValue = value ?? "N/A";
+  const isUrl = config.type === "url";
+
+  if (!isEditing) {
+    return (
+      <div className="group">
+        <div className="text-sm font-medium text-gray-500 mb-1">{config.label}</div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="text-gray-900 break-all flex-1">
+            {isUrl && value ? (
+              <a
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-600 hover:text-primary-700 flex items-center gap-1 text-sm"
+              >
+                View File <ExternalLink className="w-3 h-3" />
+              </a>
+            ) : config.type === "number" && value ? (
+              parseFloat(value).toLocaleString()
+            ) : (
+              displayValue
+            )}
+          </div>
+          <button
+            onClick={() => {
+              setDraft(value ?? "");
+              setIsEditing(true);
+            }}
+            className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-all"
+            title="Edit"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="text-sm font-medium text-gray-500 mb-1">{config.label}</div>
+      <div className="space-y-2">
+        {config.type === "textarea" ? (
+          <textarea
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 text-sm"
+            rows={3}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={`Enter ${config.label}`}
+          />
+        ) : (
+          <input
+            type={config.type === "number" ? "number" : "text"}
+            step={config.type === "number" ? "any" : undefined}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 text-sm"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={`Enter ${config.label}`}
+          />
+        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            disabled={localSaving || saving}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md disabled:opacity-60 transition-colors"
+          >
+            {localSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+            Save
+          </button>
+          <button
+            onClick={handleCancel}
+            disabled={localSaving}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+          >
+            <X className="w-3 h-3" />
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface SectionProps {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+function Section({ title, children, className = "" }: SectionProps) {
+  return (
+    <div className={`bg-white border border-gray-200 rounded-lg shadow-sm p-6 ${className}`}>
+      <h2 className="text-xl font-semibold text-gray-900 mb-4">{title}</h2>
+      {children}
+    </div>
+  );
+}
 
 export default function SedaDetailPage() {
   const router = useRouter();
@@ -14,9 +216,9 @@ export default function SedaDetailPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [bubbleId, setBubbleId] = useState<string>("");
-  const [isEditing, setIsEditing] = useState(false);
-  const [rawJson, setRawJson] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isRawEditing, setIsRawEditing] = useState(false);
+  const [rawJson, setRawJson] = useState("");
 
   useEffect(() => {
     if (params.bubble_id) {
@@ -34,10 +236,7 @@ export default function SedaDetailPage() {
 
       const result = await response.json();
       setData(result);
-      setIsEditing(false);
-      setSaving(false);
-      const seda = result?.seda;
-      setRawJson(seda ? JSON.stringify(seda, null, 2) : "");
+      setRawJson(result?.seda ? JSON.stringify(result.seda, null, 2) : "");
     } catch (error) {
       console.error("Error fetching SEDA details:", error);
       alert("Failed to load SEDA details. Please try again.");
@@ -47,23 +246,88 @@ export default function SedaDetailPage() {
     }
   };
 
+  const patchSeda = useCallback(async (patch: Record<string, any>) => {
+    const response = await fetch(`/api/seda/${bubbleId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const msg = payload?.error ? String(payload.error) : "Failed to update SEDA registration";
+      const details = payload?.detail ? `\n${String(payload.detail)}` : "";
+      const hint = payload?.hint ? `\nHint: ${String(payload.hint)}` : "";
+      const unknown = Array.isArray(payload?.unknown_keys)
+        ? `\nUnknown keys: ${payload.unknown_keys.join(", ")}`
+        : "";
+      throw new Error(`${msg}${details}${hint}${unknown}`);
+    }
+    return payload;
+  }, [bubbleId]);
+
+  const handleFieldSave = useCallback(async (fieldKey: string, value: any) => {
+    setSaving(true);
+    try {
+      await patchSeda({ [fieldKey]: value });
+      await fetchData(bubbleId);
+    } catch (error) {
+      console.error("Error saving field:", error);
+      alert(error instanceof Error ? error.message : "Failed to save changes");
+      throw error;
+    } finally {
+      setSaving(false);
+    }
+  }, [bubbleId, patchSeda]);
+
   const handleUpdateStatus = async (newStatus: string) => {
     try {
-      const body = { seda_status: newStatus };
-      const response = await fetch(`/api/seda/${bubbleId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) throw new Error("Failed to update status");
-
-      // Refresh current data
-      fetchData(bubbleId);
+      await patchSeda({ seda_status: newStatus });
+      await fetchData(bubbleId);
     } catch (error) {
       console.error("Error updating status:", error);
       throw error;
     }
+  };
+
+  const handleSaveRawJson = async () => {
+    setSaving(true);
+    try {
+      const parsed = JSON.parse(rawJson || "{}");
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Invalid JSON: expected an object");
+      }
+      await patchSeda(parsed);
+      await fetchData(bubbleId);
+      setIsRawEditing(false);
+    } catch (error) {
+      console.error("Error saving SEDA edit:", error);
+      alert(error instanceof Error ? error.message : "Failed to save changes");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const renderFieldsForSection = (sectionKey: string) => {
+    if (!data?.seda) return null;
+    const seda = data.seda;
+
+    const fields = Object.entries(SEDA_FIELD_CONFIG)
+      .filter(([_, config]) => config.section === sectionKey);
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {fields.map(([key, config]) => (
+          <EditableField
+            key={key}
+            fieldKey={key}
+            value={seda[key]}
+            config={config}
+            onSave={handleFieldSave}
+            saving={saving}
+          />
+        ))}
+      </div>
+    );
   };
 
   if (loading) {
@@ -90,40 +354,6 @@ export default function SedaDetailPage() {
 
   const { seda, customer, checkpoints, completed_count, progress_percentage } = data;
 
-  const handleSaveAll = async () => {
-    setSaving(true);
-    try {
-      const parsed = JSON.parse(rawJson || "{}");
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("Invalid JSON: expected an object");
-      }
-
-      const response = await fetch(`/api/seda/${bubbleId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const msg = payload?.error
-          ? String(payload.error)
-          : "Failed to update SEDA registration";
-        const details = payload?.detail ? `\n${String(payload.detail)}` : "";
-        const hint = payload?.hint ? `\nHint: ${String(payload.hint)}` : "";
-        const unknown = Array.isArray(payload?.unknown_keys)
-          ? `\nUnknown keys: ${payload.unknown_keys.join(", ")}`
-          : "";
-        throw new Error(`${msg}${details}${hint}${unknown}`);
-      }
-
-      await fetchData(bubbleId);
-    } catch (error) {
-      console.error("Error saving SEDA edit:", error);
-      alert(error instanceof Error ? error.message : "Failed to save changes");
-      setSaving(false);
-    }
-  };
-
   return (
     <div className="p-8 space-y-6">
       {/* Back Button */}
@@ -147,13 +377,14 @@ export default function SedaDetailPage() {
             <StatusBadge status={seda.seda_status || "Pending"} />
           </div>
           <p className="text-gray-600 mt-1">SEDA Registration Details</p>
+          <p className="text-xs text-gray-400 mt-1 font-mono">ID: {bubbleId}</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
           <button
-            onClick={() => setIsEditing((v) => !v)}
+            onClick={() => setIsRawEditing((v) => !v)}
             className="btn-secondary"
           >
-            {isEditing ? "Close Editor" : "Admin Edit"}
+            {isRawEditing ? "Close Raw Editor" : "Raw JSON Edit"}
           </button>
           <DownloadButton
             bubbleId={bubbleId}
@@ -163,17 +394,18 @@ export default function SedaDetailPage() {
         </div>
       </div>
 
-      {isEditing && (
+      {/* Raw JSON Editor (Advanced) */}
+      {isRawEditing && (
         <div className="bg-white border border-amber-200 rounded-lg shadow-sm p-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Admin Edit (Raw JSON)</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Raw JSON Edit (Advanced)</h2>
               <p className="text-sm text-gray-600">
-                Edit any existing `seda_registration` fields here. Identifiers like `id` and `bubble_id` are blocked server-side.
+                Edit any seda_registration fields directly. Identifiers like id and bubble_id are blocked.
               </p>
             </div>
             <button
-              onClick={handleSaveAll}
+              onClick={handleSaveRawJson}
               disabled={saving}
               className="btn-primary disabled:opacity-60"
             >
@@ -206,8 +438,7 @@ export default function SedaDetailPage() {
       </div>
 
       {/* Status Update Section */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Status Update</h2>
+      <Section title="Status Update">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -219,73 +450,76 @@ export default function SedaDetailPage() {
             />
           </div>
         </div>
-      </div>
+      </Section>
 
       {/* Customer Information */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Customer Information</h2>
+      <Section title="Customer Information">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <InfoRow label="Name" value={customer?.name || seda.customer_name} />
-          <InfoRow label="Email" value={seda.email} />
-          <InfoRow label="IC Number" value={seda.ic_no} />
+          <div>
+            <div className="text-sm font-medium text-gray-500 mb-1">Name</div>
+            <div className="text-gray-900">{customer?.name || seda.customer_name || "N/A"}</div>
+            <p className="text-xs text-gray-400 mt-1">(Linked from Customer table)</p>
+          </div>
+          <EditableField
+            fieldKey="email"
+            value={seda.email}
+            config={SEDA_FIELD_CONFIG.email}
+            onSave={handleFieldSave}
+            saving={saving}
+          />
+          <EditableField
+            fieldKey="ic_no"
+            value={seda.ic_no}
+            config={SEDA_FIELD_CONFIG.ic_no}
+            onSave={handleFieldSave}
+            saving={saving}
+          />
         </div>
-      </div>
+      </Section>
 
       {/* Emergency Contact */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Emergency Contact</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <InfoRow label="Emergency Contact Name" value={seda.e_contact_name} />
-          <InfoRow label="Emergency Contact No" value={seda.e_contact_no} />
-          <InfoRow label="Emergency Contact Relationship" value={seda.e_contact_relationship} />
-          <InfoRow label="Emergency Email" value={seda.e_email} />
-        </div>
-      </div>
+      <Section title="Emergency Contact">
+        {renderFieldsForSection("emergency")}
+      </Section>
 
       {/* Address & Location */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Address & Location</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <InfoRow label="Installation Address" value={seda.installation_address} />
-          <InfoRow label="City" value={seda.city} />
-          <InfoRow label="State" value={seda.state} />
-        </div>
-      </div>
+      <Section title="Address & Location">
+        {renderFieldsForSection("address")}
+      </Section>
 
       {/* Solar System Details */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Solar System Details</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <InfoRow label="System Size" value={seda.system_size} suffix=" kW" />
-          <InfoRow label="System Size in Form" value={seda.system_size_in_form_kwp} suffix=" kWp" />
-          <InfoRow label="Inverter KW AC" value={seda.inverter_kwac} suffix=" kW" />
-          <InfoRow label="Inverter Serial No" value={seda.inverter_serial_no} />
-          <InfoRow label="Phase Type" value={seda.phase_type} />
-        </div>
-      </div>
+      <Section title="Solar System Details">
+        {renderFieldsForSection("solar")}
+      </Section>
 
       {/* TNB Information */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">TNB Information</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <InfoRow label="TNB Account No" value={seda.tnb_account_no} />
-          <InfoRow label="TNB Meter Status" value={seda.tnb_meter_status} />
-          <FileLink label="TNB Meter" url={seda.tnb_meter} />
-          <FileLink label="TNB Bill 1" url={seda.tnb_bill_1} />
-          <FileLink label="TNB Bill 2" url={seda.tnb_bill_2} />
-          <FileLink label="TNB Bill 3" url={seda.tnb_bill_3} />
-        </div>
-      </div>
+      <Section title="TNB Information">
+        {renderFieldsForSection("tnb")}
+      </Section>
 
       {/* Financial Information */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Financial Information</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <InfoRow
-            label="Project Price"
+      <Section title="Financial Information">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <EditableField
+            fieldKey="project_price"
             value={seda.project_price}
-            prefix="RM "
-            formatNumber
+            config={SEDA_FIELD_CONFIG.project_price}
+            onSave={handleFieldSave}
+            saving={saving}
+          />
+          <EditableField
+            fieldKey="estimated_monthly_saving"
+            value={seda.estimated_monthly_saving}
+            config={SEDA_FIELD_CONFIG.estimated_monthly_saving}
+            onSave={handleFieldSave}
+            saving={saving}
+          />
+          <EditableField
+            fieldKey="price_category"
+            value={seda.price_category}
+            config={SEDA_FIELD_CONFIG.price_category}
+            onSave={handleFieldSave}
+            saving={saving}
           />
           <div>
             <div className="text-sm font-medium text-gray-500 mb-1">Linked Invoice</div>
@@ -305,79 +539,92 @@ export default function SedaDetailPage() {
             )}
           </div>
         </div>
-      </div>
+      </Section>
+
+      {/* NEM / SEDA Status */}
+      <Section title="NEM / SEDA Registration">
+        {renderFieldsForSection("nem")}
+      </Section>
 
       {/* Agent Information */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Agent Information</h2>
-        <InfoRow label="Agent" value={seda.agent_name || seda.agent} />
-      </div>
+      <Section title="Agent Information">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <EditableField
+            fieldKey="agent"
+            value={seda.agent}
+            config={SEDA_FIELD_CONFIG.agent}
+            onSave={handleFieldSave}
+            saving={saving}
+          />
+          <div>
+            <div className="text-sm font-medium text-gray-500 mb-1">Agent Name (Display)</div>
+            <div className="text-gray-900">{seda.agent_name || seda.agent || "N/A"}</div>
+          </div>
+        </div>
+      </Section>
 
       {/* Documents & Files */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Documents & Files</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <FileLink label="MyKad PDF" url={seda.mykad_pdf} />
-          <FileLink label="IC Copy Front" url={seda.ic_copy_front} />
-          <FileLink label="IC Copy Back" url={seda.ic_copy_back} />
-          <FileLink label="Customer Signature" url={seda.customer_signature} />
-          <FileLink label="Property Ownership Proof" url={seda.property_ownership_prove} />
-          <FileLink label="Emergency Contact MyKad" url={seda.e_contact_mykad} />
-        </div>
-      </div>
+      <Section title="Documents & Files">
+        {renderFieldsForSection("documents")}
+      </Section>
+
+      {/* Folder Links */}
+      <Section title="Google Drive Folders">
+        {renderFieldsForSection("folders")}
+      </Section>
+
+      {/* Verification Checks */}
+      <Section title="Verification Checks">
+        {renderFieldsForSection("checks")}
+      </Section>
 
       {/* Remarks */}
-      {seda.special_remark && (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Remarks</h2>
-          <p className="text-gray-700 whitespace-pre-wrap">{seda.special_remark}</p>
+      <Section title="Remarks">
+        <div className="grid grid-cols-1 gap-4">
+          <EditableField
+            fieldKey="special_remark"
+            value={seda.special_remark}
+            config={SEDA_FIELD_CONFIG.special_remark}
+            onSave={handleFieldSave}
+            saving={saving}
+          />
         </div>
-      )}
-    </div>
-  );
-}
+      </Section>
 
-function InfoRow({
-  label,
-  value,
-  prefix = "",
-  suffix = "",
-  formatNumber = false,
-}: {
-  label: string;
-  value: any;
-  prefix?: string;
-  suffix?: string;
-  formatNumber?: boolean;
-}) {
-  const displayValue = value
-    ? prefix + (formatNumber ? parseFloat(value).toLocaleString() : value) + suffix
-    : "N/A";
+      {/* Other Fields */}
+      <Section title="Other Information">
+        {renderFieldsForSection("other")}
+      </Section>
 
-  return (
-    <div>
-      <div className="text-sm font-medium text-gray-500 mb-1">{label}</div>
-      <div className="text-gray-900">{displayValue}</div>
-    </div>
-  );
-}
-
-function FileLink({ label, url }: { label: string; url: string | null }) {
-  return (
-    <div>
-      <div className="text-sm font-medium text-gray-500 mb-1">{label}</div>
-      {url ? (
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary-600 hover:text-primary-700 flex items-center gap-1 text-sm"
-        >
-          View File <ExternalLink className="w-3 h-3" />
-        </a>
-      ) : (
-        <div className="text-sm text-gray-400">Not uploaded</div>
-      )}
+      {/* Metadata (Read-only) */}
+      <Section title="Metadata" className="bg-gray-50">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <div className="font-medium text-gray-500">Created At</div>
+            <div className="text-gray-700">{seda.created_at ? new Date(seda.created_at).toLocaleString() : "N/A"}</div>
+          </div>
+          <div>
+            <div className="font-medium text-gray-500">Updated At</div>
+            <div className="text-gray-700">{seda.updated_at ? new Date(seda.updated_at).toLocaleString() : "N/A"}</div>
+          </div>
+          <div>
+            <div className="font-medium text-gray-500">Modified Date</div>
+            <div className="text-gray-700">{seda.modified_date ? new Date(seda.modified_date).toLocaleString() : "N/A"}</div>
+          </div>
+          <div>
+            <div className="font-medium text-gray-500">Last Synced</div>
+            <div className="text-gray-700">{seda.last_synced_at ? new Date(seda.last_synced_at).toLocaleString() : "N/A"}</div>
+          </div>
+          <div>
+            <div className="font-medium text-gray-500">Version</div>
+            <div className="text-gray-700">{seda.version || "N/A"}</div>
+          </div>
+          <div>
+            <div className="font-medium text-gray-500">Created By</div>
+            <div className="text-gray-700">{seda.created_by || "N/A"}</div>
+          </div>
+        </div>
+      </Section>
     </div>
   );
 }
