@@ -124,7 +124,7 @@ export async function POST(
       salutation: salutation,
       name: customer_name || seda.email?.split("@")[0] || "Unknown",
       citizenship: "Malaysian",
-      mykad_passport: mykad,
+      ic_number: mykad,
       email: seda.email || "",
       address_line_1: address.line1,
       address_line_2: address.line2,
@@ -136,14 +136,14 @@ export async function POST(
       mobile: customer_phone || seda.e_contact_no || "",
 
       // Emergency contact info
-      contact_salutation: contactSalutation,
-      contact_name: seda.e_contact_name || "",
-      contact_mykad_passport: contactMykad,
-      contact_citizenship: "Malaysian",
-      contact_relationship: seda.e_contact_relationship || "",
-      contact_email: seda.e_email || seda.email || "",
-      contact_phone: "",
-      contact_mobile: seda.e_contact_no || "",
+      emergency_salutation: contactSalutation,
+      emergency_name: seda.e_contact_name || "",
+      emergency_ic_number: contactMykad,
+      emergency_citizenship: "Malaysian",
+      emergency_relationship: seda.e_contact_relationship || "",
+      emergency_email: seda.e_email || seda.email || "",
+      emergency_phone: "",
+      emergency_mobile: seda.e_contact_no || "",
     };
 
     console.log("Profile data to send:", JSON.stringify(profileData));
