@@ -221,6 +221,7 @@ export default function SedaDetailPage() {
   const [rawJson, setRawJson] = useState("");
   const [checkingProfile, setCheckingProfile] = useState(false);
   const [creatingProfile, setCreatingProfile] = useState(false);
+  const [replacingProfile, setReplacingProfile] = useState(false);
   const [profileCheckResult, setProfileCheckResult] = useState<any>(null);
 
   useEffect(() => {
@@ -349,6 +350,31 @@ export default function SedaDetailPage() {
       setProfileCheckResult({ success: false, status: "error", message: "Failed to create profile" });
     } finally {
       setCreatingProfile(false);
+    }
+  };
+
+  const handleReplaceTestProfile = async () => {
+    if (!confirm("Replace a test profile with this registration data?\n\nThis will find a test profile (mykad contains 02020201) and overwrite it with this registration's data.")) return;
+
+    setReplacingProfile(true);
+    setProfileCheckResult(null);
+    try {
+      const response = await fetch(`/api/seda/${bubbleId}/replace-test-profile`, {
+        method: "POST",
+      });
+      const result = await response.json();
+      setProfileCheckResult(result);
+      if (result.success) {
+        alert(`Success! Profile ${result.profile_id} replaced.\n\nPrevious: ${result.previous_name}`);
+        await fetchData(bubbleId);
+      } else {
+        alert(result.message || result.error || "Failed to replace test profile");
+      }
+    } catch (error) {
+      console.error("Error replacing test profile:", error);
+      setProfileCheckResult({ success: false, status: "error", message: "Failed to replace test profile" });
+    } finally {
+      setReplacingProfile(false);
     }
   };
 
@@ -574,19 +600,34 @@ export default function SedaDetailPage() {
               Check Profile
             </button>
             {(seda.seda_profile_status === "not_found" || seda.seda_profile_status === null) && (
-              <button
-                onClick={handleCreateProfile}
-                disabled={checkingProfile || creatingProfile || !seda.ic_no}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-60 transition-colors"
-                title={!seda.ic_no ? "IC number required to create profile" : "Create profile in SEDA Manager"}
-              >
-                {creatingProfile ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <UserPlus className="w-4 h-4" />
-                )}
-                Create Profile
-              </button>
+              <>
+                <button
+                  onClick={handleReplaceTestProfile}
+                  disabled={checkingProfile || creatingProfile || replacingProfile || !seda.ic_no}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg disabled:opacity-60 transition-colors"
+                  title="Replace a test profile with this registration data"
+                >
+                  {replacingProfile ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  Replace Test Profile
+                </button>
+                <button
+                  onClick={handleCreateProfile}
+                  disabled={checkingProfile || creatingProfile || replacingProfile || !seda.ic_no}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-60 transition-colors"
+                  title={!seda.ic_no ? "IC number required to create profile" : "Create profile in SEDA Manager"}
+                >
+                  {creatingProfile ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="w-4 h-4" />
+                  )}
+                  Create Profile
+                </button>
+              </>
             )}
           </div>
         </div>
