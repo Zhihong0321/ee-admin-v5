@@ -21,6 +21,7 @@ interface InvoiceNeedingSeda {
   seda_modified_date: string | null;
   seda_updated_at: string | null;
   seda_installation_address: string | null;
+  seda_profile: string | null;
   completed_count: number;
   is_form_completed: boolean;
   has_5_percent: boolean;
@@ -36,6 +37,7 @@ interface InvoiceGroup {
 export default function SedaListPage() {
   const [data, setData] = useState<InvoiceGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creatingProfile, setCreatingProfile] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("pending");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -64,6 +66,32 @@ export default function SedaListPage() {
       setExpandedGroups(new Set([data[0].group]));
     }
   }, [data]);
+
+  const handleCreateProfile = async (sedaBubbleId: string) => {
+    if (!sedaBubbleId) return;
+
+    setCreatingProfile(sedaBubbleId);
+    try {
+      const response = await fetch("/api/seda/create-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seda_bubble_id: sedaBubbleId }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || result.message || "Failed to create profile");
+      }
+
+      alert(`Profile created successfully! ID: ${result.profile_id}`);
+      fetchData(); // Refresh the list
+    } catch (error: any) {
+      console.error("Error creating profile:", error);
+      alert(error.message || "Failed to create profile. Please check console for details.");
+    } finally {
+      setCreatingProfile(null);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -213,18 +241,15 @@ export default function SedaListPage() {
                 `}
               >
                 <div className="flex items-center gap-3">
-                  <tab.icon className={`w-5 h-5 flex-shrink-0 ${
-                    activeTab === tab.id ? 'text-slate-900' : 'text-slate-400'
-                  }`} />
+                  <tab.icon className={`w-5 h-5 flex-shrink-0 ${activeTab === tab.id ? 'text-slate-900' : 'text-slate-400'
+                    }`} />
                   <div>
-                    <div className={`text-sm font-semibold ${
-                      activeTab === tab.id ? 'text-slate-900' : 'text-slate-600'
-                    }`}>
+                    <div className={`text-sm font-semibold ${activeTab === tab.id ? 'text-slate-900' : 'text-slate-600'
+                      }`}>
                       {tab.label}
                     </div>
-                    <div className={`text-xs ${
-                      activeTab === tab.id ? 'text-slate-500' : 'text-slate-400'
-                    }`}>
+                    <div className={`text-xs ${activeTab === tab.id ? 'text-slate-500' : 'text-slate-400'
+                      }`}>
                       {tab.description}
                     </div>
                   </div>
@@ -334,9 +359,8 @@ export default function SedaListPage() {
                       {group.count}
                     </span>
                   </div>
-                  <span className={`text-slate-400 transition-transform ${
-                    expandedGroups.has(group.group) ? 'rotate-180' : ''
-                  }`}>
+                  <span className={`text-slate-400 transition-transform ${expandedGroups.has(group.group) ? 'rotate-180' : ''
+                    }`}>
                     ▼
                   </span>
                 </button>
@@ -405,9 +429,8 @@ export default function SedaListPage() {
                                   </div>
                                   <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                     <div
-                                      className={`h-full transition-all ${
-                                        invoice.completed_count === 7 ? "bg-emerald-500" : "bg-blue-400"
-                                      }`}
+                                      className={`h-full transition-all ${invoice.completed_count === 7 ? "bg-emerald-500" : "bg-blue-400"
+                                        }`}
                                       style={{ width: `${(invoice.completed_count / 7) * 100}%` }}
                                     />
                                   </div>
@@ -450,13 +473,32 @@ export default function SedaListPage() {
                                     <Receipt className="w-4 h-4" />
                                   </a>
                                   {invoice.linked_seda_registration ? (
-                                    <a
-                                      href={`/seda/${invoice.linked_seda_registration}`}
-                                      className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                      title="View SEDA"
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                    </a>
+                                    <div className="flex gap-1">
+                                      <a
+                                        href={`/seda/${invoice.linked_seda_registration}`}
+                                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                        title="View SEDA"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                      </a>
+                                      {invoice.seda_profile ? (
+                                        <div
+                                          className="p-2 text-emerald-600 bg-emerald-50 rounded-lg cursor-default"
+                                          title={`Profile ID: ${invoice.seda_profile}`}
+                                        >
+                                          <div className="text-[10px] font-bold">PROFILE OK</div>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => handleCreateProfile(invoice.seda_bubble_id!)}
+                                          disabled={creatingProfile === invoice.seda_bubble_id}
+                                          className="px-2 py-1 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded transition-colors"
+                                          title="Create SEDA Profile"
+                                        >
+                                          {creatingProfile === invoice.seda_bubble_id ? "..." : "PROFILE"}
+                                        </button>
+                                      )}
+                                    </div>
                                   ) : (
                                     <a
                                       href={`https://calculator.atap.solar/new?invoice=${invoice.invoice_bubble_id}`}

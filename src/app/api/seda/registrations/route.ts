@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
         modified_date: sedaRegistration.modified_date,
         updated_at: sedaRegistration.updated_at,
         created_date: sedaRegistration.created_date,
+        seda_profile: sedaRegistration.seda_profile,
         linked_invoice: sedaRegistration.linked_invoice,
       })
       .from(sedaRegistration)

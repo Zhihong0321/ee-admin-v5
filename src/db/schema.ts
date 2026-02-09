@@ -234,6 +234,7 @@ export const sedaRegistration = pgTable('seda_registration', {
   check_ownership: text('check_ownership'),
   check_fill_in_detail: text('check_fill_in_detail'),
   drawing_engineering_seda_pdf: text('drawing_engineering_seda_pdf').array(),
+  seda_profile: text('seda_profile'),
 });
 
 // Invoice Template Table
