@@ -14,6 +14,9 @@ export default function SedaDetailPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [bubbleId, setBubbleId] = useState<string>("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [rawJson, setRawJson] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (params.bubble_id) {
@@ -31,6 +34,10 @@ export default function SedaDetailPage() {
 
       const result = await response.json();
       setData(result);
+      setIsEditing(false);
+      setSaving(false);
+      const seda = result?.seda;
+      setRawJson(seda ? JSON.stringify(seda, null, 2) : "");
     } catch (error) {
       console.error("Error fetching SEDA details:", error);
       alert("Failed to load SEDA details. Please try again.");
@@ -83,6 +90,32 @@ export default function SedaDetailPage() {
 
   const { seda, customer, checkpoints, completed_count, progress_percentage } = data;
 
+  const handleSaveAll = async () => {
+    setSaving(true);
+    try {
+      const parsed = JSON.parse(rawJson || "{}");
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Invalid JSON: expected an object");
+      }
+
+      const response = await fetch(`/api/seda/${bubbleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to update SEDA registration");
+      }
+
+      await fetchData(bubbleId);
+    } catch (error) {
+      console.error("Error saving SEDA edit:", error);
+      alert(error instanceof Error ? error.message : "Failed to save changes");
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="p-8 space-y-6">
       {/* Back Button */}
@@ -107,12 +140,46 @@ export default function SedaDetailPage() {
           </div>
           <p className="text-gray-600 mt-1">SEDA Registration Details</p>
         </div>
-        <DownloadButton
-          bubbleId={bubbleId}
-          customerName={customer?.name || seda.customer_name || "Unknown"}
-          size="lg"
-        />
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+          <button
+            onClick={() => setIsEditing((v) => !v)}
+            className="btn-secondary"
+          >
+            {isEditing ? "Close Editor" : "Admin Edit"}
+          </button>
+          <DownloadButton
+            bubbleId={bubbleId}
+            customerName={customer?.name || seda.customer_name || "Unknown"}
+            size="lg"
+          />
+        </div>
       </div>
+
+      {isEditing && (
+        <div className="bg-white border border-amber-200 rounded-lg shadow-sm p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Admin Edit (Raw JSON)</h2>
+              <p className="text-sm text-gray-600">
+                Edit any existing `seda_registration` fields here. Identifiers like `id` and `bubble_id` are blocked server-side.
+              </p>
+            </div>
+            <button
+              onClick={handleSaveAll}
+              disabled={saving}
+              className="btn-primary disabled:opacity-60"
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+          <textarea
+            className="w-full font-mono text-xs rounded-md border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500"
+            rows={18}
+            value={rawJson}
+            onChange={(e) => setRawJson(e.target.value)}
+          />
+        </div>
+      )}
 
       {/* Progress Section */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl shadow-sm p-6">

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sedaRegistration, customers, invoices } from "@/db/schema";
-import { eq, sql, or } from "drizzle-orm";
+import { eq, sql, or, getTableColumns } from "drizzle-orm";
 
 interface RouteContext {
   params: Promise<{
@@ -101,7 +101,9 @@ export async function GET(
 
 /**
  * PATCH /api/seda/[bubble_id]
- * Update SEDA registration status
+ * Update SEDA registration fields (admin edit)
+ *
+ * Important: never alters schema; only updates existing columns on `seda_registration`.
  */
 export async function PATCH(
   request: NextRequest,
@@ -110,17 +112,42 @@ export async function PATCH(
   try {
     const { bubble_id } = await params;
     const body = await request.json();
-    const { seda_status } = body;
+    console.log("Updating SEDA:", bubble_id, Object.keys(body || {}));
 
-    console.log("Updating SEDA:", bubble_id, { seda_status });
+    // Whitelist strictly to existing columns in the Drizzle schema to avoid runtime errors.
+    // Block primary identifiers to prevent accidental data corruption.
+    const cols = getTableColumns(sedaRegistration);
+    const DISALLOWED = new Set([
+      "id",
+      "bubble_id",
+      "created_at",
+      "created_date",
+      "last_synced_at",
+    ]);
 
-    // Simple update
-    const updateData: any = {
-      updated_at: new Date(),
-    };
+    const updateData: Record<string, any> = { updated_at: new Date() };
+    const unknownKeys: string[] = [];
+    for (const [key, value] of Object.entries(body || {})) {
+      if (DISALLOWED.has(key)) continue;
+      if (!(key in cols)) {
+        unknownKeys.push(key);
+        continue;
+      }
+      updateData[key] = value;
+    }
 
-    if (seda_status !== undefined) {
-      updateData.seda_status = seda_status;
+    if (unknownKeys.length > 0) {
+      return NextResponse.json(
+        { error: "Unknown fields in request body", unknown_keys: unknownKeys },
+        { status: 400 }
+      );
+    }
+
+    if (Object.keys(updateData).length === 1) {
+      return NextResponse.json(
+        { error: "No valid fields provided for update" },
+        { status: 400 }
+      );
     }
 
     const updated = await db
