@@ -27,12 +27,28 @@ function getSalutation(mykad: string): string {
 function splitAddress(address: string | null): { line1: string; line2: string; line3: string } {
   if (!address) return { line1: "", line2: "", line3: "" };
 
-  const parts = address.split(",").map(p => p.trim());
+  const parts = address.split(",").map(p => p.trim().replace(/\.+$/, "")); // Remove trailing periods
   return {
     line1: parts[0] || "",
     line2: parts[1] || "",
-    line3: parts.slice(2).join(", ") || "",
+    line3: parts.slice(2).join(", ").replace(/\.+$/, "") || "",
   };
+}
+
+/**
+ * Clean phone number - remove dashes and spaces
+ */
+function cleanPhone(phone: string | null): string {
+  if (!phone) return "";
+  return phone.replace(/[-\s]/g, "").trim();
+}
+
+/**
+ * Clean name - trim spaces
+ */
+function cleanName(name: string | null): string {
+  if (!name) return "";
+  return name.trim();
 }
 
 /**
@@ -122,28 +138,28 @@ export async function POST(
     const profileData = {
       // Owner info
       salutation: salutation,
-      name: customer_name || seda.email?.split("@")[0] || "Unknown",
+      name: cleanName(customer_name) || seda.email?.split("@")[0] || "Unknown",
       citizenship: "Malaysian",
       ic_number: mykad,
-      email: seda.email || "",
+      email: seda.email?.trim() || "",
       address_line_1: address.line1,
       address_line_2: address.line2,
       address_line_3: address.line3,
       postcode: postcode,
-      town: seda.city || "",
-      state: seda.state || "",
+      town: cleanName(seda.city) || "",
+      state: cleanName(seda.state) || "",
       phone: "",
-      mobile: customer_phone || seda.e_contact_no || "",
+      mobile: cleanPhone(customer_phone) || cleanPhone(seda.e_contact_no) || "",
 
       // Emergency contact info
       emergency_salutation: contactSalutation,
-      emergency_name: seda.e_contact_name || "",
+      emergency_name: cleanName(seda.e_contact_name) || "",
       emergency_ic_number: contactMykad,
       emergency_citizenship: "Malaysian",
-      emergency_relationship: seda.e_contact_relationship || "",
-      emergency_email: seda.e_email || seda.email || "",
+      emergency_relationship: cleanName(seda.e_contact_relationship) || "",
+      emergency_email: seda.e_email?.trim() || seda.email?.trim() || "",
       emergency_phone: "",
-      emergency_mobile: seda.e_contact_no || "",
+      emergency_mobile: cleanPhone(seda.e_contact_no) || "",
     };
 
     console.log("Profile data to send:", JSON.stringify(profileData));
