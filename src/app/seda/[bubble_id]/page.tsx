@@ -530,9 +530,14 @@ export default function SedaDetailPage() {
             <div className="flex flex-wrap items-center gap-3">
               {getProfileStatusBadge(seda.seda_profile_status)}
               {seda.seda_profile_id && (
-                <span className="text-sm text-gray-500 font-mono">
-                  ID: {seda.seda_profile_id}
-                </span>
+                <a
+                  href={`https://atap.seda.gov.my/profiles/individuals/${seda.seda_profile_id}/edit`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-800 font-medium"
+                >
+                  View Profile <ExternalLink className="w-3 h-3" />
+                </a>
               )}
               {seda.seda_profile_checked_at && (
                 <span className="text-xs text-gray-400">

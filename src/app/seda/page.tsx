@@ -440,10 +440,22 @@ export default function SedaListPage() {
                               {/* SEDA Profile Status */}
                               <td className="px-6 py-4">
                                 {invoice.seda_profile_status === "profile_created" ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-                                    <CheckCircle className="w-3 h-3" />
-                                    Created
-                                  </span>
+                                  invoice.seda_profile_id ? (
+                                    <a
+                                      href={`https://atap.seda.gov.my/profiles/individuals/${invoice.seda_profile_id}/edit`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200 transition-colors"
+                                    >
+                                      <CheckCircle className="w-3 h-3" />
+                                      View Profile
+                                    </a>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                      <CheckCircle className="w-3 h-3" />
+                                      Created
+                                    </span>
+                                  )
                                 ) : invoice.seda_profile_status === "not_found" ? (
                                   <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-700 border border-amber-200">
                                     <XCircle className="w-3 h-3" />
