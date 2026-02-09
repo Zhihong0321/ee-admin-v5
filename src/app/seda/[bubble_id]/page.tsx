@@ -637,9 +637,17 @@ export default function SedaDetailPage() {
               ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
               : "bg-red-100 text-red-800 border border-red-200"
           }`}>
-            <p className="font-medium">{profileCheckResult.message}</p>
+            <p className="font-medium">
+              {typeof profileCheckResult.message === 'string'
+                ? profileCheckResult.message
+                : JSON.stringify(profileCheckResult.message)}
+            </p>
             {profileCheckResult.error && (
-              <p className="mt-1 text-xs opacity-75">{profileCheckResult.error}</p>
+              <p className="mt-1 text-xs opacity-75">
+                {typeof profileCheckResult.error === 'string'
+                  ? profileCheckResult.error
+                  : JSON.stringify(profileCheckResult.error)}
+              </p>
             )}
           </div>
         )}
