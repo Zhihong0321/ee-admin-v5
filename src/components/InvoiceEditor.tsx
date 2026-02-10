@@ -220,8 +220,8 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
     }
 
     const priceNum = parseFloat(editingItem.unit_price);
-    if (isNaN(priceNum) || priceNum < 0) {
-      alert("Unit price must be 0 or greater");
+    if (isNaN(priceNum)) {
+      alert("Unit price must be a valid number");
       return;
     }
 
@@ -268,8 +268,8 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
     }
 
     const priceNum = parseFloat(newItem.unit_price);
-    if (isNaN(priceNum) || priceNum < 0) {
-      alert("Unit price must be 0 or greater");
+    if (isNaN(priceNum)) {
+      alert("Unit price must be a valid number");
       return;
     }
 

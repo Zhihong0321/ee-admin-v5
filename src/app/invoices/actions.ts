@@ -376,8 +376,8 @@ export async function createInvoiceItem(
       return { success: false, error: "Quantity must be greater than 0" };
     }
 
-    if (isNaN(unitPriceValue) || unitPriceValue < 0) {
-      return { success: false, error: "Unit price must be 0 or greater" };
+    if (isNaN(unitPriceValue)) {
+      return { success: false, error: "Unit price must be a valid number" };
     }
 
     // Get invoice
