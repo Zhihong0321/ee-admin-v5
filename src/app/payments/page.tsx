@@ -300,7 +300,12 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
   };
 
   const handleViewInvoice = async (invoiceBubbleId: string, shareToken?: string) => {
+    // Priority: Share Token > Real Bubble ID
     const targetId = shareToken || invoiceBubbleId;
+    if (!targetId) {
+      alert("No valid Bubble ID or Share Token found for this invoice.");
+      return;
+    }
     window.open(`https://calculator.atap.solar/view/${targetId}`, '_blank');
   };
 
@@ -847,11 +852,11 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   </div>
                 )}
 
-                {viewingPayment.linked_invoice && (
+                {viewingPayment.invoice_bubble_id && (
                   <div className="space-y-4 pt-4 border-t border-secondary-200">
                     <h3 className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Linked Invoice</h3>
                     <button
-                      onClick={() => handleViewInvoice(viewingPayment.linked_invoice, viewingPayment.share_token)}
+                      onClick={() => handleViewInvoice(viewingPayment.invoice_bubble_id, viewingPayment.share_token)}
                       className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2 text-sm"
                     >
                       <FileText className="h-4 w-4 text-primary-600" />

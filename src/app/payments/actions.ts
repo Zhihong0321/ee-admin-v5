@@ -42,14 +42,15 @@ export async function getSubmittedPayments(search?: string, status: string = 'pe
         agent_name: agents.name,
         customer_name: customers.name,
         created_at: submitted_payments.created_at,
-        linked_invoice: submitted_payments.linked_invoice,
+        linked_invoice: submitted_payments.linked_invoice, // This might be numeric or bubble ID
+        invoice_bubble_id: invoices.bubble_id, // REAL bubble ID from join
         share_token: invoices.share_token,
         log: submitted_payments.log,
       })
       .from(submitted_payments)
       .leftJoin(agents, eq(submitted_payments.linked_agent, agents.bubble_id))
       .leftJoin(customers, eq(submitted_payments.linked_customer, customers.customer_id))
-      .leftJoin(invoices, eq(submitted_payments.linked_invoice, invoices.bubble_id))
+      .leftJoin(invoices, sql`${submitted_payments.linked_invoice} = ${invoices.bubble_id} OR ${submitted_payments.linked_invoice} = CAST(${invoices.invoice_id} AS TEXT)`)
       .where(whereClause)
       .orderBy(desc(submitted_payments.created_at))
       .limit(50);
@@ -86,6 +87,7 @@ export async function getVerifiedPayments(search?: string) {
         customer_name: customers.name,
         created_at: payments.created_at,
         linked_invoice: payments.linked_invoice,
+        invoice_bubble_id: invoices.bubble_id, // REAL bubble ID from join
         share_token: invoices.share_token,
         payment_index: payments.payment_index,
         epp_month: payments.epp_month,
@@ -98,7 +100,7 @@ export async function getVerifiedPayments(search?: string) {
       .from(payments)
       .leftJoin(agents, eq(payments.linked_agent, agents.bubble_id))
       .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
-      .leftJoin(invoices, eq(payments.linked_invoice, invoices.bubble_id))
+      .leftJoin(invoices, sql`${payments.linked_invoice} = ${invoices.bubble_id} OR ${payments.linked_invoice} = CAST(${invoices.invoice_id} AS TEXT)`)
       .where(filters)
       .orderBy(desc(payments.payment_date), desc(payments.created_at))
       .limit(50);
