@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { payments, submitted_payments, agents, customers, invoices, invoice_templates, users } from "@/db/schema";
-import { ilike, or, desc, eq, sql } from "drizzle-orm";
+import { payments, submitted_payments, agents, customers, invoices, invoice_templates, users, invoice_items } from "@/db/schema";
+import { ilike, or, desc, eq, and, sql, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncPaymentsFromBubble } from "@/lib/bubble";
 
@@ -14,9 +14,9 @@ export async function triggerPaymentSync() {
   return result;
 }
 
-export async function getSubmittedPayments(search?: string) {
+export async function getSubmittedPayments(search?: string, status: string = 'pending') {
   try {
-    const filters = search
+    const searchFilters = search
       ? or(
           ilike(submitted_payments.remark, `%${search}%`),
           ilike(submitted_payments.payment_method, `%${search}%`),
@@ -24,6 +24,10 @@ export async function getSubmittedPayments(search?: string) {
           ilike(customers.name, `%${search}%`)
         )
       : undefined;
+
+    const whereClause = searchFilters 
+      ? and(eq(submitted_payments.status, status), searchFilters)
+      : eq(submitted_payments.status, status);
 
     const data = await db
       .select({
@@ -39,11 +43,12 @@ export async function getSubmittedPayments(search?: string) {
         customer_name: customers.name,
         created_at: submitted_payments.created_at,
         linked_invoice: submitted_payments.linked_invoice,
+        log: submitted_payments.log,
       })
       .from(submitted_payments)
       .leftJoin(agents, eq(submitted_payments.linked_agent, agents.bubble_id))
       .leftJoin(customers, eq(submitted_payments.linked_customer, customers.customer_id))
-      .where(filters)
+      .where(whereClause)
       .orderBy(desc(submitted_payments.created_at))
       .limit(50);
 
@@ -79,6 +84,13 @@ export async function getVerifiedPayments(search?: string) {
         customer_name: customers.name,
         created_at: payments.created_at,
         linked_invoice: payments.linked_invoice,
+        payment_index: payments.payment_index,
+        epp_month: payments.epp_month,
+        bank_charges: payments.bank_charges,
+        terminal: payments.terminal,
+        epp_type: payments.epp_type,
+        payment_method_v2: payments.payment_method_v2,
+        log: payments.log,
       })
       .from(payments)
       .leftJoin(agents, eq(payments.linked_agent, agents.bubble_id))
@@ -104,7 +116,11 @@ export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
       return null;
     }
 
-    const items: any[] = [];
+    // Fetch linked items using linked_invoice column in invoice_items table
+    const items = await db.query.invoice_items.findMany({
+      where: eq(invoice_items.linked_invoice, bubbleId),
+      orderBy: desc(invoice_items.created_at)
+    });
 
     const template = await db.query.invoice_templates.findFirst({
       where: invoice.template_id
@@ -219,6 +235,7 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
       verified_by: adminId,
       created_date: p.created_date,
       modified_date: new Date(),
+      log: p.log, // Preserve log from submission
     });
 
     // 3. Update status in submitted_payments or delete it
@@ -232,6 +249,186 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
     return { success: true };
   } catch (error) {
     console.error("Database error in verifyPayment:", error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// NEW ACTIONS FOR PAYMENT MANAGEMENT
+// ============================================================================
+
+interface UpdatePaymentParams {
+  amount?: string;
+  payment_method?: string;
+  payment_date?: Date;
+}
+
+export async function updateVerifiedPayment(id: number, updates: UpdatePaymentParams, user: string) {
+  try {
+    // Get current payment
+    const current = await db.query.payments.findFirst({
+      where: eq(payments.id, id)
+    });
+
+    if (!current) throw new Error("Payment not found");
+
+    const changes: string[] = [];
+    const dateStr = new Date().toISOString();
+
+    if (updates.amount && updates.amount !== current.amount) {
+      changes.push(`[${dateStr}] ${user} changed Amount from ${current.amount} to ${updates.amount}`);
+    }
+    if (updates.payment_method && updates.payment_method !== current.payment_method) {
+      changes.push(`[${dateStr}] ${user} changed Method from ${current.payment_method} to ${updates.payment_method}`);
+    }
+    if (updates.payment_date && current.payment_date && updates.payment_date.getTime() !== current.payment_date.getTime()) {
+      changes.push(`[${dateStr}] ${user} changed Date from ${current.payment_date.toISOString()} to ${updates.payment_date.toISOString()}`);
+    }
+
+    if (changes.length === 0) return { success: true, message: "No changes detected" };
+
+    const newLog = (current.log ? current.log + "\n" : "") + changes.join("\n");
+
+    await db.update(payments)
+      .set({
+        ...updates,
+        log: newLog,
+        updated_at: new Date()
+      })
+      .where(eq(payments.id, id));
+
+    revalidatePath("/payments");
+    return { success: true, message: "Payment updated successfully" };
+  } catch (error) {
+    console.error("Error updating verified payment:", error);
+    throw error;
+  }
+}
+
+export async function updateSubmittedPayment(id: number, updates: UpdatePaymentParams, user: string) {
+  try {
+    // Get current payment
+    const current = await db.query.submitted_payments.findFirst({
+      where: eq(submitted_payments.id, id)
+    });
+
+    if (!current) throw new Error("Payment not found");
+
+    const changes: string[] = [];
+    const dateStr = new Date().toISOString();
+
+    if (updates.amount && updates.amount !== current.amount) {
+      changes.push(`[${dateStr}] ${user} changed Amount from ${current.amount} to ${updates.amount}`);
+    }
+    if (updates.payment_method && updates.payment_method !== current.payment_method) {
+      changes.push(`[${dateStr}] ${user} changed Method from ${current.payment_method} to ${updates.payment_method}`);
+    }
+    if (updates.payment_date && current.payment_date && updates.payment_date.getTime() !== current.payment_date.getTime()) {
+      changes.push(`[${dateStr}] ${user} changed Date from ${current.payment_date.toISOString()} to ${updates.payment_date.toISOString()}`);
+    }
+
+    if (changes.length === 0) return { success: true, message: "No changes detected" };
+
+    const newLog = (current.log ? current.log + "\n" : "") + changes.join("\n");
+
+    await db.update(submitted_payments)
+      .set({
+        ...updates,
+        log: newLog,
+        updated_at: new Date()
+      })
+      .where(eq(submitted_payments.id, id));
+
+    revalidatePath("/payments");
+    return { success: true, message: "Submitted payment updated successfully" };
+  } catch (error) {
+    console.error("Error updating submitted payment:", error);
+    throw error;
+  }
+}
+
+export async function softDeleteSubmittedPayment(id: number, user: string) {
+  try {
+     const current = await db.query.submitted_payments.findFirst({
+      where: eq(submitted_payments.id, id)
+    });
+
+    if (!current) throw new Error("Payment not found");
+
+    const dateStr = new Date().toISOString();
+    const logEntry = `[${dateStr}] ${user} deleted this submission.`;
+    const newLog = (current.log ? current.log + "\n" : "") + logEntry;
+
+    await db.update(submitted_payments)
+      .set({
+        status: 'deleted',
+        log: newLog,
+        updated_at: new Date()
+      })
+      .where(eq(submitted_payments.id, id));
+
+    revalidatePath("/payments");
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting submitted payment:", error);
+    throw error;
+  }
+}
+
+export async function runPaymentReconciliation() {
+  try {
+    // 1. Get all pending submitted payments
+    const pending = await db.select().from(submitted_payments).where(eq(submitted_payments.status, 'pending'));
+    
+    let matchedCount = 0;
+
+    for (const p of pending) {
+      // 2. Check for match in verified payments
+      // Match criteria: Amount, Date (roughly), Agent, Customer, Invoice
+      
+      const conditions = [
+        p.amount ? eq(payments.amount, p.amount) : undefined,
+        p.linked_agent ? eq(payments.linked_agent, p.linked_agent) : undefined,
+        p.linked_invoice ? eq(payments.linked_invoice, p.linked_invoice) : undefined,
+      ].filter(Boolean); // Remove undefined
+
+      // Note: Dates might differ slightly due to timezones, so exact match is risky.
+      // But for now, let's trust the 5-column rule requested: Amount, Agent, Customer, Invoice, Date
+      
+      const potentialMatches = await db.select().from(payments).where(and(...conditions as any));
+
+      // Refine match: Check date within 24 hours? Or exact?
+      // "pick 5 column to check" -> let's try strict match first, if it fails, maybe relax date
+      
+      const match = potentialMatches.find(pm => {
+        // Date check (ignore time)
+        const d1 = pm.payment_date ? new Date(pm.payment_date).toDateString() : '';
+        const d2 = p.payment_date ? new Date(p.payment_date).toDateString() : '';
+        
+        // Customer check
+        const c1 = pm.linked_customer || '';
+        const c2 = p.linked_customer || '';
+        
+        return d1 === d2 && c1 === c2;
+      });
+
+      if (match) {
+        // 3. Mark as verified/deleted if match found
+        await db.update(submitted_payments)
+          .set({ 
+            status: 'deleted', // or 'verified' -> Request says "mark the submitted payment as deleted"
+            log: (p.log || '') + `\n[${new Date().toISOString()}] System Auto-Reconciliation: Matched with verified payment ID ${match.id}`,
+            updated_at: new Date()
+          })
+          .where(eq(submitted_payments.id, p.id));
+        matchedCount++;
+      }
+    }
+
+    revalidatePath("/payments");
+    return { success: true, count: matchedCount };
+  } catch (error) {
+    console.error("Reconciliation error:", error);
     throw error;
   }
 }

@@ -288,6 +288,7 @@ export const payments = pgTable('payment', {
   verified_by: text('verified_by'),
   payment_method: text('payment_method'),
   edit_history: text('edit_history'),
+  log: text('log'),
   issuer_bank: text('issuer_bank'),
   created_by: text('created_by'),
   linked_agent: text('linked_agent'),
@@ -322,6 +323,7 @@ export const submitted_payments = pgTable('submitted_payment', {
   attachment: text('attachment').array(),
   verified_by: text('verified_by'),
   edit_history: text('edit_history'),
+  log: text('log'),
 });
 
 // Invoice Items Table (CRITICAL: Was missing from schema!)

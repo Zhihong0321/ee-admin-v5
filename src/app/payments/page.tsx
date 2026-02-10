@@ -20,9 +20,27 @@ import {
   FileText,
   Loader2,
   RefreshCw,
-  ArrowLeft
+  ArrowLeft,
+  Trash2,
+  Edit,
+  Save,
+  XCircle,
+  History,
+  Terminal,
+  Calculator
 } from "lucide-react";
-import { getSubmittedPayments, getVerifiedPayments, verifyPayment, getInvoiceDetailsByBubbleId, triggerPaymentSync, diagnoseMissingInvoices } from "./actions";
+import { 
+  getSubmittedPayments, 
+  getVerifiedPayments, 
+  verifyPayment, 
+  getInvoiceDetailsByBubbleId, 
+  triggerPaymentSync, 
+  diagnoseMissingInvoices,
+  updateVerifiedPayment,
+  updateSubmittedPayment,
+  softDeleteSubmittedPayment,
+  runPaymentReconciliation
+} from "./actions";
 import { cn } from "@/lib/utils";
 import InvoiceViewer from "@/components/InvoiceViewer";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
@@ -42,13 +60,19 @@ function formatTime(dateInput: string | Date | null | undefined): string {
 }
 
 export default function PaymentsPage() {
-  const [activeTab, setActiveTab] = useState<"pending" | "verified">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "verified" | "deleted">("pending");
   const [search, setSearch] = useState("");
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
+  
+  // View Modal State
   const [viewingPayment, setViewingPayment] = useState<any | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<any>({});
+  
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
@@ -99,9 +123,13 @@ export default function PaymentsPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const data = activeTab === "pending" 
-        ? await getSubmittedPayments(search)
-        : await getVerifiedPayments(search);
+      let data;
+      if (activeTab === "verified") {
+        data = await getVerifiedPayments(search);
+      } else {
+        // Pending or Deleted
+        data = await getSubmittedPayments(search, activeTab);
+      }
       setPayments(data);
     } catch (error) {
       console.error("Failed to fetch payments", error);
@@ -125,6 +153,21 @@ export default function PaymentsPage() {
       alert("Sync error");
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleReconcile() {
+    if (!confirm("This will match pending submissions with verified payments (5-column match) and mark them as deleted. Continue?")) return;
+    setReconciling(true);
+    try {
+      const result = await runPaymentReconciliation();
+      alert(`Reconciliation complete. ${result.count} payments matched and cleaned up.`);
+      fetchData();
+    } catch (error) {
+      console.error("Reconciliation error", error);
+      alert("Reconciliation failed.");
+    } finally {
+      setReconciling(false);
     }
   }
 
@@ -158,8 +201,14 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
 
   const handleViewClick = (payment: any) => {
     setViewingPayment(payment);
+    setEditForm({
+      amount: payment.amount,
+      payment_method: payment.payment_method,
+      payment_date: payment.payment_date ? new Date(payment.payment_date).toISOString().split('T')[0] : ''
+    });
     setShowInvoiceInModal(false);
     setIsViewModalOpen(true);
+    setIsEditing(false);
   };
 
   const handleVerify = async (id: number) => {
@@ -168,9 +217,48 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
     try {
       await verifyPayment(id, "System Admin");
       fetchData();
+      setIsViewModalOpen(false);
     } catch (error) {
       console.error("Failed to verify payment", error);
       alert("Failed to verify payment");
+    }
+  };
+
+  const handleDeleteSubmission = async (id: number) => {
+    if (!confirm("Are you sure you want to DELETE this submission? It will be moved to the Deleted tab.")) return;
+
+    try {
+      await softDeleteSubmittedPayment(id, "System Admin"); // TODO: Use real user
+      fetchData();
+    } catch (error) {
+      console.error("Failed to delete submission", error);
+      alert("Failed to delete submission");
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    if (!viewingPayment) return;
+
+    try {
+      const updates = {
+        amount: editForm.amount,
+        payment_method: editForm.payment_method,
+        payment_date: new Date(editForm.payment_date)
+      };
+
+      if (activeTab === "verified") {
+        await updateVerifiedPayment(viewingPayment.id, updates, "System Admin");
+      } else {
+        await updateSubmittedPayment(viewingPayment.id, updates, "System Admin");
+      }
+
+      alert("Changes saved successfully.");
+      setIsEditing(false);
+      fetchData();
+      setIsViewModalOpen(false); // Close to refresh state properly
+    } catch (error) {
+      console.error("Failed to save changes", error);
+      alert("Failed to save changes");
     }
   };
 
@@ -235,6 +323,14 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
         
         <div className="flex items-center gap-3">
           <button
+            onClick={handleReconcile}
+            disabled={reconciling}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <CheckCircle className={`h-4 w-4 ${reconciling ? 'animate-pulse' : ''}`} />
+            {reconciling ? 'Running...' : 'Auto-Reconcile'}
+          </button>
+          <button
             onClick={handleDiagnose}
             className="btn-secondary flex items-center gap-2"
           >
@@ -277,6 +373,18 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
         >
           <CheckCircle className="h-4 w-4" />
           Verified Payments
+        </button>
+        <button
+          onClick={() => setActiveTab("deleted")}
+          className={cn(
+            "px-6 py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2",
+            activeTab === "deleted"
+              ? "border-red-600 text-red-600 bg-red-50/50"
+              : "border-transparent text-secondary-500 hover:text-secondary-700 hover:bg-secondary-50"
+          )}
+        >
+          <Trash2 className="h-4 w-4" />
+          Deleted Submissions
         </button>
       </div>
 
@@ -466,10 +574,12 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     </td>
                     <td>
                       <div className="flex flex-col gap-1">
-                        {activeTab === "pending" && (
+                        {(activeTab === "pending" || activeTab === "deleted") && (
                           <span className={cn(
                             "w-fit px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-                            payment.status === 'pending' ? "bg-yellow-100 text-yellow-700" : "bg-secondary-100 text-secondary-700"
+                            payment.status === 'pending' ? "bg-yellow-100 text-yellow-700" : 
+                            payment.status === 'deleted' ? "bg-red-100 text-red-700" :
+                            "bg-secondary-100 text-secondary-700"
                           )}>
                             {payment.status || 'pending'}
                           </span>
@@ -488,14 +598,23 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           <Eye className="h-4 w-4" />
                           View
                         </button>
-                        {activeTab === "pending" && payment.status !== 'verified' && (
-                          <button 
-                            onClick={() => handleVerify(payment.id)}
-                            className="btn-ghost text-green-600 hover:text-green-700 flex items-center gap-1.5"
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                            Verify
-                          </button>
+                        {activeTab === "pending" && payment.status === 'pending' && (
+                          <>
+                            <button 
+                              onClick={() => handleVerify(payment.id)}
+                              className="btn-ghost text-green-600 hover:text-green-700 flex items-center gap-1.5"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                              Verify
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteSubmission(payment.id)}
+                              className="btn-ghost text-red-600 hover:text-red-700 flex items-center gap-1.5"
+                              title="Delete Submission"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -551,48 +670,136 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   </span>
                 </div>
               </div>
-              <button 
-                onClick={() => setIsViewModalOpen(false)}
-                className="p-2 hover:bg-secondary-100 rounded-full transition-colors"
-              >
-                <X className="h-6 w-6 text-secondary-500" />
-              </button>
+              <div className="flex items-center gap-2">
+                {!isEditing && (
+                  <button 
+                    onClick={() => setIsEditing(true)}
+                    className="p-2 text-primary-600 hover:bg-primary-50 rounded-full transition-colors flex items-center gap-2 px-4"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit
+                  </button>
+                )}
+                <button 
+                  onClick={() => setIsViewModalOpen(false)}
+                  className="p-2 hover:bg-secondary-100 rounded-full transition-colors"
+                >
+                  <X className="h-6 w-6 text-secondary-500" />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
               {/* Info Sidebar */}
               <div className="w-full md:w-80 bg-secondary-50 p-6 space-y-6 overflow-y-auto border-r border-secondary-200">
-                <div className="space-y-4">
-                  <h3 className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Transaction Info</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <Calendar className="h-4 w-4 text-secondary-400 mt-0.5" />
+                {isEditing ? (
+                   <div className="space-y-4 bg-white p-4 rounded-lg shadow-sm border border-primary-200">
+                    <h3 className="text-xs font-bold text-primary-600 uppercase tracking-widest flex items-center gap-2">
+                      <Edit className="h-3 w-3" />
+                      Editing Payment
+                    </h3>
+                    
+                    <div className="space-y-3">
                       <div>
-                        <p className="text-xs text-secondary-500">Payment Date</p>
-                        <p className="text-sm font-medium text-secondary-900">
-                          {formatDate(viewingPayment.payment_date || viewingPayment.created_at)}
-                        </p>
-                        <p className="text-xs text-secondary-500 mt-0.5">
-                          {formatTime(viewingPayment.payment_date || viewingPayment.created_at)}
-                        </p>
+                        <label className="text-xs text-secondary-500">Payment Date</label>
+                        <input 
+                          type="date" 
+                          className="input w-full text-sm py-1"
+                          value={editForm.payment_date}
+                          onChange={e => setEditForm({...editForm, payment_date: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-secondary-500">Method</label>
+                        <select 
+                          className="input w-full text-sm py-1"
+                          value={editForm.payment_method}
+                          onChange={e => setEditForm({...editForm, payment_method: e.target.value})}
+                        >
+                          <option value="Cash">Cash</option>
+                          <option value="Online Transfer">Online Transfer</option>
+                          <option value="Cheque">Cheque</option>
+                          <option value="Credit Card">Credit Card</option>
+                          <option value="E-Wallet">E-Wallet</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-secondary-500">Amount (RM)</label>
+                        <input 
+                          type="number" 
+                          step="0.01"
+                          className="input w-full text-sm py-1 font-bold"
+                          value={editForm.amount}
+                          onChange={e => setEditForm({...editForm, amount: e.target.value})}
+                        />
                       </div>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <CreditCard className="h-4 w-4 text-secondary-400 mt-0.5" />
-                      <div>
-                        <p className="text-xs text-secondary-500">Method</p>
-                        <p className="text-sm font-medium text-secondary-900">{viewingPayment.payment_method}</p>
-                      </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <button onClick={handleSaveChanges} className="flex-1 btn-primary py-1.5 text-xs">Save</button>
+                      <button onClick={() => setIsEditing(false)} className="flex-1 btn-secondary py-1.5 text-xs">Cancel</button>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <DollarSign className="h-4 w-4 text-secondary-400 mt-0.5" />
-                      <div>
-                        <p className="text-xs text-secondary-500">Amount</p>
-                        <p className="text-sm font-bold text-secondary-900">RM {parseFloat(viewingPayment.amount).toLocaleString()}</p>
+                   </div>
+                ) : (
+                  <div className="space-y-4">
+                    <h3 className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Transaction Info</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <Calendar className="h-4 w-4 text-secondary-400 mt-0.5" />
+                        <div>
+                          <p className="text-xs text-secondary-500">Payment Date</p>
+                          <p className="text-sm font-medium text-secondary-900">
+                            {formatDate(viewingPayment.payment_date || viewingPayment.created_at)}
+                          </p>
+                          <p className="text-xs text-secondary-500 mt-0.5">
+                            {formatTime(viewingPayment.payment_date || viewingPayment.created_at)}
+                          </p>
+                        </div>
                       </div>
+                      <div className="flex items-start gap-3">
+                        <CreditCard className="h-4 w-4 text-secondary-400 mt-0.5" />
+                        <div>
+                          <p className="text-xs text-secondary-500">Method</p>
+                          <p className="text-sm font-medium text-secondary-900">{viewingPayment.payment_method}</p>
+                          {viewingPayment.issuer_bank && (
+                             <p className="text-xs text-secondary-500">{viewingPayment.issuer_bank}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <DollarSign className="h-4 w-4 text-secondary-400 mt-0.5" />
+                        <div>
+                          <p className="text-xs text-secondary-500">Amount</p>
+                          <p className="text-sm font-bold text-secondary-900">RM {parseFloat(viewingPayment.amount).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      
+                      {/* Detailed info for verified payments */}
+                      {activeTab === "verified" && (
+                        <>
+                          {viewingPayment.payment_index && (
+                            <div className="flex items-start gap-3">
+                              <Calculator className="h-4 w-4 text-secondary-400 mt-0.5" />
+                              <div>
+                                <p className="text-xs text-secondary-500">Payment Index</p>
+                                <p className="text-sm font-medium text-secondary-900">Payment #{viewingPayment.payment_index}</p>
+                              </div>
+                            </div>
+                          )}
+                          {viewingPayment.terminal && (
+                            <div className="flex items-start gap-3">
+                              <Terminal className="h-4 w-4 text-secondary-400 mt-0.5" />
+                              <div>
+                                <p className="text-xs text-secondary-500">Terminal</p>
+                                <p className="text-sm font-medium text-secondary-900">{viewingPayment.terminal}</p>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
-                </div>
+                )}
 
                 <div className="space-y-4 pt-4 border-t border-secondary-200">
                   <h3 className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Customer Details</h3>
@@ -608,6 +815,18 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     <p className="text-sm text-secondary-600 italic bg-white p-3 rounded-lg border border-secondary-200">
                       "{viewingPayment.remark}"
                     </p>
+                  </div>
+                )}
+
+                {viewingPayment.log && (
+                  <div className="space-y-4 pt-4 border-t border-secondary-200">
+                    <h3 className="text-xs font-bold text-secondary-400 uppercase tracking-widest flex items-center gap-2">
+                      <History className="h-3 w-3" />
+                      Modification Log
+                    </h3>
+                    <div className="text-xs text-secondary-600 bg-white p-3 rounded-lg border border-secondary-200 max-h-32 overflow-y-auto whitespace-pre-line">
+                      {viewingPayment.log}
+                    </div>
                   </div>
                 )}
 
@@ -634,17 +853,28 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   </div>
                 )}
                 
-                {activeTab === "pending" && (
-                  <button
-                    onClick={() => {
-                      handleVerify(viewingPayment.id);
-                      setIsViewModalOpen(false);
-                    }}
-                    className="w-full btn-primary py-3 flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle className="h-5 w-5" />
-                    Verify Payment
-                  </button>
+                {activeTab === "pending" && viewingPayment.status === 'pending' && (
+                  <div className="flex gap-2 pt-4">
+                     <button
+                      onClick={() => {
+                        handleVerify(viewingPayment.id);
+                        setIsViewModalOpen(false);
+                      }}
+                      className="flex-1 btn-primary py-3 flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle className="h-5 w-5" />
+                      Verify
+                    </button>
+                     <button
+                      onClick={() => {
+                        handleDeleteSubmission(viewingPayment.id);
+                        setIsViewModalOpen(false);
+                      }}
+                      className="px-4 btn-secondary border-red-200 text-red-600 hover:bg-red-50 flex items-center justify-center gap-2"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
                 )}
               </div>
 

@@ -1,0 +1,47 @@
+i want to focus PAYMENT Management for now. I will pass you a list of task and My instruction for you to read 1st.
+
+   - DONT CODE, i want you deep dive, think, check code, check my instruction, and plan 1st
+   - i want you draft a plan, task list to complete the instruction and goal i given
+
+   ========= Request and Instruction below =============
+
+1. 希望我們可以改amount / payment method / date ，因为有agent 弄错 我们可以直接帮忙edit 回来
+
+
+SYSTEM ENGINEER ANSWER:
+1. focus the payment management page, when Admin verifying payment, i want to allow ADMIN to edit the submitted payment details.
+2. the verified payment , also can be edited.
+3. create a new column, log, to record the payment modify history. ( from xxxx to xxxx by which user )
+4. log must contain what is changed. from what change to what.
+
+=======================================
+
+2. ⁠verified 了沒有show 全部資料
+（比如可以看到整個配套資料，第幾個payment）
+
+SYSTEM ENGINEER ANSWER:
+1. For Payment Page, when user checked Verified Payment, ADMIN cannot see all payment detail.
+2. this is ultra stupid design, the SYSTEM block info from ADMIN. ADMIN cannot see all detail in verified payment.
+
+
+
+=======================================
+
+3. Payment management side- Pending verification area, after verified the payment still at the same area as pending payments. In this case, its hard to check pending payment which paid earlier as will be more & more payment coming in.
+
+SYSTEM ENGINEER ANSWER:
+1. When Finance Admin, verified a submitted payment, it will create a payment in db, also delete this submitted payment.
+2. we need to run a patch, to check is there any match verified payment and submitted payment, ( pick 5 column to check, if matched, mark the submited payment as deleted )
+
+
+========================================
+4. No delete button to remove double submission from agent
+
+SYSTEM ENGINEER ANSWER:
+1. in Submitted Payment list, please add a delete button.
+2. deleted submitted payment send to Deleted Submitted Payment Tab ( create a new tab, also think how to mark submitted payment as deleted )
+3. no real delete. just mark deleted
+
+
+
+==========================================
