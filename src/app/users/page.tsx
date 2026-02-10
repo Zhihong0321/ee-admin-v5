@@ -94,24 +94,7 @@ export default function UsersPage() {
 
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('🟢 handleUpdateUser CALLED');
-    if (!editingUser) {
-      console.log('❌ No editingUser');
-      return;
-    }
-
-    console.log('=== FORM SUBMISSION DEBUG ===');
-    console.log('User ID:', editingUser.id);
-    console.log('Agent data being sent:', {
-      name: editingUser.agent_name,
-      email: editingUser.agent_email,
-      contact: editingUser.agent_contact,
-      address: editingUser.agent_address,
-      banker: editingUser.agent_banker,
-      bankin_account: editingUser.agent_bankin_account,
-    });
-    console.log('Access level:', editingUser.access_level);
-    console.log('========================');
+    if (!editingUser) return;
 
     try {
       const result = await updateUserProfile(editingUser.id, {

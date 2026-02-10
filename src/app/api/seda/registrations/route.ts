@@ -14,8 +14,6 @@ export async function GET(request: NextRequest) {
     const searchValue = searchParams.get("search");
     const searchQuery = searchValue ? searchValue.toLowerCase() : "";
 
-    console.log("SEDA API called with:", { statusFilter, searchQuery });
-
     // Fetch SEDA with customer name and agent name via LEFT JOIN
     // Chain: seda.agent -> user.bubble_id -> user.linked_agent_profile -> agent.bubble_id
     const allSeda = await db
@@ -42,8 +40,6 @@ export async function GET(request: NextRequest) {
       .leftJoin(agents, eq(users.linked_agent_profile, agents.bubble_id))
       .orderBy(desc(sql`COALESCE(${sedaRegistration.modified_date}, ${sedaRegistration.updated_at}, ${sedaRegistration.created_date})`))
       .limit(100);
-
-    console.log("Fetched SEDA records:", allSeda.length);
 
     // Fetch share_tokens for linked invoices
     const linkedInvoiceIds = allSeda
@@ -96,8 +92,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log("Filtered records:", filtered.length);
-
     // Group by seda_status
     const grouped: Record<string, any[]> = {};
     filtered.forEach(seda => {
@@ -118,17 +112,13 @@ export async function GET(request: NextRequest) {
       return a.seda_status.localeCompare(b.seda_status);
     });
 
-    console.log("Returning response with", response.length, "groups");
-
     return NextResponse.json(response);
   } catch (error: any) {
-    console.error("SEDA API Error:", error);
-    console.error("Error stack:", error.stack);
+    console.error(error);
     return NextResponse.json(
       {
         error: "Failed to fetch SEDA registrations",
         message: error.message,
-        stack: error.stack
       },
       { status: 500 }
     );

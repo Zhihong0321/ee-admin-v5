@@ -10,7 +10,6 @@ import { syncCompleteInvoicePackage } from "@/lib/bubble";
 const PDF_API_URL = "https://pdf-gen-production-6c81.up.railway.app";
 
 export async function getInvoices(version: "v1" | "v2", search?: string) {
-  console.log(`Fetching invoices: version=${version}, search=${search}`);
   try {
     if (version === "v1") {
       const filters = [
@@ -41,7 +40,6 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
       .orderBy(desc(invoices.id))
       .limit(50);
       
-      console.log(`Fetched ${data.length} v1 invoices`);
       return data;
     } else {
       // v2 - Modern Invoices (Consolidated)
@@ -73,7 +71,6 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
         agent_name: row.agent_name || "N/A"
       }));
 
-      console.log(`Fetched ${processedData.length} v2 invoices`);
       return processedData;
     }
   } catch (error) {
@@ -83,7 +80,6 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
 }
 
 export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
-  console.log(`Fetching invoice details: id=${id}, version=${version}`);
   try {
     const invoice = await db.query.invoices.findFirst({
       where: eq(invoices.id, id),
@@ -177,7 +173,6 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
 }
 
 export async function generateInvoicePdf(id: number, version: "v1" | "v2") {
-  console.log(`Generating PDF for invoice: id=${id}, version=${version}`);
   try {
     const details = await getInvoiceDetails(id, version);
     if (!details) throw new Error("Invoice not found");
@@ -228,7 +223,6 @@ export async function generateInvoicePdf(id: number, version: "v1" | "v2") {
 }
 
 export async function triggerInvoiceSync(dateFrom?: string, dateTo?: string) {
-  console.log(`Triggering invoice sync from Bubble... Date range: ${dateFrom || 'All'} to ${dateTo || 'All'}`);
   try {
     const result = await syncCompleteInvoicePackage(dateFrom, dateTo);
     if (!result.success) {

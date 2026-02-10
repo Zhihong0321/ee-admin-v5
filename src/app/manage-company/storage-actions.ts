@@ -209,58 +209,15 @@ export async function syncFilesByCategory(category: SyncCategory, limit: number 
         break;
 
         case 'roof_site_images':
-            // TODO: Handle array fields (roof_images, site_images)
-            filesToProcess = []; 
-            // This is a bit more complex as it's a JSON array usually, but assuming string URL for now or need to handle array
-            // If it's a single URL field in legacy data:
-            /*
-            filesToProcess = await db.select({
-              id: sedaRegistration.id,
-              url: sedaRegistration.roof_images // This is an array
-            })
-            .from(sedaRegistration)
-            ...
-            */
+            // TODO(array-fields): Implement array URL sync for roof_images and site_images columns.
+            // Blocked: These are JSON arrays, not single URL strings. Needs array-aware processing.
+            filesToProcess = [];
             break;
 
       case 'payments':
-        // TODO: Handle array fields (attachment)
+        // TODO(array-fields): Implement array URL sync for payment attachment columns.
+        // Blocked: attachment is a JSON array. notLike doesn't work on arrays. Needs array-aware processing.
         filesToProcess = [];
-        /*
-        // Check both payments and submitted_payments tables
-        const paymentsFiles = await db.select({
-            id: payments.id,
-            url: payments.attachment // Array
-          })
-          .from(payments)
-          .where(
-            and(
-              isNotNull(payments.attachment),
-              // notLike(payments.attachment, '/storage/%') // Cannot use notLike on array
-            )
-          )
-          .limit(limit);
-        
-        if (paymentsFiles.length > 0) {
-            filesToProcess = paymentsFiles;
-            tableName = "payments";
-            idField = "id";
-            urlField = "attachment";
-            updateTable = payments;
-        } else {
-             const subPaymentsFiles = await db.select({
-                id: submitted_payments.id,
-                url: submitted_payments.attachment // Array
-              })
-              .from(submitted_payments)
-              ...
-            filesToProcess = subPaymentsFiles;
-            tableName = "submitted_payments";
-            idField = "id";
-            urlField = "attachment";
-            updateTable = submitted_payments;
-        }
-        */
         break;
 
       case 'user_profiles':

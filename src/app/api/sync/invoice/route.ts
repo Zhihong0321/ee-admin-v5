@@ -35,17 +35,11 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log(`[API] Fast Invoice Sync triggered for bubble_id: ${bubble_id}`);
-    console.log(`[API] Options: force=${force}, skipUsers=${skipUsers}, skipAgents=${skipAgents}`);
-
     // Run the integrity sync
     const result = await syncInvoiceWithFullIntegrity(bubble_id, {
       force,
       skipUsers,
       skipAgents,
-      onProgress: (step, message) => {
-        console.log(`[API] [${bubble_id}] ${step}: ${message}`);
-      }
     });
 
     if (!result.success) {
@@ -57,8 +51,6 @@ export async function POST(request: NextRequest) {
         errors: result.errors
       });
     }
-
-    console.log(`[API] Sync complete. Starting file URL patching...`);
 
     // ====================================================================
     // FILE PATCHING: Process all linked files
@@ -128,7 +120,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (!invoice) {
-      console.log(`[API] Warning: Invoice ${bubble_id} not found after sync`);
       return NextResponse.json({
         success: true,
         invoiceId: result.invoiceId,
@@ -150,7 +141,6 @@ export async function POST(request: NextRequest) {
     // 1. Patch PAYMENT attachments (linked_payment array)
     // ====================================================================
     if (invoice.linked_payment && invoice.linked_payment.length > 0) {
-      console.log(`[API] Patching ${invoice.linked_payment.length} payment(s)...`);
 
       // Check regular payments table
       const foundPayments = await db.select({
@@ -206,7 +196,6 @@ export async function POST(request: NextRequest) {
             if (fs.existsSync(oldPath)) {
               try {
                 fs.renameSync(oldPath, newPath);
-                console.log(`[API] Renamed: ${filename} -> ${sanitizedFilename}`);
                 patchDetails.push({
                   entity: 'payment',
                   bubble_id: payment.bubble_id,
@@ -215,7 +204,7 @@ export async function POST(request: NextRequest) {
                   to: sanitizedFilename
                 });
               } catch (err: any) {
-                console.log(`[API] Failed to rename: ${err.message}`);
+                // rename failed, continue with original file
               }
             }
 
@@ -238,8 +227,6 @@ export async function POST(request: NextRequest) {
           await db.update(payments)
             .set({ attachment: newUrls })
             .where(eq(payments.id, payment.id));
-
-          console.log(`[API] Updated payment ${payment.bubble_id} (${newUrls.length} files)`);
         }
       }
 
@@ -278,9 +265,8 @@ export async function POST(request: NextRequest) {
             if (fs.existsSync(oldPath)) {
               try {
                 fs.renameSync(oldPath, newPath);
-                console.log(`[API] Renamed: ${filename} -> ${sanitizedFilename}`);
               } catch (err: any) {
-                console.log(`[API] Failed to rename: ${err.message}`);
+                // rename failed, continue with original file
               }
             }
 
@@ -301,8 +287,6 @@ export async function POST(request: NextRequest) {
           await db.update(submitted_payments)
             .set({ attachment: newUrls })
             .where(eq(submitted_payments.id, payment.id));
-
-          console.log(`[API] Updated submitted payment ${payment.bubble_id} (${newUrls.length} files)`);
         }
       }
     }
@@ -311,7 +295,6 @@ export async function POST(request: NextRequest) {
     // 2. Patch SEDA Registration files
     // ====================================================================
     if (invoice.linked_seda_registration) {
-      console.log(`[API] Patching SEDA registration ${invoice.linked_seda_registration}...`);
 
       // SEDA file fields to patch
       const sedaFileFields = [
@@ -365,7 +348,6 @@ export async function POST(request: NextRequest) {
             if (fs.existsSync(oldPath)) {
               try {
                 fs.renameSync(oldPath, newPath);
-                console.log(`[API] SEDA renamed: ${filename} -> ${sanitizedFilename}`);
                 patchDetails.push({
                   entity: 'seda_registration',
                   bubble_id: seda.bubble_id,
@@ -375,7 +357,7 @@ export async function POST(request: NextRequest) {
                   to: sanitizedFilename
                 });
               } catch (err: any) {
-                console.log(`[API] Failed to rename: ${err.message}`);
+                // rename failed, continue with original file
               }
             }
 
@@ -430,9 +412,8 @@ export async function POST(request: NextRequest) {
               if (fs.existsSync(oldPath)) {
                 try {
                   fs.renameSync(oldPath, newPath);
-                  console.log(`[API] SEDA array field renamed: ${filename} -> ${sanitizedFilename}`);
                 } catch (err: any) {
-                  console.log(`[API] Failed to rename: ${err.message}`);
+                  // rename failed, continue with original file
                 }
               }
 
@@ -457,13 +438,9 @@ export async function POST(request: NextRequest) {
           await db.update(sedaRegistration)
             .set(updates)
             .where(eq(sedaRegistration.id, seda.id));
-
-          console.log(`[API] Updated SEDA registration ${seda.bubble_id}`);
         }
       }
     }
-
-    console.log(`[API] File patching complete: ${totalPatched} Chinese filenames patched, ${totalAbsoluteUrls} URLs converted to absolute`);
 
     // Return the sync result with file patching info
     return NextResponse.json({
@@ -480,7 +457,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('[API] Fast Invoice Sync error:', error);
+    console.error('Invoice sync error:', error);
 
     return NextResponse.json({
       success: false,

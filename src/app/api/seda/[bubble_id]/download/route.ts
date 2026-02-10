@@ -54,13 +54,8 @@ export async function GET(
   request: NextRequest,
   { params }: RouteContext
 ) {
-  console.log('========================================');
-  console.log('[DOWNLOAD ROUTE CALLED]');
-  console.log('========================================');
-
   try {
     const { bubble_id } = await params;
-    console.log('[DOWNLOAD] bubble_id:', bubble_id);
 
     const fetchSedaData = async () => {
       return db
@@ -115,16 +110,6 @@ export async function GET(
     const refreshedData = await fetchSedaData();
     const refreshedSeda = refreshedData.length > 0 ? refreshedData[0] : seda;
 
-    // DEBUG: Log what we found
-    console.log('[DEBUG] SEDA Data:', JSON.stringify({
-      bubble_id: refreshedSeda.bubble_id,
-      customer_name: customerName,
-      has_mykad_pdf: !!refreshedSeda.mykad_pdf,
-      has_ic_front: !!refreshedSeda.ic_copy_front,
-      roof_images_count: Array.isArray(refreshedSeda.roof_images) ? refreshedSeda.roof_images.length : 0,
-      mykad_preview: refreshedSeda.mykad_pdf || 'NULL',
-    }));
-
     // Extract all file URLs with new names
     const files = extractAllFiles(refreshedSeda, customerName);
 
@@ -158,12 +143,9 @@ export async function GET(
           url: file.url,
           error: (error as Error).message,
         });
-        console.log(`[Route] Failed to download ${file.newName}: ${(error as Error).message}`);
         // Continue with other files even if one fails
       }
     }
-
-    console.log(`[Route] Downloaded ${successCount} files, ${failCount} failed`);
 
     const manifest = {
       bubble_id,
@@ -191,8 +173,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.log('[DOWNLOAD] ERROR:', error);
-    console.log('[DOWNLOAD] Stack:', (error as Error).stack);
+    console.error('[DOWNLOAD] Failed:', (error as Error).message);
     return NextResponse.json(
       { error: "Failed to download documents", details: (error as Error).message },
       { status: 500 }

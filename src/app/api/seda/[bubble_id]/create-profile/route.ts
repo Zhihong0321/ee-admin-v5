@@ -22,7 +22,6 @@ export async function POST(
 ) {
   try {
     const { bubble_id } = await params;
-    console.log("Creating SEDA profile for:", bubble_id);
 
     // 1. Get the seda_registration record with customer data
     const records = await db
@@ -65,8 +64,6 @@ export async function POST(
       ic_number: seda.ic_no,
     };
 
-    console.log("Creating profile with data:", JSON.stringify(profileData).substring(0, 500));
-
     // 3. Call SEDA Manager API to create profile
     let profileId: string | null = null;
     let apiResponse: any = null;
@@ -86,7 +83,6 @@ export async function POST(
       );
 
       apiResponse = await response.json().catch(() => null);
-      console.log("SEDA Manager API response:", JSON.stringify(apiResponse).substring(0, 500));
 
       if (response.ok) {
         profileId = apiResponse?.profile_id || apiResponse?.id || null;
@@ -110,7 +106,6 @@ export async function POST(
         });
       } else {
         errorMessage = apiResponse?.detail || apiResponse?.message || `API returned status ${response.status}`;
-        console.error("SEDA Manager API error:", response.status, errorMessage);
 
         return NextResponse.json({
           success: false,
@@ -120,7 +115,7 @@ export async function POST(
         }, { status: response.status });
       }
     } catch (fetchError: any) {
-      console.error("Error calling SEDA Manager API:", fetchError);
+      console.error(fetchError);
       return NextResponse.json({
         success: false,
         status: "error",
@@ -129,7 +124,7 @@ export async function POST(
     }
 
   } catch (error: any) {
-    console.error("Error creating SEDA profile:", error);
+    console.error(error);
     return NextResponse.json(
       {
         error: "Failed to create SEDA profile",

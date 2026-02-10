@@ -63,7 +63,6 @@ export async function POST(
 ) {
   try {
     const { bubble_id } = await params;
-    console.log("Replace test profile for:", bubble_id);
 
     // 1. Get the seda_registration record with customer data
     const records = await db
@@ -103,7 +102,6 @@ export async function POST(
     }
 
     // 2. Search for test profiles
-    console.log("Searching for test profiles with pattern:", TEST_PROFILE_MYKAD_PATTERN);
     const searchResponse = await fetch(
       `${SEDA_MANAGER_API}/api/v1/profiles/search?registration_number=${TEST_PROFILE_MYKAD_PATTERN}`,
       {
@@ -114,7 +112,6 @@ export async function POST(
     );
 
     const searchResult = await searchResponse.json();
-    console.log("Test profile search result:", JSON.stringify(searchResult).substring(0, 500));
 
     if (!searchResult.profiles || searchResult.profiles.length === 0) {
       return NextResponse.json({
@@ -126,7 +123,6 @@ export async function POST(
 
     const testProfile = searchResult.profiles[0];
     const testProfileId = testProfile.id;
-    console.log("Found test profile:", testProfileId, testProfile.name);
 
     // 3. Build profile data from seda_registration
     const address = splitAddress(seda.installation_address);
@@ -162,10 +158,7 @@ export async function POST(
       emergency_mobile: cleanPhone(seda.e_contact_no) || "",
     };
 
-    console.log("Profile data to send:", JSON.stringify(profileData));
-
     // 4. Update the test profile with PUT /api/v1/profiles/{profile_id}
-    console.log("Calling PUT /api/v1/profiles/" + testProfileId);
     const updateResponse = await fetch(
       `${SEDA_MANAGER_API}/api/v1/profiles/${testProfileId}`,
       {
@@ -177,7 +170,6 @@ export async function POST(
     );
 
     const updateResult = await updateResponse.json().catch(() => null);
-    console.log("Update response:", updateResponse.status, JSON.stringify(updateResult).substring(0, 500));
 
     if (!updateResponse.ok) {
       return NextResponse.json({
@@ -201,8 +193,6 @@ export async function POST(
       })
       .where(eq(sedaRegistration.bubble_id, bubble_id));
 
-    console.log("Successfully replaced test profile, new ID:", newProfileId);
-
     return NextResponse.json({
       success: true,
       message: `Test profile replaced. New profile ID: ${newProfileId}`,
@@ -213,7 +203,7 @@ export async function POST(
     });
 
   } catch (error: any) {
-    console.error("Error replacing test profile:", error);
+    console.error(error);
     return NextResponse.json(
       {
         error: "Failed to replace test profile",

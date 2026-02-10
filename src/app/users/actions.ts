@@ -32,7 +32,6 @@ export async function syncUserFromBubble(bubbleId: string, agentBubbleId?: strin
 
 
 export async function getUsers(search?: string) {
-  console.log(`Fetching users with agent info: search=${search}`);
   try {
     // Using relational query for more reliable joins
     const data = await db.query.users.findMany({
@@ -54,8 +53,6 @@ export async function getUsers(search?: string) {
       limit: 50,
     });
 
-    console.log(`Fetched ${data.length} users raw data`);
-    
     // Transform to match the UI expectation
     const transformedData = data.map(u => ({
       id: u.id,
@@ -79,7 +76,6 @@ export async function getUsers(search?: string) {
       last_synced_at: u.last_synced_at,
     }));
 
-    console.log('Sample transformed user:', transformedData[0]);
     return transformedData;
   } catch (error) {
     console.error("Database error in getUsers:", error);
@@ -168,31 +164,18 @@ export async function createAgentForUser(userId: number, agentData: Partial<type
 }
 
 export async function updateUserProfile(userId: number, agentData: Partial<typeof agents.$inferInsert>, tags?: string[]) {
-  console.log('=== SERVER ACTION DEBUG ===');
-  console.log('Received userId:', userId);
-  console.log('Received agentData:', agentData);
-  console.log('Received tags:', tags);
-  
   try {
     // First find the user to get the agent link
     const user = await db.query.users.findFirst({
       where: eq(users.id, userId)
     });
 
-    console.log('Found user:', {
-      id: user?.id,
-      bubble_id: user?.bubble_id,
-      linked_agent_profile: user?.linked_agent_profile
-    });
-
     if (!user) {
-      console.log('❌ User not found');
       return { success: false, error: "User not found" };
     }
 
     // Update access_level on the user table if tags provided
     if (tags) {
-      console.log('Updating user tags...');
       await db
         .update(users)
         .set({
@@ -200,14 +183,10 @@ export async function updateUserProfile(userId: number, agentData: Partial<typeo
           updated_at: new Date(),
         })
         .where(eq(users.id, userId));
-      console.log('✅ Tags updated');
     }
 
     // Update agent profile if link exists
     if (user.linked_agent_profile) {
-      console.log('Updating agent profile with bubble_id:', user.linked_agent_profile);
-      console.log('Agent update data:', agentData);
-      
       const result = await db
         .update(agents)
         .set({
@@ -216,26 +195,18 @@ export async function updateUserProfile(userId: number, agentData: Partial<typeo
         })
         .where(eq(agents.bubble_id, user.linked_agent_profile))
         .returning();
-      
-      console.log('✅ Agent update result - rows affected:', result.length);
-      if (result.length > 0) {
-        console.log('Updated agent data:', result[0]);
-      } else {
-        console.log('❌❌❌ CRITICAL: No rows updated - linked_agent_profile exists but no matching agent!');
-        console.log('linked_agent_profile value:', user.linked_agent_profile);
-        console.log('This user has a BROKEN agent link!');
+
+      if (result.length === 0) {
         return { success: false, error: 'Agent profile link is broken. Please contact support.' };
       }
     } else {
-      console.log('⚠️ No linked_agent_profile - skipping agent update');
       return { success: false, error: 'User has no linked agent profile' };
     }
 
-    console.log('========================');
     revalidatePath("/users");
     return { success: true };
   } catch (error) {
-    console.error("Database error in updateUserProfile:", error);
+    console.error("updateUserProfile error:", error);
     return { success: false, error: `Database error: ${String(error)}` };
   }
 }

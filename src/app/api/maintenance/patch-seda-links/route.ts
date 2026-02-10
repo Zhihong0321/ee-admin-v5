@@ -27,8 +27,6 @@ export async function POST(request: NextRequest) {
     // ========================================================================
     // PATCH 1: Backfill invoice.linked_seda_registration
     // ========================================================================
-    console.log('Patch 1: Backfilling invoice.linked_seda_registration...');
-
     // Find invoices missing linked_seda_registration but their customer has SEDAs
     const invoicesNeedingPatch = await db
       .select({
@@ -44,8 +42,6 @@ export async function POST(request: NextRequest) {
           sql`${invoices.linked_customer} IS NOT NULL`
         )
       );
-
-    console.log(`Found ${invoicesNeedingPatch.length} invoices needing SEDA link`);
 
     // For each invoice, find the closest SEDA by timestamp
     for (const invoice of invoicesNeedingPatch) {
@@ -78,8 +74,6 @@ export async function POST(request: NextRequest) {
     // ========================================================================
     // PATCH 2: Backfill seda_registration.linked_customer
     // ========================================================================
-    console.log('Patch 2: Backfilling seda_registration.linked_customer...');
-
     // Find SEDAs missing linked_customer but have linked invoices
     const sedasNeedingPatch = await db
       .select({
@@ -93,8 +87,6 @@ export async function POST(request: NextRequest) {
           sql`${invoices.linked_customer} IS NOT NULL`
         )
       );
-
-    console.log(`Found ${sedasNeedingPatch.length} SEDAs needing customer link`);
 
     // Update each SEDA with the customer from its linked invoice
     for (const seda of sedasNeedingPatch) {
@@ -121,8 +113,6 @@ export async function POST(request: NextRequest) {
         results.errors.push(`SEDA ${seda.seda_bubble_id}: ${err}`);
       }
     }
-
-    console.log('Patch complete:', results);
 
     return NextResponse.json({
       success: true,

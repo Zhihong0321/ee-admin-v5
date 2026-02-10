@@ -22,7 +22,6 @@ export async function POST(
 ) {
   try {
     const { bubble_id } = await params;
-    console.log("Checking SEDA profile for:", bubble_id);
 
     // 1. Get the seda_registration record to get ic_no
     const records = await db
@@ -64,8 +63,6 @@ export async function POST(
     }
 
     // 2. Call SEDA Manager API to search for profile by IC/MyKad
-    console.log("Searching SEDA profile for IC:", mykad);
-
     let profileStatus = "not_found";
     let profileId: string | null = null;
     let apiResponse: any = null;
@@ -84,25 +81,20 @@ export async function POST(
       );
 
       apiResponse = await response.json().catch(() => null);
-      console.log("SEDA profile search response:", JSON.stringify(apiResponse).substring(0, 500));
 
       if (response.ok && Array.isArray(apiResponse) && apiResponse.length > 0) {
         // Profile found
         profileStatus = "profile_created";
         profileId = apiResponse[0]?.id?.toString() || apiResponse[0]?.profile_id?.toString() || null;
-        console.log("Profile found, ID:", profileId);
       } else if (response.status === 404 || (apiResponse?.detail && apiResponse.detail.includes("No profiles found"))) {
         profileStatus = "not_found";
-        console.log("Profile not found in SEDA");
       } else if (!response.ok) {
         profileStatus = "error";
         errorMessage = apiResponse?.detail || `API returned status ${response.status}`;
-        console.error("SEDA API error:", response.status, errorMessage);
       } else {
         profileStatus = "not_found";
       }
     } catch (fetchError: any) {
-      console.error("Error calling SEDA API:", fetchError);
       profileStatus = "error";
       errorMessage = fetchError.message || "Failed to connect to SEDA Manager API";
     }
@@ -122,8 +114,6 @@ export async function POST(
       .set(updateData)
       .where(eq(sedaRegistration.bubble_id, bubble_id));
 
-    console.log("Updated SEDA profile status:", profileStatus);
-
     return NextResponse.json({
       success: true,
       status: profileStatus,
@@ -135,7 +125,7 @@ export async function POST(
     });
 
   } catch (error: any) {
-    console.error("Error checking SEDA profile:", error);
+    console.error(error);
     return NextResponse.json(
       {
         error: "Failed to check SEDA profile",

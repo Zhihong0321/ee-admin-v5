@@ -12,22 +12,15 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get('sessionId');
 
-  console.log('[SSE] Connection request for session:', sessionId);
-
   if (!sessionId) {
-    console.log('[SSE] Rejected: No sessionId');
     return new Response('sessionId is required', { status: 400 });
   }
 
   const progress = getProgress(sessionId);
-  console.log('[SSE] Progress found:', !!progress, progress ? `Status: ${progress.status}, Files: ${progress.completedFiles}/${progress.totalFiles}` : 'No session');
 
   if (!progress) {
-    console.log('[SSE] Rejected: Session not found');
     return new Response('Session not found', { status: 404 });
   }
-
-  console.log('[SSE] Creating stream for session:', sessionId);
 
   // Create SSE stream
   const encoder = new TextEncoder();
@@ -40,7 +33,6 @@ export async function GET(request: NextRequest) {
       const sendEvent = (data: any) => {
         const jsonData = JSON.stringify(data);
         if (jsonData !== lastData) {
-          console.log('[SSE] Sending event:', data.type, data.progress ? `Files: ${data.progress.completedFiles}/${data.progress.totalFiles}` : '');
           controller.enqueue(encoder.encode(`data: ${jsonData}\n\n`));
           lastData = jsonData;
         }
@@ -98,7 +90,6 @@ export async function GET(request: NextRequest) {
 
       // Cleanup on connection close
       request.signal.addEventListener('abort', () => {
-        console.log('[SSE] Connection aborted for session:', sessionId);
         if (!completed) {
           clearInterval(interval);
           controller.close();

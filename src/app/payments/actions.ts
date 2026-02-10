@@ -15,7 +15,6 @@ export async function triggerPaymentSync() {
 }
 
 export async function getSubmittedPayments(search?: string) {
-  console.log(`Fetching submitted payments: search=${search}`);
   try {
     const filters = search
       ? or(
@@ -56,7 +55,6 @@ export async function getSubmittedPayments(search?: string) {
 }
 
 export async function getVerifiedPayments(search?: string) {
-  console.log(`Fetching verified payments: search=${search}`);
   try {
     const filters = search
       ? or(
@@ -97,26 +95,16 @@ export async function getVerifiedPayments(search?: string) {
 }
 
 export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
-  console.log(`[INVOICE LOOKUP] Searching for invoice with bubble_id: ${bubbleId}`);
   try {
     const invoice = await db.query.invoices.findFirst({
       where: eq(invoices.bubble_id, bubbleId),
     });
 
     if (!invoice) {
-      console.error(`[INVOICE LOOKUP] Invoice NOT FOUND in database for bubble_id: ${bubbleId}`);
-      console.error(`[INVOICE LOOKUP] This means the invoice hasn't been synced from Bubble to Postgres yet.`);
-      // Check if there are ANY invoices in the database
-      const allInvoices = await db.query.invoices.findMany({ limit: 5 });
-      console.error(`[INVOICE LOOKUP] Sample invoice bubble_ids in database:`, allInvoices.map(inv => inv.bubble_id));
       return null;
     }
 
-    console.log(`[INVOICE LOOKUP] Invoice FOUND: ${invoice.invoice_number} (ID: ${invoice.bubble_id})`);
-
     const items: any[] = [];
-
-    console.log(`[INVOICE LOOKUP] Found ${items.length} items for invoice`);
 
     const template = await db.query.invoice_templates.findFirst({
       where: invoice.template_id
@@ -141,7 +129,7 @@ export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
       created_by_user_name
     };
   } catch (error) {
-    console.error("[INVOICE LOOKUP] Database error:", error);
+    console.error("Database error in getInvoiceDetailsByBubbleId:", error);
     throw error;
   }
 }
@@ -150,7 +138,6 @@ export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
  * Diagnostic function to check for missing invoices linked to payments
  */
 export async function diagnoseMissingInvoices() {
-  console.log("[DIAGNOSIS] Checking for missing invoices linked to payments...");
   const result = {
     totalPayments: 0,
     paymentsWithLinkedInvoice: 0,
@@ -189,16 +176,14 @@ export async function diagnoseMissingInvoices() {
     const sampleInvoices = await db.query.invoices.findMany({ limit: 5 });
     result.sampleBubbleIds = sampleInvoices.map(inv => inv.bubble_id).filter(Boolean) as string[];
 
-    console.log("[DIAGNOSIS] Results:", result);
     return result;
   } catch (error) {
-    console.error("[DIAGNOSIS] Error:", error);
+    console.error("Error in diagnoseMissingInvoices:", error);
     throw error;
   }
 }
 
 export async function verifyPayment(submittedPaymentId: number, adminId: string) {
-  console.log(`Verifying payment: id=${submittedPaymentId}, admin=${adminId}`);
   try {
     // 1. Get the submitted payment data
     const submitted = await db

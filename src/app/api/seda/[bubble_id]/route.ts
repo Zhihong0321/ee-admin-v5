@@ -20,8 +20,6 @@ export async function GET(
   try {
     const { bubble_id } = await params;
 
-    console.log("Fetching SEDA details for:", bubble_id);
-
     // Fetch SEDA data with customer name and linked invoice via LEFT JOIN
     const result = await db
       .select({
@@ -42,7 +40,6 @@ export async function GET(
       .limit(1);
 
     if (result.length === 0) {
-      console.log("SEDA not found:", bubble_id);
       return NextResponse.json(
         { error: "SEDA registration not found" },
         { status: 404 }
@@ -50,7 +47,6 @@ export async function GET(
     }
 
     const { seda, customer_name, invoice_number, invoice_total, invoice_percent_paid, invoice_id } = result[0];
-    console.log("Found SEDA:", seda.bubble_id, "customer:", customer_name);
 
     // Calculate checkpoints
     const has5Percent = parseFloat(invoice_percent_paid || "0") >= 5;
@@ -85,14 +81,11 @@ export async function GET(
       progress_percentage,
     });
   } catch (error: any) {
-    console.error("Error fetching SEDA details:", error);
-    console.error("Error details:", error.message);
-    console.error("Error stack:", error.stack);
+    console.error(error);
     return NextResponse.json(
       {
         error: "Failed to fetch SEDA registration",
         message: error.message,
-        stack: error.stack
       },
       { status: 500 }
     );
@@ -112,7 +105,6 @@ export async function PATCH(
   try {
     const { bubble_id } = await params;
     const body = await request.json();
-    console.log("Updating SEDA:", bubble_id, Object.keys(body || {}));
 
     // Whitelist strictly to existing columns in the Drizzle schema to avoid runtime errors.
     // Block primary identifiers to prevent accidental data corruption.
@@ -169,14 +161,12 @@ export async function PATCH(
       );
     }
 
-    console.log("Updated SEDA:", updated[0].bubble_id);
-
     return NextResponse.json({
       success: true,
       data: updated[0],
     });
   } catch (error: any) {
-    console.error("Error updating SEDA:", error);
+    console.error(error);
     const details: any = {
       message: error?.message,
       code: error?.code,

@@ -26,8 +26,6 @@ export async function middleware(request: NextRequest) {
     }
 
     const secretStr = JWT_SECRET || 'your-fallback-secret-if-any';
-    // Debug: Check if secret persists
-    // console.log(`Middleware: Verifying with secret (len=${secretStr.length})...`);
 
     // 2. Verify Token
     const secret = new TextEncoder().encode(secretStr);
