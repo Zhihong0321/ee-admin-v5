@@ -625,13 +625,6 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         {activeTab === "pending" && payment.status === 'pending' && (
                           <>
                             <button 
-                              onClick={() => handleVerify(payment.id)}
-                              className="btn-ghost text-green-600 hover:text-green-700 flex items-center gap-1.5"
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                              Verify
-                            </button>
-                            <button 
                               onClick={() => handleDeleteSubmission(payment.id)}
                               className="btn-ghost text-red-600 hover:text-red-700 flex items-center gap-1.5"
                               title="Delete Submission"
