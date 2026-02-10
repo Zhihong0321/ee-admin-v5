@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
-import { invoice_edit_history, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { getCurrentUser } from "@/lib/auth"; // Assuming you have an auth utility
+import { invoice_edit_history } from "@/db/schema";
+import { getUser } from "@/lib/auth";
 
 export type InvoiceEditLogParams = {
   invoiceId: number;
@@ -16,23 +15,21 @@ export type InvoiceEditLogParams = {
 
 export async function logInvoiceEdit(params: InvoiceEditLogParams) {
   try {
-    // 1. Identify who is making the change
-    // In a server action, we might need to get the user from the session
-    // For now, we'll try to get it, or default to 'System' if running in a background job context
     let editorName = "System";
     let editorId = "system";
     let editorRole = "system";
     let editorPhone = "";
 
-    // This is a placeholder for actual auth logic. 
-    // If you're using NextAuth or custom auth, replace this.
     try {
-        // Attempt to get user from session if available
-        // const session = await getServerSession(authOptions);
-        // if (session?.user) { ... }
-        // For this example, we'll leave it as System/Unknown until integrated with your specific auth
+      const user = await getUser();
+      if (user) {
+        editorName = user.name || "Unknown";
+        editorId = user.userId || "unknown";
+        editorRole = user.role || "unknown";
+        editorPhone = user.phone || "";
+      }
     } catch (e) {
-        // Ignore auth errors during logging
+      // Ignore auth errors during logging
     }
 
     // 2. Calculate the diff
