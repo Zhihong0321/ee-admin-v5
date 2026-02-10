@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, numeric, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, timestamp, numeric, boolean, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
@@ -379,3 +379,26 @@ export const schema_descriptions = pgTable('schema_descriptions', {
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   updated_by: text('updated_by'),
 });
+
+// Invoice Edit History Table - Audit trail for all invoice edits
+export const invoice_edit_history = pgTable('invoice_edit_history', {
+  id: serial('id').primaryKey(),
+  invoice_id: integer('invoice_id').references(() => invoices.id).notNull(),
+  invoice_number: text('invoice_number'),
+  entity_type: text('entity_type').notNull(),       // 'invoice_item' | 'invoice'
+  entity_id: text('entity_id'),                      // bubble_id of edited entity
+  action_type: text('action_type').notNull(),        // 'update' | 'create' | 'delete'
+  changes: jsonb('changes').notNull(),               // [{ field, before, after }]
+  edited_by_name: text('edited_by_name'),
+  edited_by_phone: text('edited_by_phone'),
+  edited_by_user_id: text('edited_by_user_id'),
+  edited_by_role: text('edited_by_role'),
+  edited_at: timestamp('edited_at', { withTimezone: true }).defaultNow(),
+});
+
+export const invoiceEditHistoryRelations = relations(invoice_edit_history, ({ one }) => ({
+  invoice: one(invoices, {
+    fields: [invoice_edit_history.invoice_id],
+    references: [invoices.id],
+  }),
+}));
