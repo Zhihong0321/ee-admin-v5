@@ -1064,18 +1064,19 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                               {parseFloat(itemData.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className={`flex items-center justify-end gap-1.5 ${isEditing ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
                                 {isEditing ? (
                                   <>
                                     <button
                                       onClick={handleSaveItem}
                                       disabled={savingItem}
-                                      className="p-1 text-primary-600 hover:bg-primary-50 rounded"
+                                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
                                     >
-                                      {savingItem ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-4 h-4" />}
+                                      {savingItem ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                      Save
                                     </button>
-                                    <button onClick={cancelEditingItem} className="p-1 text-secondary-400 hover:bg-secondary-50 rounded">
-                                      <XIcon className="w-4 h-4" />
+                                    <button onClick={cancelEditingItem} className="px-3 py-1.5 border border-secondary-200 hover:bg-secondary-50 rounded text-[11px] font-bold uppercase tracking-wider text-secondary-600 transition-colors">
+                                      Cancel
                                     </button>
                                   </>
                                 ) : (
