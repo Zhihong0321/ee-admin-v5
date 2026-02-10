@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, FileText, Loader2, RefreshCw, Database } from "lucide-react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, RefreshCw, Database } from "lucide-react";
 import { getInvoices, getInvoiceDetails, generateInvoicePdf, triggerInvoiceSync } from "./actions";
 import InvoiceEditor from "@/components/InvoiceEditor";
 
-export default function InvoicesPage() {
+function InvoicesContent() {
+  const searchParams = useSearchParams();
   const [version, setVersion] = useState<"v1" | "v2">("v2");
   const [search, setSearch] = useState("");
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -19,6 +21,14 @@ export default function InvoicesPage() {
   useEffect(() => {
     fetchData();
   }, [version]);
+
+  // Handle auto-opening invoice from query param
+  useEffect(() => {
+    const id = searchParams.get("id");
+    if (id) {
+      handleViewDetails(parseInt(id));
+    }
+  }, [searchParams]);
 
   async function fetchData() {
     setLoading(true);
@@ -311,8 +321,8 @@ export default function InvoicesPage() {
                             onClick={() => handleViewDetails(inv.id)}
                             className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
                           >
-                            <Eye className="h-4 w-4" />
-                            View
+                            <Edit2 className="h-4 w-4" />
+                            Edit
                           </button>
                         </div>
                       </td>
@@ -352,5 +362,17 @@ export default function InvoicesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function InvoicesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-10 h-10 text-primary-600 animate-spin" />
+      </div>
+    }>
+      <InvoicesContent />
+    </Suspense>
   );
 }

@@ -24,7 +24,7 @@ interface EditingItem {
 export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose, version = "v2" }: InvoiceEditorProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [downloading, setDownloading] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("preview");
+  const [activeTab, setActiveTab] = useState<Tab>("details");
   const [invoiceData, setInvoiceData] = useState(initialInvoiceData);
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<EditingItem | null>(null);
@@ -475,13 +475,15 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                       {invoiceData?.items?.length || 0} items
                     </span>
                   </div>
-                  <button
-                    onClick={() => setShowAddItem(!showAddItem)}
-                    className="btn-secondary flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Item
-                  </button>
+                  {version === "v2" && (
+                    <button
+                      onClick={() => setShowAddItem(!showAddItem)}
+                      className="btn-secondary flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Item
+                    </button>
+                  )}
                 </div>
 
                 {/* Add Item Form */}
@@ -657,25 +659,29 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                                 </div>
                               ) : (
                                 <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => startEditingItem(item)}
-                                    className="p-1.5 hover:bg-secondary-200 rounded text-secondary-600 hover:text-secondary-900"
-                                    title="Edit"
-                                  >
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteItem(item.id)}
-                                    disabled={deletingItemId === item.id}
-                                    className="p-1.5 hover:bg-red-100 rounded text-red-600 hover:text-red-700"
-                                    title="Delete"
-                                  >
-                                    {deletingItemId === item.id ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <Trash2 className="w-4 h-4" />
-                                    )}
-                                  </button>
+                                  {version === "v2" && (
+                                    <>
+                                      <button
+                                        onClick={() => startEditingItem(item)}
+                                        className="p-1.5 hover:bg-secondary-200 rounded text-secondary-600 hover:text-secondary-900"
+                                        title="Edit"
+                                      >
+                                        <Edit2 className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteItem(item.id)}
+                                        disabled={deletingItemId === item.id}
+                                        className="p-1.5 hover:bg-red-100 rounded text-red-600 hover:text-red-700"
+                                        title="Delete"
+                                      >
+                                        {deletingItemId === item.id ? (
+                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                          <Trash2 className="w-4 h-4" />
+                                        )}
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               )}
                             </td>
