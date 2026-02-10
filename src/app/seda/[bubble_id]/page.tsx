@@ -223,6 +223,8 @@ export default function SedaDetailPage() {
   const [creatingProfile, setCreatingProfile] = useState(false);
   const [replacingProfile, setReplacingProfile] = useState(false);
   const [profileCheckResult, setProfileCheckResult] = useState<any>(null);
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncResult, setResyncResult] = useState<any>(null);
 
   useEffect(() => {
     if (params.bubble_id) {
@@ -378,6 +380,26 @@ export default function SedaDetailPage() {
     }
   };
 
+  const handleResync = async () => {
+    setResyncing(true);
+    setResyncResult(null);
+    try {
+      const response = await fetch(`/api/seda/${bubbleId}/resync`, {
+        method: "POST",
+      });
+      const result = await response.json();
+      setResyncResult(result);
+      if (result.success) {
+        await fetchData(bubbleId);
+      }
+    } catch (error) {
+      console.error("Error re-syncing:", error);
+      setResyncResult({ success: false, error: "Failed to re-sync with Bubble" });
+    } finally {
+      setResyncing(false);
+    }
+  };
+
   const getProfileStatusBadge = (status: string | null) => {
     switch (status) {
       case "profile_created":
@@ -492,6 +514,19 @@ export default function SedaDetailPage() {
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
           <button
+            onClick={handleResync}
+            disabled={resyncing}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg disabled:opacity-60 transition-colors"
+            title="Merge empty fields with data from Bubble"
+          >
+            {resyncing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            {resyncing ? "Re-syncing..." : "Re-Sync"}
+          </button>
+          <button
             onClick={() => setIsRawEditing((v) => !v)}
             className="btn-secondary"
           >
@@ -504,6 +539,41 @@ export default function SedaDetailPage() {
           />
         </div>
       </div>
+
+      {/* Re-Sync Result Banner */}
+      {resyncResult && (
+        <div className={`border rounded-lg p-4 ${
+          resyncResult.success
+            ? resyncResult.filled_count > 0
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-blue-50 border-blue-200 text-blue-800"
+            : "bg-red-50 border-red-200 text-red-800"
+        }`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="font-medium">
+                {resyncResult.success
+                  ? resyncResult.message
+                  : resyncResult.error || "Re-sync failed"}
+              </p>
+              {resyncResult.filled_fields && resyncResult.filled_fields.length > 0 && (
+                <p className="text-sm mt-1 opacity-75">
+                  Fields filled: {resyncResult.filled_fields.join(", ")}
+                </p>
+              )}
+              {resyncResult.detail && (
+                <p className="text-sm mt-1 opacity-75">{resyncResult.detail}</p>
+              )}
+            </div>
+            <button
+              onClick={() => setResyncResult(null)}
+              className="p-1 hover:opacity-70"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Raw JSON Editor (Advanced) */}
       {isRawEditing && (
