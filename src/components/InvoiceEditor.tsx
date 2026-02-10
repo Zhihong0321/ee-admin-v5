@@ -274,36 +274,36 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
   }, 0) || 0;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-8">
-      <div className="bg-white rounded-2xl shadow-2xl w-full h-[95vh] max-h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-8 font-sans">
+      <div className="bg-white rounded-3xl shadow-2xl w-full h-[95vh] max-h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 border border-secondary-200">
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-secondary-200 bg-secondary-50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary-100 rounded-lg">
-              <FileText className="w-5 h-5 text-primary-600" />
+        <div className="flex items-center justify-between px-8 py-5 border-b border-secondary-200 bg-secondary-900 text-white">
+          <div className="flex items-center gap-4">
+            <div className="p-2 bg-primary-600 rounded-xl shadow-lg shadow-primary-900/50">
+              <FileText className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-secondary-900">Invoice Editor</h2>
-              <p className="text-xs text-secondary-500">{invoiceData?.invoice_number || 'Draft'}</p>
+              <h2 className="text-xl font-black uppercase tracking-[0.2em] leading-none">Invoice Control</h2>
+              <p className="text-[10px] font-bold text-secondary-400 uppercase tracking-widest mt-1.5">{invoiceData?.invoice_number || 'Draft System Object'}</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <button 
               onClick={handleDownloadPdf}
               disabled={downloading}
-              className="btn-secondary py-2 flex items-center gap-2"
+              className="bg-white/10 hover:bg-white/20 text-white py-2.5 px-6 rounded-xl transition-all font-black uppercase tracking-widest text-[10px] flex items-center gap-2 border border-white/10"
             >
               {downloading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Download className="w-4 h-4" />
               )}
-              <span>PDF</span>
+              <span>Export PDF</span>
             </button>
             <button 
               onClick={onClose}
-              className="p-2 hover:bg-secondary-200 rounded-full transition-colors text-secondary-500 hover:text-secondary-900"
+              className="p-2.5 hover:bg-white/10 rounded-full transition-all text-white/50 hover:text-white"
             >
               <X className="w-6 h-6" />
             </button>
@@ -311,113 +311,174 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 px-6 bg-secondary-50/50 border-b border-secondary-200">
+        <div className="flex items-center gap-1 px-8 bg-secondary-50 border-b border-secondary-200">
           <button
             onClick={() => setActiveTab("preview")}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] border-b-4 transition-all ${
               activeTab === "preview"
                 ? "border-primary-600 text-primary-600"
-                : "border-transparent text-secondary-600 hover:text-secondary-900"
+                : "border-transparent text-secondary-400 hover:text-secondary-600"
             }`}
           >
-            Preview
+            Visual Preview
           </button>
           <button
             onClick={() => setActiveTab("details")}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] border-b-4 transition-all flex items-center gap-2 ${
               activeTab === "details"
                 ? "border-primary-600 text-primary-600"
-                : "border-transparent text-secondary-600 hover:text-secondary-900"
+                : "border-transparent text-secondary-400 hover:text-secondary-600"
             }`}
           >
             <Info className="w-4 h-4" />
-            Details
+            Data Management
           </button>
         </div>
 
         {/* Content */}
         {activeTab === "preview" ? (
-          <div className="flex-1 bg-secondary-100 p-4 md:p-8 overflow-auto flex justify-center">
+          <div className="flex-1 bg-secondary-100 p-8 overflow-auto flex justify-center">
             <iframe 
               ref={iframeRef}
-              className="w-full max-w-[800px] bg-white shadow-lg min-h-[1100px] rounded-sm"
+              className="w-full max-w-[850px] bg-white shadow-2xl min-h-[1100px] rounded-lg border border-secondary-200"
               title="Invoice Preview"
             />
           </div>
         ) : (
-          <div className="flex-1 overflow-auto p-6 bg-secondary-50">
-            <div className="max-w-full mx-auto space-y-6">
-              {/* Invoice Summary */}
-              <div className="card p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <FileText className="w-5 h-5 text-primary-600" />
-                  <h3 className="text-lg font-bold text-secondary-900">Invoice Summary</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="min-w-0">
-                    <label className="text-sm text-secondary-500">Invoice Number</label>
-                    <p className="font-semibold text-secondary-900 truncate" title={invoiceData?.invoice_number}>{invoiceData?.invoice_number || 'N/A'}</p>
+          <div className="flex-1 overflow-auto bg-white">
+            {/* Main Details Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 border-b border-secondary-200">
+              {/* Left Column: Summary & Agent */}
+              <div className="border-r border-secondary-200 flex flex-col">
+                {/* Invoice Summary */}
+                <div className="p-10 border-b border-secondary-200 bg-secondary-50/30">
+                  <div className="flex items-center gap-3 mb-10">
+                    <FileText className="w-5 h-5 text-primary-600" />
+                    <h3 className="text-xs font-black text-secondary-900 uppercase tracking-[0.2em]">Core Transaction</h3>
                   </div>
-                  <div className="min-w-0">
-                    <label className="text-sm text-secondary-500">Invoice Date</label>
-                    <p className="font-semibold text-secondary-900 truncate">
-                      {invoiceData?.invoice_date 
-                        ? new Date(invoiceData.invoice_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-                        : 'N/A'}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <label className="text-sm text-secondary-500">Status</label>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
-                        invoiceData?.paid ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {invoiceData?.paid ? 'Paid' : 'Pending'}
-                      </span>
-                      <span className="text-sm text-secondary-600">
-                        {invoiceData?.percent_of_total_amount ? `${parseFloat(invoiceData.percent_of_total_amount).toFixed(1)}%` : '0%'} Paid
-                      </span>
+                  <div className="grid grid-cols-2 gap-y-10 gap-x-12">
+                    <div>
+                      <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">Serial Number</label>
+                      <p className="text-2xl font-black text-secondary-900 mt-1 tracking-tighter">{invoiceData?.invoice_number || 'N/A'}</p>
                     </div>
+                    <div>
+                      <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">Document Date</label>
+                      <p className="text-2xl font-black text-secondary-900 mt-1 tracking-tighter">
+                        {invoiceData?.invoice_date 
+                          ? new Date(invoiceData.invoice_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                          : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">Payment Integrity</label>
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                          invoiceData?.paid ? 'bg-green-600 text-white shadow-lg shadow-green-900/20' : 'bg-amber-500 text-white shadow-lg shadow-amber-900/20'
+                        }`}>
+                          {invoiceData?.paid ? 'Settled' : 'Pending'}
+                        </span>
+                        <span className="text-xl font-black text-secondary-900 font-mono tracking-tighter">
+                          {invoiceData?.percent_of_total_amount ? `${parseFloat(invoiceData.percent_of_total_amount).toFixed(1)}%` : '0%'}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">Audit Trail</label>
+                      <p className="text-[10px] font-black text-secondary-700 mt-2 uppercase border border-secondary-200 inline-block px-3 py-1.5 rounded-xl tracking-tighter bg-white shadow-sm">{invoiceData?.created_by_user_name || 'System Auto'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Agent Selection */}
+                <div className="p-10 flex-1 bg-white">
+                  <div className="flex items-center gap-3 mb-8">
+                    <User className="w-5 h-5 text-primary-600" />
+                    <h3 className="text-xs font-black text-secondary-900 uppercase tracking-[0.2em]">Stakeholder Assignment</h3>
+                  </div>
+                  <div className="space-y-6 max-w-sm">
+                    <div className="relative">
+                      <select
+                        value={selectedAgentId}
+                        onChange={(e) => setSelectedAgentId(e.target.value)}
+                        className="w-full h-14 px-6 appearance-none bg-secondary-50 border-2 border-secondary-100 hover:border-primary-500 focus:border-primary-600 transition-all font-black text-secondary-900 uppercase text-xs tracking-[0.1em] rounded-2xl outline-none"
+                        disabled={savingAgent}
+                      >
+                        <option value="">Choose Assigned Agent</option>
+                        {agents.map((agent) => (
+                          <option key={agent.id} value={agent.bubble_id}>
+                            {agent.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-secondary-300 border-l border-secondary-200 pl-4">
+                        <User className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleSaveAgent}
+                      disabled={savingAgent || !selectedAgentId}
+                      className="bg-secondary-900 hover:bg-black text-white w-full py-4 rounded-2xl shadow-2xl flex items-center justify-center gap-3 group transition-all active:scale-95"
+                    >
+                      {savingAgent ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+                      ) : (
+                        <Save className="w-5 h-5 group-hover:scale-110 transition-transform text-primary-500" />
+                      )}
+                      <span className="uppercase tracking-[0.2em] font-black text-[10px]">Update Assignment</span>
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* Customer Details */}
-              <div className="card p-6">
-                <div className="flex items-center gap-3 mb-4">
+              {/* Right Column: Customer Details */}
+              <div className="p-10 bg-white flex flex-col">
+                <div className="flex items-center gap-3 mb-10">
                   <User className="w-5 h-5 text-primary-600" />
-                  <h3 className="text-lg font-bold text-secondary-900">Customer Details</h3>
+                  <h3 className="text-xs font-black text-secondary-900 uppercase tracking-[0.2em]">Customer Profile</h3>
                 </div>
                 {invoiceData?.customer_data ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="min-w-0">
-                      <label className="text-sm text-secondary-500">Name</label>
-                      <p className="font-semibold text-secondary-900 truncate" title={invoiceData.customer_data.name}>{invoiceData.customer_data.name || 'N/A'}</p>
-                    </div>
-                    <div className="min-w-0">
-                      <label className="text-sm text-secondary-500">IC Number</label>
-                      <p className="font-medium text-secondary-700 truncate" title={invoiceData.customer_data.ic_number}>{invoiceData.customer_data.ic_number || 'N/A'}</p>
-                    </div>
-                    <div className="flex items-start gap-2 min-w-0">
-                      <Mail className="w-4 h-4 text-secondary-400 mt-1 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <label className="text-sm text-secondary-500">Email</label>
-                        <p className="font-medium text-secondary-700 truncate" title={invoiceData.customer_data.email}>{invoiceData.customer_data.email || 'N/A'}</p>
+                  <div className="space-y-12 flex-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                      <div>
+                        <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">Full Legal Name</label>
+                        <p className="text-3xl font-black text-secondary-900 mt-1 leading-none tracking-tighter uppercase">{invoiceData.customer_data.name || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">Identity Document (IC)</label>
+                        <p className="text-3xl font-black text-secondary-900 mt-1 font-mono tracking-tighter">{invoiceData.customer_data.ic_number || 'N/A'}</p>
                       </div>
                     </div>
-                    <div className="flex items-start gap-2 min-w-0">
-                      <Phone className="w-4 h-4 text-secondary-400 mt-1 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <label className="text-sm text-secondary-500">Phone</label>
-                        <p className="font-medium text-secondary-700 truncate" title={invoiceData.customer_data.phone}>{invoiceData.customer_data.phone || 'N/A'}</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 border-t border-secondary-100 pt-12">
+                      <div className="flex items-start gap-5">
+                        <div className="p-4 bg-secondary-900 rounded-[1.25rem] text-white shadow-xl">
+                          <Mail className="w-6 h-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">Electronic Mail</label>
+                          <p className="text-base font-black text-secondary-900 truncate mt-1">{invoiceData.customer_data.email || 'N/A'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-5">
+                        <div className="p-4 bg-secondary-900 rounded-[1.25rem] text-white shadow-xl">
+                          <Phone className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">Direct Contact</label>
+                          <p className="text-base font-black text-secondary-900 mt-1">{invoiceData.customer_data.phone || 'N/A'}</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-start gap-2 md:col-span-2 min-w-0">
-                      <MapPin className="w-4 h-4 text-secondary-400 mt-1 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <label className="text-sm text-secondary-500">Address</label>
-                        <p className="font-medium text-secondary-700">
+
+                    <div className="flex items-start gap-5 border-t border-secondary-100 pt-12">
+                      <div className="p-4 bg-secondary-900 rounded-[1.25rem] text-white shadow-xl">
+                        <MapPin className="w-6 h-6" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">Service Domicile</label>
+                        <p className="text-base font-black text-secondary-900 mt-3 leading-relaxed uppercase tracking-tight max-w-md">
                           {invoiceData.customer_data.address ? `${invoiceData.customer_data.address}, ` : ''}
+                          <br />
                           {invoiceData.customer_data.city ? `${invoiceData.customer_data.city}, ` : ''}
                           {invoiceData.customer_data.state ? `${invoiceData.customer_data.state} ` : ''}
                           {invoiceData.customer_data.postcode || ''}
@@ -426,374 +487,291 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                     </div>
                   </div>
                 ) : (
-                  <p className="text-secondary-500">No customer details available</p>
+                  <div className="flex-1 flex flex-col items-center justify-center py-20 text-secondary-200 border-4 border-dotted border-secondary-50 rounded-[3rem] bg-secondary-50/20">
+                    <User className="w-20 h-20 mb-6 opacity-5" />
+                    <p className="font-black uppercase tracking-[0.4em] text-[10px]">Registry Link Broken</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Invoice Items Section */}
+            <div className="border-b border-secondary-200">
+              <div className="flex items-center justify-between px-10 py-8 bg-secondary-900">
+                <div className="flex items-center gap-5">
+                  <Package className="w-7 h-7 text-primary-500" />
+                  <h3 className="text-xs font-black text-white uppercase tracking-[0.4em]">Itemized Billing Table</h3>
+                  <div className="px-3 py-1 bg-white text-secondary-900 text-[10px] font-black rounded-lg uppercase tracking-tighter shadow-lg">
+                    {invoiceData?.items?.length || 0} ENTRIES
+                  </div>
+                </div>
+                {version === "v2" && (
+                  <button
+                    onClick={() => setShowAddItem(!showAddItem)}
+                    className="bg-primary-600 hover:bg-primary-500 text-white flex items-center gap-3 text-[10px] px-8 py-4 rounded-[1.25rem] transition-all font-black uppercase tracking-widest shadow-2xl shadow-primary-900/40 active:scale-95 border border-primary-500/50"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Append Line
+                  </button>
                 )}
               </div>
 
-              {/* Agent Selection (Editable) */}
-              <div className="card p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <User className="w-5 h-5 text-primary-600" />
-                  <h3 className="text-lg font-bold text-secondary-900">Agent</h3>
-                </div>
-                <div className="flex items-center gap-3">
-                  <select
-                    value={selectedAgentId}
-                    onChange={(e) => setSelectedAgentId(e.target.value)}
-                    className="input flex-1"
-                    disabled={savingAgent}
-                  >
-                    <option value="">Select an agent...</option>
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.bubble_id}>
-                        {agent.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={handleSaveAgent}
-                    disabled={savingAgent || !selectedAgentId}
-                    className="btn-primary flex items-center gap-2"
-                  >
-                    {savingAgent ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4" />
-                    )}
-                    Save Agent
-                  </button>
-                </div>
-              </div>
-
-              {/* Invoice Items (Editable) */}
-              <div className="card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <Package className="w-5 h-5 text-primary-600" />
-                    <h3 className="text-lg font-bold text-secondary-900">Invoice Items</h3>
-                    <span className="px-2 py-0.5 bg-secondary-100 text-secondary-600 text-xs rounded-full">
-                      {invoiceData?.items?.length || 0} items
-                    </span>
-                  </div>
-                  {version === "v2" && (
-                    <button
-                      onClick={() => setShowAddItem(!showAddItem)}
-                      className="btn-secondary flex items-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Item
-                    </button>
-                  )}
-                </div>
-
-                {/* Add Item Form */}
-                {showAddItem && (
-                  <div className="mb-4 p-4 bg-primary-50 rounded-lg border border-primary-200">
-                    <h4 className="font-semibold text-secondary-900 mb-3">Add New Item</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <div className="md:col-span-2">
-                        <label className="text-sm text-secondary-500 mb-1 block">Description *</label>
+              {/* Add Item Form */}
+              {showAddItem && (
+                <div className="p-12 bg-primary-50 border-y border-primary-200 animate-in fade-in slide-in-from-top-8 duration-700">
+                  <div className="max-w-5xl mx-auto bg-white p-10 rounded-[3rem] border border-primary-100 shadow-[0_35px_60px_-15px_rgba(0,0,0,0.1)]">
+                    <div className="flex items-center justify-between mb-10">
+                      <div className="flex items-center gap-4">
+                        <div className="w-4 h-4 rounded-full bg-primary-600 shadow-lg shadow-primary-200" />
+                        <h4 className="font-black text-secondary-900 uppercase text-xs tracking-[0.3em]">Initialize New Line Entry</h4>
+                      </div>
+                      <button onClick={() => setShowAddItem(false)} className="p-2.5 hover:bg-primary-50 rounded-full transition-colors text-primary-300">
+                        <XIcon className="w-7 h-7" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
+                      <div className="md:col-span-6">
+                        <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest mb-3 block">Description of Goods / Services</label>
                         <input
                           type="text"
                           value={newItem.description}
                           onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                          className="input"
-                          placeholder="Item description"
+                          className="w-full h-16 px-6 py-4 rounded-2xl border-2 border-secondary-100 focus:border-primary-500 bg-secondary-50 font-black text-secondary-900 placeholder:text-secondary-300 focus:ring-8 focus:ring-primary-100 transition-all outline-none"
+                          placeholder="e.g. Turnkey EPC Solution for Commercial Solar"
                         />
                       </div>
-                      <div>
-                        <label className="text-sm text-secondary-500 mb-1 block">Qty *</label>
+                      <div className="md:col-span-2">
+                        <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest mb-3 block text-center">Unit Qty</label>
                         <input
                           type="number"
                           step="0.01"
-                          min="0.01"
                           value={newItem.qty}
-                          onChange={(e) => {
-                            const qty = e.target.value;
-                            setNewItem({ ...newItem, qty });
-                          }}
-                          className="input"
-                          placeholder="1"
+                          onChange={(e) => setNewItem({ ...newItem, qty: e.target.value })}
+                          className="w-full h-16 px-6 rounded-2xl border-2 border-secondary-100 focus:border-primary-500 text-center bg-secondary-50 font-black text-secondary-900 focus:ring-8 focus:ring-primary-100 transition-all outline-none"
                         />
                       </div>
-                      <div>
-                        <label className="text-sm text-secondary-500 mb-1 block">Unit Price *</label>
+                      <div className="md:col-span-4">
+                        <label className="text-[10px] font-black text-secondary-400 uppercase tracking-widest mb-3 block text-right">Unit Rate (MYR)</label>
                         <input
                           type="number"
                           step="0.01"
-                          min="0"
                           value={newItem.unit_price}
-                          onChange={(e) => {
-                            const unit_price = e.target.value;
-                            setNewItem({ ...newItem, unit_price });
-                          }}
-                          className="input"
-                          placeholder="0.00"
+                          onChange={(e) => setNewItem({ ...newItem, unit_price: e.target.value })}
+                          className="w-full h-16 px-6 rounded-2xl border-2 border-secondary-100 focus:border-primary-500 text-right font-mono font-black text-secondary-900 focus:ring-8 focus:ring-primary-100 transition-all outline-none bg-secondary-50"
                         />
                       </div>
                     </div>
-                    <div className="flex items-center justify-end gap-2 mt-3">
-                      <div className="text-sm text-secondary-600">
-                        Amount: <span className="font-semibold">MYR {parseFloat(calculateAmount(newItem.qty, newItem.unit_price)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    <div className="flex items-center justify-end gap-8 mt-12 pt-10 border-t border-secondary-100">
+                      <div className="mr-auto">
+                        <span className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">Entry Valuation</span>
+                        <div className="text-4xl font-black text-primary-600 font-mono tracking-tighter mt-1">
+                          MYR {parseFloat(calculateAmount(newItem.qty, newItem.unit_price)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          setShowAddItem(false);
-                          setNewItem({ description: "", qty: "1", unit_price: "0" });
-                        }}
-                        className="btn-secondary"
-                        disabled={addingItem}
-                      >
-                        Cancel
-                      </button>
                       <button
                         onClick={handleAddItem}
                         disabled={addingItem}
-                        className="btn-primary flex items-center gap-2"
+                        className="bg-secondary-900 hover:bg-black text-white h-16 px-14 rounded-2xl shadow-2xl flex items-center gap-4 transition-all active:scale-95"
                       >
-                        {addingItem ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Plus className="w-4 h-4" />
-                        )}
-                        Add Item
+                        {addingItem ? <Loader2 className="w-6 h-6 animate-spin text-primary-500" /> : <><Plus className="w-6 h-6 text-primary-500" /><span className="font-black uppercase tracking-widest text-xs">Append to Record</span></>}
                       </button>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
+              <div className="p-0 overflow-x-auto">
                 {invoiceData?.items && invoiceData.items.length > 0 ? (
-                  <table className="table w-full">
+                  <table className="w-full border-collapse min-w-[1100px]">
                     <thead>
-                      <tr>
-                        <th className="w-[35%]">Description</th>
-                        <th className="text-center w-[10%]">Qty</th>
-                        <th className="text-right w-[15%]">Unit Price</th>
-                        <th className="text-right w-[15%]">Amount</th>
-                        <th className="text-right w-[25%]">Actions</th>
+                      <tr className="bg-secondary-50/50 border-b border-secondary-200">
+                        <th className="px-12 py-8 text-left text-[10px] font-black text-secondary-400 uppercase tracking-[0.3em]">Line Specification</th>
+                        <th className="px-12 py-8 text-center text-[10px] font-black text-secondary-400 uppercase tracking-[0.3em] w-36">Units</th>
+                        <th className="px-12 py-8 text-right text-[10px] font-black text-secondary-400 uppercase tracking-[0.3em] w-52">Rate</th>
+                        <th className="px-12 py-8 text-right text-[10px] font-black text-secondary-400 uppercase tracking-[0.3em] w-52">Valuation</th>
+                        <th className="px-12 py-8 text-right text-[10px] font-black text-secondary-400 uppercase tracking-[0.3em] w-48">Execution</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-secondary-100">
                       {invoiceData.items.map((item: any, index: number) => {
                         const isEditing = editingItemId === item.id;
                         const itemData = isEditing && editingItem ? editingItem : item;
 
                         return (
-                          <tr key={item.id || index} className={isEditing ? "bg-primary-50" : ""}>
-                            <td>
+                          <tr key={item.id || index} className={`${isEditing ? "bg-primary-50/50" : "hover:bg-secondary-50/30 transition-all group"}`}>
+                            <td className="px-12 py-8">
                               {isEditing ? (
                                 <input
                                   type="text"
                                   value={itemData.description}
                                   onChange={(e) => handleItemFieldChange("description", e.target.value)}
-                                  className="input text-sm"
-                                  placeholder="Description"
+                                  className="w-full h-12 px-5 py-2 rounded-xl border-2 border-primary-200 bg-white font-black text-secondary-900 shadow-inner outline-none focus:border-primary-500 transition-all"
                                 />
                               ) : (
-                                <>
-                                  <div className="font-medium text-secondary-900 truncate" title={item.description}>{item.description || 'N/A'}</div>
+                                <div>
+                                  <div className="font-black text-secondary-900 leading-tight text-xl uppercase tracking-tighter">{item.description || 'N/A'}</div>
                                   {item.inv_item_type && (
-                                    <div className="text-xs text-secondary-500 capitalize">{item.inv_item_type}</div>
+                                    <div className="inline-block px-3 py-1 bg-secondary-900 text-[9px] font-black text-white uppercase tracking-widest mt-3 rounded-lg">{item.inv_item_type}</div>
                                   )}
-                                </>
+                                </div>
                               )}
                             </td>
-                            <td className="text-center">
+                            <td className="px-12 py-8 text-center">
                               {isEditing ? (
                                 <input
                                   type="number"
                                   step="0.01"
-                                  min="0.01"
                                   value={itemData.qty}
                                   onChange={(e) => handleItemFieldChange("qty", e.target.value)}
-                                  className="input text-sm text-center"
+                                  className="w-28 h-12 px-5 py-2 rounded-xl border-2 border-primary-200 bg-white font-black text-secondary-900 text-center shadow-inner outline-none focus:border-primary-500 transition-all"
                                 />
                               ) : (
-                                <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-sm">
-                                  {item.qty || 0}
-                                </span>
+                                <span className="font-black text-secondary-900 font-mono text-2xl tracking-tighter">{item.qty || 0}</span>
                               )}
                             </td>
-                            <td className="text-right">
+                            <td className="px-12 py-8 text-right">
                               {isEditing ? (
                                 <input
                                   type="number"
                                   step="0.01"
-                                  min="0"
                                   value={itemData.unit_price}
                                   onChange={(e) => handleItemFieldChange("unit_price", e.target.value)}
-                                  className="input text-sm text-right"
+                                  className="w-36 h-12 px-5 py-2 rounded-xl border-2 border-primary-200 bg-white font-mono font-black text-secondary-900 text-right shadow-inner outline-none focus:border-primary-500 transition-all"
                                 />
                               ) : (
-                                <span className="text-secondary-700">
-                                  {item.unit_price ? `MYR ${parseFloat(item.unit_price).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '-'}
+                                <span className="font-black text-secondary-500 font-mono text-lg">
+                                  {item.unit_rate ? parseFloat(item.unit_rate).toLocaleString('en-US', { minimumFractionDigits: 2 }) : (item.unit_price ? parseFloat(item.unit_price).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00')}
                                 </span>
                               )}
                             </td>
-                            <td className="text-right font-semibold text-secondary-900">
-                              MYR {parseFloat(itemData.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            <td className="px-12 py-8 text-right font-black text-secondary-900 font-mono tracking-tighter text-2xl">
+                              {parseFloat(itemData.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="text-right">
-                              {isEditing ? (
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={cancelEditingItem}
-                                    disabled={savingItem}
-                                    className="p-1.5 hover:bg-secondary-200 rounded text-secondary-600 hover:text-secondary-900"
-                                    title="Cancel"
-                                  >
-                                    <XIcon className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={handleSaveItem}
-                                    disabled={savingItem}
-                                    className="p-1.5 hover:bg-primary-200 rounded text-primary-600 hover:text-primary-700"
-                                    title="Save"
-                                  >
-                                    {savingItem ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <Check className="w-4 h-4" />
-                                    )}
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-end gap-2">
-                                  {version === "v2" && (
+                            <td className="px-12 py-8 text-right">
+                              <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all transform group-hover:translate-x-0 translate-x-4">
+                                {isEditing ? (
+                                  <div className="flex items-center gap-2 opacity-100 translate-x-0">
+                                    <button
+                                      onClick={handleSaveItem}
+                                      disabled={savingItem}
+                                      className="p-4 text-white bg-primary-600 hover:bg-primary-700 rounded-2xl transition-all shadow-xl shadow-primary-200 active:scale-95"
+                                      title="Commit Changes"
+                                    >
+                                      {savingItem ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
+                                    </button>
+                                    <button
+                                      onClick={cancelEditingItem}
+                                      className="p-4 text-secondary-400 hover:bg-secondary-100 rounded-2xl transition-all active:scale-95"
+                                      title="Cancel"
+                                    >
+                                      <XIcon className="w-6 h-6" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  version === "v2" && (
                                     <>
                                       <button
                                         onClick={() => startEditingItem(item)}
-                                        className="p-1.5 hover:bg-secondary-200 rounded text-secondary-600 hover:text-secondary-900"
-                                        title="Edit"
+                                        className="p-4 text-secondary-400 hover:text-primary-600 hover:bg-primary-50 rounded-2xl transition-all active:scale-95"
+                                        title="Modify Entry"
                                       >
-                                        <Edit2 className="w-4 h-4" />
+                                        <Edit2 className="w-6 h-6" />
                                       </button>
                                       <button
                                         onClick={() => handleDeleteItem(item.id)}
-                                        disabled={deletingItemId === item.id}
-                                        className="p-1.5 hover:bg-red-100 rounded text-red-600 hover:text-red-700"
-                                        title="Delete"
+                                        className="p-4 text-secondary-400 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all active:scale-95"
+                                        title="Purge Entry"
                                       >
-                                        {deletingItemId === item.id ? (
-                                          <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                          <Trash2 className="w-4 h-4" />
-                                        )}
+                                        <Trash2 className="w-6 h-6" />
                                       </button>
                                     </>
-                                  )}
-                                </div>
-                              )}
+                                  )
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
                       })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-secondary-50">
-                        <td colSpan={3} className="text-right font-bold text-secondary-900">
-                          Total
+                      <tr className="bg-secondary-900 text-white shadow-[0_-20px_50px_-15px_rgba(0,0,0,0.3)] relative z-10">
+                        <td colSpan={3} className="px-12 py-12 text-right font-black uppercase tracking-[0.5em] text-secondary-400 text-xs">Gross Document Valuation (MYR)</td>
+                        <td className="px-12 py-12 text-right font-black text-5xl font-mono tracking-tighter text-primary-500">
+                          {parseFloat(invoiceData.total_amount || calculatedTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>
-                        <td colSpan={2} className="text-right font-bold text-primary-600 text-lg">
-                          MYR {parseFloat(invoiceData.total_amount || calculatedTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </td>
+                        <td></td>
                       </tr>
-                    </tfoot>
+                    </tbody>
                   </table>
                 ) : (
-                  <p className="text-secondary-500">No invoice items found. Click "Add Item" to create one.</p>
+                  <div className="py-40 text-center text-secondary-200 border-b border-secondary-100 bg-secondary-50/20">
+                    <Package className="w-24 h-24 mx-auto mb-8 opacity-5" />
+                    <p className="font-black uppercase tracking-[0.4em] text-xs">Void Transaction State</p>
+                    <p className="text-sm font-black mt-4 text-secondary-400">Add entries to populate this document's financial matrix.</p>
+                  </div>
                 )}
               </div>
+            </div>
 
-              {/* Payments */}
-              <div className="card p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <CreditCard className="w-5 h-5 text-primary-600" />
-                  <h3 className="text-lg font-bold text-secondary-900">Payments</h3>
-                  <span className="px-2 py-0.5 bg-secondary-100 text-secondary-600 text-xs rounded-full">
-                    {invoiceData?.linked_payments?.length || 0} payments
-                  </span>
-                  <span className="ml-auto text-sm font-semibold text-green-600">
-                    Total: MYR {parseFloat(invoiceData?.total_payments || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {/* Payments Section */}
+            <div className="p-12 bg-white">
+              <div className="flex items-center gap-5 mb-12 border-b-2 border-secondary-900 pb-10">
+                <CreditCard className="w-8 h-8 text-primary-600" />
+                <h3 className="text-xs font-black text-secondary-900 uppercase tracking-[0.4em]">Remittance Ledger</h3>
+                <div className="ml-auto flex flex-col items-end">
+                  <span className="text-[10px] font-black text-secondary-400 uppercase tracking-widest mb-2">Aggregate Cleared</span>
+                  <span className="text-5xl font-black text-green-600 font-mono tracking-tighter leading-none">
+                    MYR {parseFloat(invoiceData?.total_payments || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                {invoiceData?.linked_payments && invoiceData.linked_payments.length > 0 ? (
-                  <table className="table w-full">
-                    <thead>
-                      <tr>
-                        <th className="w-[20%]">Date</th>
-                        <th className="w-[25%]">Method</th>
-                        <th className="w-[25%]">Bank/Terminal</th>
-                        <th className="text-right w-[30%]">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoiceData.linked_payments.map((payment: any, index: number) => (
-                        <tr key={payment.id || index}>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-4 h-4 text-secondary-400 flex-shrink-0" />
-                              <span className="truncate">
-                                {payment.payment_date 
-                                  ? new Date(payment.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                          </td>
-                          <td>
-                            <span className="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-sm capitalize inline-block">
-                              {payment.payment_method_v2 || payment.payment_method || 'N/A'}
-                            </span>
-                            {payment.epp_type && (
-                              <span className="ml-1 text-xs text-secondary-500 block truncate">({payment.epp_type})</span>
-                            )}
-                          </td>
-                          <td>
-                            <div className="text-sm text-secondary-700 truncate" title={payment.issuer_bank || payment.terminal}>
-                              {payment.issuer_bank || payment.terminal || '-'}
-                            </div>
-                            {payment.epp_month && (
-                              <div className="text-xs text-secondary-500">{payment.epp_month} months</div>
-                            )}
-                          </td>
-                          <td className="text-right font-semibold text-green-600">
-                            <div className="flex items-center justify-end gap-1">
-                              <DollarSign className="w-4 h-4" />
-                              <span>MYR {parseFloat(payment.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <p className="text-secondary-500">No payments found</p>
-                )}
               </div>
+              
+              {invoiceData?.linked_payments && invoiceData.linked_payments.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-10">
+                  {invoiceData.linked_payments.map((payment: any, index: number) => (
+                    <div key={payment.id || index} className="p-10 rounded-[2.5rem] border-2 border-secondary-100 bg-secondary-50/30 hover:border-green-400 hover:bg-white hover:shadow-[0_40px_80px_-15px_rgba(22,163,74,0.15)] transition-all duration-700 group relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-[2.5] transition-transform duration-1000" />
+                      <div className="flex items-center justify-between mb-8 relative z-10">
+                        <div className="px-4 py-1.5 bg-secondary-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest group-hover:bg-green-600 transition-colors shadow-lg">
+                          {payment.payment_method_v2 || payment.payment_method || 'REMIT'}
+                        </div>
+                        <div className="text-[10px] font-black text-secondary-400 group-hover:text-green-600 transition-colors">
+                          {payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'N/A'}
+                        </div>
+                      </div>
+                      <div className="text-4xl font-black text-secondary-900 font-mono tracking-tighter mb-6 group-hover:translate-x-2 transition-transform relative z-10">
+                        {parseFloat(payment.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className="flex flex-col gap-2 relative z-10 border-t border-secondary-100 pt-6">
+                        <span className="text-[10px] font-black text-secondary-400 uppercase tracking-[0.2em]">{payment.issuer_bank || payment.terminal || 'Universal Remit'}</span>
+                        {payment.epp_month && <span className="inline-block self-start px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[10px] font-black mt-2 uppercase shadow-sm">Credit Installment: {payment.epp_month} M</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-32 text-secondary-200 border-8 border-dotted border-secondary-50 rounded-[4rem] bg-secondary-50/10">
+                  <CreditCard className="w-24 h-24 mb-8 opacity-5" />
+                  <p className="font-black uppercase tracking-[0.5em] text-xs">Zero Liquidity Record</p>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-secondary-200 bg-white flex justify-between items-center">
-          <div className="text-sm text-secondary-500">
-            Created by: <span className="font-medium text-secondary-700">{invoiceData?.created_by_user_name || 'System'}</span>
+        <div className="px-8 py-6 border-t border-secondary-200 bg-secondary-900 flex justify-between items-center text-white">
+          <div className="text-[10px] font-black uppercase tracking-widest text-secondary-400 flex items-center gap-2">
+            System Custodian: <span className="text-primary-500">{invoiceData?.created_by_user_name || 'Autonomous Core'}</span>
           </div>
-          <div className="flex gap-3">
-            <button onClick={onClose} className="btn-secondary">
-              Close
+          <div className="flex gap-4">
+            <button onClick={onClose} className="bg-white/10 hover:bg-white/20 text-white py-3 px-8 rounded-xl transition-all font-black uppercase tracking-widest text-[10px]">
+              Dismiss Editor
             </button>
             <button 
               onClick={handleDownloadPdf}
               disabled={downloading}
-              className="btn-primary flex items-center gap-2"
+              className="bg-primary-600 hover:bg-primary-500 text-white py-3 px-10 rounded-xl transition-all font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary-900/40"
             >
-              {downloading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              Download PDF
+              Authorize Download
             </button>
           </div>
         </div>
