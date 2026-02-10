@@ -108,8 +108,14 @@ export async function getVerifiedPayments(search?: string) {
 
 export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
   try {
+    // Try to parse as integer for invoice_id search
+    const numericId = parseInt(bubbleId);
+    const isNumeric = !isNaN(numericId) && /^\d+$/.test(bubbleId);
+
     const invoice = await db.query.invoices.findFirst({
-      where: eq(invoices.bubble_id, bubbleId),
+      where: isNumeric 
+        ? or(eq(invoices.bubble_id, bubbleId), eq(invoices.invoice_id, numericId))
+        : eq(invoices.bubble_id, bubbleId),
     });
 
     if (!invoice) {
@@ -118,7 +124,7 @@ export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
 
     // Fetch linked items using linked_invoice column in invoice_items table
     const items = await db.query.invoice_items.findMany({
-      where: eq(invoice_items.linked_invoice, bubbleId),
+      where: eq(invoice_items.linked_invoice, invoice.bubble_id || ''),
       orderBy: desc(invoice_items.created_at)
     });
 
