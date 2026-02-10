@@ -262,22 +262,9 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
     }
   };
 
-  const handleViewInvoice = async (invoiceBubbleId: string) => {
-    setLoadingInvoice(true);
-    try {
-      const details = await getInvoiceDetailsByBubbleId(invoiceBubbleId);
-      if (details) {
-        setSelectedInvoice(details);
-        setShowInvoiceInModal(true);
-      } else {
-        alert(`Invoice not found in the system.\n\nInvoice ID: ${invoiceBubbleId}\n\nThis invoice hasn't been synced from Bubble to the local database yet. Please run a full sync to update the invoices.`);
-      }
-    } catch (error) {
-      console.error("Failed to fetch invoice details", error);
-      alert(`Failed to load invoice details.\n\nInvoice ID: ${invoiceBubbleId}\n\nError: ${error}`);
-    } finally {
-      setLoadingInvoice(false);
-    }
+  const handleViewInvoice = async (invoiceBubbleId: string, shareToken?: string) => {
+    const targetId = shareToken || invoiceBubbleId;
+    window.open(`https://calculator.atap.solar/view/${targetId}`, '_blank');
   };
 
   // Magnifying glass logic
@@ -833,23 +820,13 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 {viewingPayment.linked_invoice && (
                   <div className="space-y-4 pt-4 border-t border-secondary-200">
                     <h3 className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Linked Invoice</h3>
-                    {showInvoiceInline ? (
-                      <button
-                        onClick={() => setShowInvoiceInModal(false)}
-                        className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2 text-sm"
-                      >
-                        <ArrowLeft className="h-4 w-4 text-primary-600" />
-                        Back to Receipt
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleViewInvoice(viewingPayment.linked_invoice)}
-                        className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2 text-sm"
-                      >
-                        <FileText className="h-4 w-4 text-primary-600" />
-                        View Linked Invoice
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleViewInvoice(viewingPayment.linked_invoice, viewingPayment.share_token)}
+                      className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2 text-sm"
+                    >
+                      <FileText className="h-4 w-4 text-primary-600" />
+                      View Linked Invoice
+                    </button>
                   </div>
                 )}
                 
@@ -878,17 +855,9 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 )}
               </div>
 
-              {/* Attachment Preview or Invoice Viewer */}
+              {/* Attachment Preview */}
               <div className="flex-1 bg-secondary-900 relative overflow-hidden flex items-center justify-center p-4">
-                {showInvoiceInline && selectedInvoice ? (
-                  <div className="w-full h-full bg-secondary-100 p-2 md:p-4 overflow-auto flex justify-center rounded-lg">
-                    <iframe 
-                      ref={inlineInvoiceRef}
-                      className="w-full max-w-[800px] bg-white shadow-lg min-h-[1000px] rounded-sm transform scale-[0.85] origin-top md:scale-100"
-                      title="Inline Invoice Preview"
-                    />
-                  </div>
-                ) : viewingPayment.attachment && viewingPayment.attachment.length > 0 ? (
+                {viewingPayment.attachment && viewingPayment.attachment.length > 0 ? (
                   <div 
                     className="relative cursor-none group h-full w-full flex items-center justify-center"
                     onMouseMove={handleMouseMove}
