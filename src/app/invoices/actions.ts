@@ -1,11 +1,12 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, agents, users, invoice_templates, customers, payments, invoice_items } from "@/db/schema";
+import { invoices, agents, users, invoice_templates, customers, payments, invoice_items, invoice_edit_history } from "@/db/schema";
 import { ilike, or, sql, desc, eq, and, inArray } from "drizzle-orm";
 import { getInvoiceHtml } from "@/lib/invoice-renderer";
 import { revalidatePath } from "next/cache";
 import { syncCompleteInvoicePackage } from "@/lib/bubble";
+import { logInvoiceEdit } from "@/lib/invoice-edit-logger";
 
 const PDF_API_URL = "https://pdf-gen-production-6c81.up.railway.app";
 
@@ -293,6 +294,18 @@ export async function updateInvoiceItem(
     // Recalculate invoice total
     await recalculateInvoiceTotal(invoice.id);
 
+    // Log edit history
+    await logInvoiceEdit({
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoice_number,
+      entityType: "invoice_item",
+      entityId: item.bubble_id,
+      actionType: "update",
+      before: item,
+      after: updatedItem[0],
+      fields: ["description", "qty", "unit_price", "amount"],
+    });
+
     revalidatePath("/invoices");
     return { success: true, item: updatedItem[0] };
   } catch (error) {
@@ -428,6 +441,18 @@ export async function createInvoiceItem(
     // Recalculate invoice total
     await recalculateInvoiceTotal(invoiceId);
 
+    // Log edit history
+    await logInvoiceEdit({
+      invoiceId,
+      invoiceNumber: invoice.invoice_number,
+      entityType: "invoice_item",
+      entityId: bubbleId,
+      actionType: "create",
+      before: null,
+      after: newItem[0],
+      fields: ["description", "qty", "unit_price", "amount"],
+    });
+
     revalidatePath("/invoices");
     return { success: true, item: newItem[0] };
   } catch (error) {
@@ -474,6 +499,18 @@ export async function deleteInvoiceItem(itemId: number, invoiceId: number) {
     // Recalculate invoice total
     await recalculateInvoiceTotal(invoiceId);
 
+    // Log edit history
+    await logInvoiceEdit({
+      invoiceId,
+      invoiceNumber: invoice.invoice_number,
+      entityType: "invoice_item",
+      entityId: item.bubble_id,
+      actionType: "delete",
+      before: item,
+      after: null,
+      fields: ["description", "qty", "unit_price", "amount"],
+    });
+
     revalidatePath("/invoices");
     return { success: true };
   } catch (error) {
@@ -484,7 +521,25 @@ export async function deleteInvoiceItem(itemId: number, invoiceId: number) {
 
 export async function updateInvoiceAgent(invoiceId: number, agentBubbleId: string) {
   try {
-    // Validate agent exists
+    // Get current invoice state (for edit history)
+    const currentInvoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+    });
+
+    if (!currentInvoice) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    // Resolve old agent name
+    let oldAgentName: string | null = null;
+    if (currentInvoice.linked_agent) {
+      const oldAgent = await db.query.agents.findFirst({
+        where: eq(agents.bubble_id, currentInvoice.linked_agent),
+      });
+      oldAgentName = oldAgent?.name || null;
+    }
+
+    // Validate new agent exists
     const agent = await db.query.agents.findFirst({
       where: eq(agents.bubble_id, agentBubbleId),
     });
@@ -504,8 +559,20 @@ export async function updateInvoiceAgent(invoiceId: number, agentBubbleId: strin
       .returning();
 
     if (updated.length === 0) {
-      return { success: false, error: "Invoice not found" };
+      return { success: false, error: "Failed to update invoice" };
     }
+
+    // Log edit history
+    await logInvoiceEdit({
+      invoiceId,
+      invoiceNumber: currentInvoice.invoice_number,
+      entityType: "invoice",
+      entityId: currentInvoice.bubble_id,
+      actionType: "update",
+      before: { linked_agent: currentInvoice.linked_agent, agent_name: oldAgentName },
+      after: { linked_agent: agentBubbleId, agent_name: agent.name },
+      fields: ["linked_agent", "agent_name"],
+    });
 
     revalidatePath("/invoices");
     return { success: true, invoice: updated[0] };
@@ -537,5 +604,127 @@ export async function getAgentsForSelection() {
   } catch (error) {
     console.error("Error fetching agents:", error);
     return { success: false, error: String(error), agents: [] };
+  }
+}
+
+export async function getInvoiceEditHistory(invoiceId: number) {
+  try {
+    const history = await db
+      .select()
+      .from(invoice_edit_history)
+      .where(eq(invoice_edit_history.invoice_id, invoiceId))
+      .orderBy(desc(invoice_edit_history.edited_at));
+
+    return { success: true, history };
+  } catch (error) {
+    console.error("Error fetching invoice edit history:", error);
+    return { success: false, error: String(error), history: [] };
+  }
+}
+
+export async function updateInvoiceWithEppFees(
+  invoiceId: number,
+  fees: { description: string; amount: number }[]
+) {
+  try {
+    // 1. Get invoice details
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+    });
+
+    if (!invoice || !invoice.bubble_id) {
+      return { success: false, error: "Invoice not found or missing bubble_id" };
+    }
+
+    // 2. Identify and delete existing EPP fee items
+    // We assume items with 'epp_fee' type or specific description pattern are EPP fees
+    const existingItems = await db.query.invoice_items.findMany({
+      where: inArray(invoice_items.bubble_id, invoice.linked_invoice_item || []),
+    });
+
+    const feeItemsToDelete = existingItems.filter(
+      (item) => item.inv_item_type === "epp_fee" || item.description?.startsWith("EPP Processing Fee")
+    );
+
+    if (feeItemsToDelete.length > 0) {
+      await db.delete(invoice_items).where(
+        inArray(
+          invoice_items.id,
+          feeItemsToDelete.map((i) => i.id)
+        )
+      );
+    }
+
+    // 3. Create new EPP fee items
+    const newFeeItems = [];
+    // Get current max sort order
+    const maxSort = existingItems.reduce((max, item) => {
+      const sort = item.sort ? parseFloat(item.sort.toString()) : 0;
+      return Math.max(max, sort);
+    }, 0);
+
+    let currentSort = maxSort;
+
+    for (const fee of fees) {
+      currentSort++;
+      const bubbleId = `${Date.now()}x${Math.random().toString().slice(2, 20)}`; // Generate ID
+      
+      const newItem = await db
+        .insert(invoice_items)
+        .values({
+          bubble_id: bubbleId,
+          description: fee.description,
+          qty: "1",
+          unit_price: fee.amount.toString(),
+          amount: fee.amount.toString(),
+          linked_invoice: invoice.bubble_id,
+          inv_item_type: "epp_fee", // Mark as EPP fee
+          sort: currentSort.toString(),
+          created_at: new Date(),
+          updated_at: new Date(),
+        })
+        .returning();
+      
+      newFeeItems.push(newItem[0]);
+    }
+
+    // 4. Update invoice with new linked items
+    const nonFeeItemIds = existingItems
+      .filter((item) => !feeItemsToDelete.find((f) => f.id === item.id))
+      .map((item) => item.bubble_id); // Keep existing non-fee items
+
+    const newFeeItemIds = newFeeItems.map((item) => item.bubble_id);
+    
+    // Combine IDs (cast to string to fix type error if needed, but bubble_id is string)
+    const updatedLinkedItems = [...nonFeeItemIds, ...newFeeItemIds] as string[];
+
+    await db
+      .update(invoices)
+      .set({
+        linked_invoice_item: updatedLinkedItems,
+        updated_at: new Date(),
+      })
+      .where(eq(invoices.id, invoiceId));
+
+    // 5. Recalculate total
+    await recalculateInvoiceTotal(invoiceId);
+
+    // 6. Log this batch update
+    await logInvoiceEdit({
+      invoiceId,
+      invoiceNumber: invoice.invoice_number,
+      entityType: "invoice",
+      entityId: invoice.bubble_id,
+      actionType: "update",
+      before: { epp_fee_count: feeItemsToDelete.length },
+      after: { epp_fee_count: newFeeItems.length, added_fees: fees },
+      fields: ["epp_fees"],
+    });
+
+    revalidatePath("/invoices");
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating invoice EPP fees:", error);
+    return { success: false, error: String(error) };
   }
 }

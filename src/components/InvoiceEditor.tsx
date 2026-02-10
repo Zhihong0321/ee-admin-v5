@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
-import { X, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info, Save, Edit2, Plus, Trash2, Check, X as XIcon } from "lucide-react";
-import { generateInvoicePdf, updateInvoiceItem, createInvoiceItem, deleteInvoiceItem, updateInvoiceAgent, getAgentsForSelection, getInvoiceDetails } from "@/app/invoices/actions";
+import { X, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info, Save, Edit2, Plus, Trash2, Check, X as XIcon, Clock, ArrowRight, Calculator, AlertCircle } from "lucide-react";
+import { generateInvoicePdf, updateInvoiceItem, createInvoiceItem, deleteInvoiceItem, updateInvoiceAgent, getAgentsForSelection, getInvoiceDetails, getInvoiceEditHistory, updateInvoiceWithEppFees } from "@/app/invoices/actions";
+import { EPP_RATES, EPP_BANKS, getEppRate, FOREIGN_CARD_RATES, AMEX_RATE } from "@/lib/epp-rates";
 
 interface InvoiceEditorProps {
   invoiceData: any;
@@ -11,7 +12,7 @@ interface InvoiceEditorProps {
   version?: "v1" | "v2";
 }
 
-type Tab = "preview" | "details";
+type Tab = "preview" | "details" | "history" | "epp";
 
 interface EditingItem {
   id: number;
@@ -19,6 +20,16 @@ interface EditingItem {
   qty: string;
   unit_price: string;
   amount: string;
+}
+
+interface EppSplit {
+  id: string;
+  type: "cash" | "epp" | "foreign" | "amex";
+  amount: string; // Amount of the clean invoice covered by this split
+  bank?: string;
+  tenure?: number;
+  feeRate?: number;
+  feeAmount?: number;
 }
 
 export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose, version = "v2" }: InvoiceEditorProps) {
@@ -36,6 +47,76 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
   const [newItem, setNewItem] = useState({ description: "", qty: "1", unit_price: "0" });
   const [addingItem, setAddingItem] = useState(false);
   const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
+  const [editHistory, setEditHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+
+  // EPP State
+  const [eppSplits, setEppSplits] = useState<EppSplit[]>([]);
+  const [applyingEpp, setApplyingEpp] = useState(false);
+
+  const refreshHistory = () => setHistoryRefreshKey((k) => k + 1);
+
+  // Calculate Clean Invoice Total (excluding existing EPP fees)
+  const cleanInvoiceTotal = useMemo(() => {
+    if (!invoiceData?.items) return 0;
+    return invoiceData.items
+      .filter((item: any) => item.inv_item_type !== "epp_fee" && !item.description?.startsWith("EPP Processing Fee"))
+      .reduce((sum: number, item: any) => sum + (parseFloat(item.amount || "0") || 0), 0);
+  }, [invoiceData]);
+
+  // Initialize EPP splits with 100% Cash when tab opens or clean total changes (if empty)
+  useEffect(() => {
+    if (activeTab === "epp" && eppSplits.length === 0 && cleanInvoiceTotal > 0) {
+      setEppSplits([
+        {
+          id: Math.random().toString(),
+          type: "cash",
+          amount: cleanInvoiceTotal.toFixed(2),
+          feeRate: 0,
+          feeAmount: 0
+        }
+      ]);
+    }
+  }, [activeTab, cleanInvoiceTotal]);
+
+  // Recalculate fees whenever splits change
+  useEffect(() => {
+    const updatedSplits = eppSplits.map(split => {
+      let rate = 0;
+      if (split.type === "epp" && split.bank && split.tenure) {
+        rate = getEppRate(split.bank, split.tenure) || 0;
+      } else if (split.type === "foreign" && split.bank) {
+        rate = FOREIGN_CARD_RATES[split.bank] || 0;
+      } else if (split.type === "amex") {
+        rate = AMEX_RATE;
+      }
+      
+      const amount = parseFloat(split.amount) || 0;
+      const fee = (amount * rate) / 100;
+      
+      return { ...split, feeRate: rate, feeAmount: fee };
+    });
+    
+    // Only update if values actually changed to avoid infinite loop
+    const hasChanges = JSON.stringify(updatedSplits) !== JSON.stringify(eppSplits);
+    if (hasChanges) {
+      setEppSplits(updatedSplits);
+    }
+  }, [eppSplits]); // Be careful with dependency array here
+
+  // Load edit history when history tab is selected or after an edit
+  useEffect(() => {
+    if (activeTab === "history" && invoiceData?.id) {
+      setLoadingHistory(true);
+      getInvoiceEditHistory(invoiceData.id).then((result) => {
+        if (result.success) {
+          setEditHistory(result.history);
+        }
+        setLoadingHistory(false);
+      });
+    }
+  }, [activeTab, invoiceData?.id, historyRefreshKey]);
 
   // Load agents on mount
   useEffect(() => {
@@ -158,6 +239,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
         if (refreshed) {
           setInvoiceData(refreshed);
         }
+        refreshHistory();
         cancelEditingItem();
       } else {
         alert(result.error || "Failed to update item");
@@ -205,6 +287,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
         if (refreshed) {
           setInvoiceData(refreshed);
         }
+        refreshHistory();
         setNewItem({ description: "", qty: "1", unit_price: "0" });
         setShowAddItem(false);
       } else {
@@ -232,6 +315,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
         if (refreshed) {
           setInvoiceData(refreshed);
         }
+        refreshHistory();
       } else {
         alert(result.error || "Failed to delete item");
       }
@@ -256,6 +340,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
         if (refreshed) {
           setInvoiceData(refreshed);
         }
+        refreshHistory();
         alert("Agent updated successfully");
       } else {
         alert(result.error || "Failed to update agent");
@@ -267,6 +352,77 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
       setSavingAgent(false);
     }
   };
+
+  // EPP Handlers
+  const addSplit = () => {
+    setEppSplits([...eppSplits, {
+      id: Math.random().toString(),
+      type: "epp",
+      amount: "0",
+      feeRate: 0,
+      feeAmount: 0
+    }]);
+  };
+
+  const removeSplit = (id: string) => {
+    setEppSplits(eppSplits.filter(s => s.id !== id));
+  };
+
+  const updateSplit = (id: string, updates: Partial<EppSplit>) => {
+    setEppSplits(eppSplits.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const handleApplyEpp = async () => {
+    if (!invoiceData?.id) return;
+    
+    // Validate totals
+    const totalSplitAmount = eppSplits.reduce((sum, split) => sum + (parseFloat(split.amount) || 0), 0);
+    if (Math.abs(totalSplitAmount - cleanInvoiceTotal) > 0.05) { // 5 cent tolerance
+      alert(`Total split amount (RM ${totalSplitAmount.toFixed(2)}) must match Clean Invoice Total (RM ${cleanInvoiceTotal.toFixed(2)})`);
+      return;
+    }
+
+    setApplyingEpp(true);
+    try {
+      // Generate fee items
+      const fees = eppSplits
+        .filter(split => (split.feeAmount || 0) > 0)
+        .map(split => {
+          let desc = "Processing Fee";
+          if (split.type === "epp") desc = `EPP Processing Fee (${split.bank} ${split.tenure} mos @ ${split.feeRate}%)`;
+          if (split.type === "foreign") desc = `Foreign Card Fee (${split.bank} @ ${split.feeRate}%)`;
+          if (split.type === "amex") desc = `Amex Fee (@ ${split.feeRate}%)`;
+          
+          return {
+            description: desc,
+            amount: split.feeAmount || 0
+          };
+        });
+
+      const result = await updateInvoiceWithEppFees(invoiceData.id, fees);
+      
+      if (result.success) {
+        const refreshed = await getInvoiceDetails(invoiceData.id, version);
+        if (refreshed) {
+          setInvoiceData(refreshed);
+        }
+        refreshHistory();
+        alert("Invoice updated with EPP fees successfully.");
+        setActiveTab("details");
+      } else {
+        alert("Failed to update EPP fees: " + result.error);
+      }
+    } catch (error) {
+      console.error("Error applying EPP:", error);
+      alert("An unexpected error occurred.");
+    } finally {
+      setApplyingEpp(false);
+    }
+  };
+
+  const totalSplitAmount = eppSplits.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+  const totalFees = eppSplits.reduce((sum, s) => sum + (s.feeAmount || 0), 0);
+  const remainingAmount = cleanInvoiceTotal - totalSplitAmount;
 
   // Calculate total from items (client-side for display)
   const calculatedTotal = invoiceData?.items?.reduce((sum: number, item: any) => {
@@ -307,10 +463,10 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
         </div>
 
         {/* Tabs Bar */}
-        <div className="flex items-center px-6 border-b border-secondary-200 bg-secondary-50/50">
+        <div className="flex items-center px-6 border-b border-secondary-200 bg-secondary-50/50 overflow-x-auto">
           <button
             onClick={() => setActiveTab("details")}
-            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all mr-2 ${
+            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all mr-2 whitespace-nowrap ${
               activeTab === "details"
                 ? "border-primary-600 text-primary-600"
                 : "border-transparent text-secondary-500 hover:text-secondary-700"
@@ -320,7 +476,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
           </button>
           <button
             onClick={() => setActiveTab("preview")}
-            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all ${
+            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all mr-2 whitespace-nowrap ${
               activeTab === "preview"
                 ? "border-primary-600 text-primary-600"
                 : "border-transparent text-secondary-500 hover:text-secondary-700"
@@ -328,16 +484,319 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
           >
             Preview Document
           </button>
+          <button
+            onClick={() => setActiveTab("epp")}
+            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all mr-2 whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === "epp"
+                ? "border-primary-600 text-primary-600"
+                : "border-transparent text-secondary-500 hover:text-secondary-700"
+            }`}
+          >
+            <Calculator className="w-3.5 h-3.5" />
+            Payment Plan / EPP
+          </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === "history"
+                ? "border-primary-600 text-primary-600"
+                : "border-transparent text-secondary-500 hover:text-secondary-700"
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            Edit History
+          </button>
         </div>
 
         {/* Content Area */}
         {activeTab === "preview" ? (
           <div className="flex-1 bg-secondary-100/50 p-6 overflow-auto flex justify-center">
-            <iframe 
+            <iframe
               ref={iframeRef}
               className="w-full max-w-[800px] bg-white shadow-sm min-h-[1100px] border border-secondary-200"
               title="Invoice Preview"
             />
+          </div>
+        ) : activeTab === "history" ? (
+          <div className="flex-1 overflow-auto bg-white">
+            <div className="p-6 max-w-4xl mx-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-[11px] font-bold text-secondary-900 uppercase tracking-widest flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-secondary-400" />
+                  Edit History
+                </h3>
+                <span className="text-[10px] font-bold text-secondary-400">{editHistory.length} record{editHistory.length !== 1 ? 's' : ''}</span>
+              </div>
+
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="w-5 h-5 animate-spin text-secondary-400" />
+                </div>
+              ) : editHistory.length === 0 ? (
+                <div className="py-20 text-center text-secondary-300 border border-dashed border-secondary-200 rounded bg-secondary-50/30">
+                  <Clock className="w-8 h-8 mx-auto mb-3 opacity-40" />
+                  <p className="text-[11px] font-bold uppercase tracking-widest">No edit history yet</p>
+                  <p className="text-[10px] font-medium mt-1">Changes will appear here after edits are saved</p>
+                </div>
+              ) : (
+                <div className="space-y-0">
+                  {editHistory.map((entry, index) => {
+                    const changes = (entry.changes || []) as Array<{ field: string; before: string | null; after: string | null }>;
+                    const actionLabel = entry.action_type === 'create' ? 'Added' : entry.action_type === 'delete' ? 'Deleted' : 'Updated';
+                    const entityLabel = entry.entity_type === 'invoice_item' ? 'Line Item' : 'Invoice';
+                    const actionColor = entry.action_type === 'create' ? 'text-green-600 bg-green-50 border-green-200' : entry.action_type === 'delete' ? 'text-red-600 bg-red-50 border-red-200' : 'text-blue-600 bg-blue-50 border-blue-200';
+
+                    return (
+                      <div key={entry.id} className="relative">
+                        {/* Timeline connector */}
+                        {index < editHistory.length - 1 && (
+                          <div className="absolute left-[19px] top-[40px] bottom-0 w-px bg-secondary-200" />
+                        )}
+
+                        <div className="flex gap-4 pb-6">
+                          {/* Timeline dot */}
+                          <div className="flex-shrink-0 mt-1">
+                            <div className={`w-[10px] h-[10px] rounded-full border-2 ${
+                              entry.action_type === 'create' ? 'border-green-400 bg-green-100' :
+                              entry.action_type === 'delete' ? 'border-red-400 bg-red-100' :
+                              'border-blue-400 bg-blue-100'
+                            }`} style={{ marginLeft: '10px' }} />
+                          </div>
+
+                          {/* Content card */}
+                          <div className="flex-1 bg-white border border-secondary-200 rounded-lg p-4 hover:border-secondary-300 transition-colors">
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${actionColor}`}>
+                                  {actionLabel}
+                                </span>
+                                <span className="text-[11px] font-semibold text-secondary-700">{entityLabel}</span>
+                              </div>
+                              <span className="text-[10px] font-medium text-secondary-400">
+                                {entry.edited_at ? new Date(entry.edited_at).toLocaleString('en-GB', {
+                                  day: '2-digit', month: 'short', year: 'numeric',
+                                  hour: '2-digit', minute: '2-digit',
+                                }) : 'N/A'}
+                              </span>
+                            </div>
+
+                            {/* Changes */}
+                            <div className="space-y-2">
+                              {changes.map((change, ci) => (
+                                <div key={ci} className="flex items-center gap-2 text-[12px]">
+                                  <span className="font-semibold text-secondary-500 min-w-[100px] capitalize">
+                                    {change.field.replace(/_/g, ' ')}
+                                  </span>
+                                  {entry.action_type === 'create' ? (
+                                    <span className="font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded">{change.after}</span>
+                                  ) : entry.action_type === 'delete' ? (
+                                    <span className="font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded line-through">{change.before}</span>
+                                  ) : (
+                                    <>
+                                      <span className="font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded line-through">{change.before || '—'}</span>
+                                      <ArrowRight className="w-3 h-3 text-secondary-400 flex-shrink-0" />
+                                      <span className="font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded">{change.after || '—'}</span>
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Footer: who edited */}
+                            <div className="mt-3 pt-3 border-t border-secondary-100 flex items-center gap-3">
+                              <div className="w-6 h-6 rounded-full bg-secondary-100 flex items-center justify-center">
+                                <User className="w-3 h-3 text-secondary-500" />
+                              </div>
+                              <div>
+                                <span className="text-[11px] font-semibold text-secondary-700">{entry.edited_by_name || 'Unknown'}</span>
+                                {entry.edited_by_phone && (
+                                  <span className="text-[10px] text-secondary-400 ml-2">{entry.edited_by_phone}</span>
+                                )}
+                                {entry.edited_by_role && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-secondary-400 ml-2 bg-secondary-100 px-1.5 py-0.5 rounded">{entry.edited_by_role}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : activeTab === "epp" ? (
+          <div className="flex-1 overflow-auto bg-white p-6">
+            <div className="max-w-5xl mx-auto space-y-8">
+              {/* Info Header */}
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 flex items-start gap-3">
+                <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-semibold text-blue-900">EPP Payment Calculator</h3>
+                  <p className="text-xs text-blue-700 mt-1">
+                    Configure payment splits to automatically calculate and apply processing fees.
+                    Fees are calculated based on the <span className="font-bold">Clean Invoice Amount (RM {cleanInvoiceTotal.toLocaleString()})</span>.
+                  </p>
+                </div>
+              </div>
+
+              {/* Splits List */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[11px] font-bold text-secondary-900 uppercase tracking-wider">Payment Segments</h3>
+                  <button
+                    onClick={addSplit}
+                    className="text-[11px] font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1 uppercase tracking-wider"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Split
+                  </button>
+                </div>
+
+                {eppSplits.map((split, index) => (
+                  <div key={split.id} className="p-4 border border-secondary-200 rounded-lg bg-white shadow-sm hover:border-primary-200 transition-colors">
+                    <div className="grid grid-cols-12 gap-4 items-end">
+                      {/* Amount */}
+                      <div className="col-span-3">
+                        <label className="text-[10px] font-bold text-secondary-500 uppercase block mb-1.5">Amount (RM)</label>
+                        <input
+                          type="number"
+                          value={split.amount}
+                          onChange={(e) => updateSplit(split.id, { amount: e.target.value })}
+                          className="w-full h-9 px-3 rounded border border-secondary-200 focus:border-primary-500 text-sm font-medium"
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      {/* Payment Type */}
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-bold text-secondary-500 uppercase block mb-1.5">Type</label>
+                        <select
+                          value={split.type}
+                          onChange={(e) => updateSplit(split.id, { type: e.target.value as any })}
+                          className="w-full h-9 px-2 rounded border border-secondary-200 focus:border-primary-500 text-sm"
+                        >
+                          <option value="cash">Cash / Direct</option>
+                          <option value="epp">EPP Installment</option>
+                          <option value="foreign">Foreign Card</option>
+                          <option value="amex">Amex</option>
+                        </select>
+                      </div>
+
+                      {/* Bank & Tenure (Conditional) */}
+                      {split.type === "epp" ? (
+                        <>
+                          <div className="col-span-2">
+                            <label className="text-[10px] font-bold text-secondary-500 uppercase block mb-1.5">Bank</label>
+                            <select
+                              value={split.bank || ""}
+                              onChange={(e) => updateSplit(split.id, { bank: e.target.value })}
+                              className="w-full h-9 px-2 rounded border border-secondary-200 focus:border-primary-500 text-sm"
+                            >
+                              <option value="">Select Bank</option>
+                              {EPP_BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                          </div>
+                          <div className="col-span-2">
+                            <label className="text-[10px] font-bold text-secondary-500 uppercase block mb-1.5">Tenure</label>
+                            <select
+                              value={split.tenure || ""}
+                              onChange={(e) => updateSplit(split.id, { tenure: parseInt(e.target.value) })}
+                              className="w-full h-9 px-2 rounded border border-secondary-200 focus:border-primary-500 text-sm"
+                            >
+                              <option value="">Months</option>
+                              {[6, 12, 18, 24, 36, 48, 60, 68].map(t => <option key={t} value={t}>{t} Months</option>)}
+                            </select>
+                          </div>
+                        </>
+                      ) : split.type === "foreign" ? (
+                        <div className="col-span-4">
+                          <label className="text-[10px] font-bold text-secondary-500 uppercase block mb-1.5">Bank</label>
+                          <select
+                            value={split.bank || ""}
+                            onChange={(e) => updateSplit(split.id, { bank: e.target.value })}
+                            className="w-full h-9 px-2 rounded border border-secondary-200 focus:border-primary-500 text-sm"
+                          >
+                            <option value="">Select Bank</option>
+                            {Object.keys(FOREIGN_CARD_RATES).map(b => <option key={b} value={b}>{b}</option>)}
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="col-span-4 bg-secondary-50 rounded h-9 flex items-center px-3 text-[11px] text-secondary-400 italic">
+                          No additional configuration required
+                        </div>
+                      )}
+
+                      {/* Fee Display */}
+                      <div className="col-span-2 text-right">
+                        <label className="text-[10px] font-bold text-secondary-500 uppercase block mb-1.5">Fee ({split.feeRate?.toFixed(2)}%)</label>
+                        <div className="h-9 flex items-center justify-end font-mono font-bold text-secondary-900">
+                          {split.feeAmount?.toFixed(2)}
+                        </div>
+                      </div>
+
+                      {/* Delete */}
+                      <div className="col-span-1 flex justify-end pb-1.5">
+                        <button
+                          onClick={() => removeSplit(split.id)}
+                          disabled={eppSplits.length === 1}
+                          className="p-2 text-secondary-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-30"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Summary Footer */}
+              <div className="border-t-2 border-secondary-100 pt-6">
+                <div className="grid grid-cols-3 gap-8">
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-secondary-500 uppercase block">Split Total</span>
+                    <div className={`text-xl font-bold font-mono ${Math.abs(remainingAmount) > 0.05 ? 'text-amber-600' : 'text-green-600'}`}>
+                      RM {totalSplitAmount.toFixed(2)}
+                    </div>
+                    {Math.abs(remainingAmount) > 0.05 && (
+                      <div className="text-[10px] font-bold text-amber-600 mt-1 flex items-center justify-end gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Difference: {remainingAmount > 0 ? '+' : ''}{remainingAmount.toFixed(2)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-secondary-500 uppercase block">Processing Fees</span>
+                    <div className="text-xl font-bold font-mono text-secondary-900">
+                      RM {totalFees.toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-secondary-500 uppercase block">Final Total</span>
+                    <div className="text-2xl font-black font-mono text-primary-600">
+                      RM {(cleanInvoiceTotal + totalFees).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 flex justify-end">
+                  <button
+                    onClick={handleApplyEpp}
+                    disabled={applyingEpp || Math.abs(remainingAmount) > 0.05}
+                    className="px-8 py-3 bg-secondary-900 hover:bg-black text-white rounded-lg shadow-lg flex items-center gap-2 font-bold uppercase text-xs tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {applyingEpp ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    Apply Fees & Update Invoice
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="flex-1 overflow-auto bg-white">
@@ -552,9 +1011,10 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                       {invoiceData.items.map((item: any, index: number) => {
                         const isEditing = editingItemId === item.id;
                         const itemData = isEditing && editingItem ? editingItem : item;
+                        const isFee = item.inv_item_type === "epp_fee" || item.description?.includes("Processing Fee");
 
                         return (
-                          <tr key={item.id || index} className={`${isEditing ? "bg-primary-50/20" : "hover:bg-secondary-50/20 transition-all group"}`}>
+                          <tr key={item.id || index} className={`${isEditing ? "bg-primary-50/20" : "hover:bg-secondary-50/20 transition-all group"} ${isFee ? "bg-blue-50/30" : ""}`}>
                             <td className="px-6 py-4">
                               {isEditing ? (
                                 <input
@@ -565,7 +1025,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                                 />
                               ) : (
                                 <div>
-                                  <div className="text-sm font-semibold text-secondary-900 leading-tight">{item.description || 'N/A'}</div>
+                                  <div className={`text-sm font-semibold leading-tight ${isFee ? "text-blue-700" : "text-secondary-900"}`}>{item.description || 'N/A'}</div>
                                   {item.inv_item_type && (
                                     <div className="text-[9px] font-bold text-secondary-400 uppercase mt-1 tracking-tight">{item.inv_item_type}</div>
                                   )}
@@ -619,7 +1079,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                                     </button>
                                   </>
                                 ) : (
-                                  version === "v2" && (
+                                  version === "v2" && !isFee && (
                                     <>
                                       <button onClick={() => startEditingItem(item)} className="p-1.5 text-secondary-400 hover:text-primary-600 rounded-md hover:bg-primary-50 transition-colors">
                                         <Edit2 className="w-3.5 h-3.5" />
