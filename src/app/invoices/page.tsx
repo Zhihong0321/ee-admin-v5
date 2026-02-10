@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, FileText, Loader2, RefreshCw, Database } from "lucide-react";
 import { getInvoices, getInvoiceDetails, generateInvoicePdf, triggerInvoiceSync } from "./actions";
-import InvoiceViewer from "@/components/InvoiceViewer";
+import InvoiceEditor from "@/components/InvoiceEditor";
 
 export default function InvoicesPage() {
   const [version, setVersion] = useState<"v1" | "v2">("v2");
@@ -87,9 +87,9 @@ export default function InvoicesPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Invoice Viewer Modal */}
+      {/* Invoice Editor Modal */}
       {selectedInvoice && (
-        <InvoiceViewer 
+        <InvoiceEditor 
           invoiceData={selectedInvoice} 
           onClose={() => setSelectedInvoice(null)} 
           version={version}

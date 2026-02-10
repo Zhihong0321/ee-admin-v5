@@ -237,3 +237,305 @@ export async function triggerInvoiceSync(dateFrom?: string, dateTo?: string) {
     return { success: false, error: String(error) };
   }
 }
+
+// ============================================================================
+// INVOICE EDITOR SERVER ACTIONS
+// ============================================================================
+
+export async function updateInvoiceItem(
+  itemId: number,
+  data: { description?: string; qty?: number | string; unit_price?: number | string }
+) {
+  try {
+    // Validate item exists
+    const item = await db.query.invoice_items.findFirst({
+      where: eq(invoice_items.id, itemId),
+    });
+
+    if (!item) {
+      return { success: false, error: "Invoice item not found" };
+    }
+
+    // Get invoice ID from item's linked_invoice
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.bubble_id, item.linked_invoice || ""),
+    });
+
+    if (!invoice) {
+      return { success: false, error: "Invoice not found for this item" };
+    }
+
+    // Calculate amount from qty and unit_price
+    const qtyValue = data.qty !== undefined ? parseFloat(String(data.qty)) : parseFloat(String(item.qty || 0));
+    const unitPriceValue = data.unit_price !== undefined ? parseFloat(String(data.unit_price)) : parseFloat(String(item.unit_price || 0));
+    const amountValue = qtyValue * unitPriceValue;
+
+    // Update item
+    const updateData: any = {
+      updated_at: new Date(),
+    };
+
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.qty !== undefined) updateData.qty = qtyValue.toString();
+    if (data.unit_price !== undefined) updateData.unit_price = unitPriceValue.toString();
+    updateData.amount = amountValue.toString();
+
+    const updatedItem = await db
+      .update(invoice_items)
+      .set(updateData)
+      .where(eq(invoice_items.id, itemId))
+      .returning();
+
+    if (updatedItem.length === 0) {
+      return { success: false, error: "Failed to update invoice item" };
+    }
+
+    // Recalculate invoice total
+    await recalculateInvoiceTotal(invoice.id);
+
+    revalidatePath("/invoices");
+    return { success: true, item: updatedItem[0] };
+  } catch (error) {
+    console.error("Error updating invoice item:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function recalculateInvoiceTotal(invoiceId: number) {
+  try {
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+    });
+
+    if (!invoice) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    if (!invoice.linked_invoice_item || invoice.linked_invoice_item.length === 0) {
+      // No items, set total to 0
+      await db
+        .update(invoices)
+        .set({ total_amount: "0", updated_at: new Date() })
+        .where(eq(invoices.id, invoiceId));
+      return { success: true, total: 0 };
+    }
+
+    // Get all linked items and sum their amounts
+    const items = await db.query.invoice_items.findMany({
+      where: inArray(invoice_items.bubble_id, invoice.linked_invoice_item),
+    });
+
+    let total = 0;
+    for (const item of items) {
+      if (item.amount) {
+        total += parseFloat(item.amount.toString());
+      }
+    }
+
+    // Update invoice total
+    await db
+      .update(invoices)
+      .set({ total_amount: total.toString(), updated_at: new Date() })
+      .where(eq(invoices.id, invoiceId));
+
+    revalidatePath("/invoices");
+    return { success: true, total };
+  } catch (error) {
+    console.error("Error recalculating invoice total:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function createInvoiceItem(
+  invoiceId: number,
+  data: { description: string; qty: number | string; unit_price: number | string }
+) {
+  try {
+    // Validate input
+    if (!data.description || !data.description.trim()) {
+      return { success: false, error: "Description is required" };
+    }
+
+    const qtyValue = parseFloat(String(data.qty));
+    const unitPriceValue = parseFloat(String(data.unit_price));
+
+    if (isNaN(qtyValue) || qtyValue <= 0) {
+      return { success: false, error: "Quantity must be greater than 0" };
+    }
+
+    if (isNaN(unitPriceValue) || unitPriceValue < 0) {
+      return { success: false, error: "Unit price must be 0 or greater" };
+    }
+
+    // Get invoice
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+    });
+
+    if (!invoice) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    if (!invoice.bubble_id) {
+      return { success: false, error: "Invoice missing bubble_id" };
+    }
+
+    // Generate bubble_id
+    const bubbleId = `${Date.now()}x${Math.random().toString().slice(2, 20)}`;
+
+    // Calculate amount
+    const amountValue = qtyValue * unitPriceValue;
+
+    // Get max sort value for ordering
+    const existingItems = await db.query.invoice_items.findMany({
+      where: inArray(invoice_items.bubble_id, invoice.linked_invoice_item || []),
+    });
+    const maxSort = existingItems.reduce((max, item) => {
+      const sort = item.sort ? parseFloat(item.sort.toString()) : 0;
+      return Math.max(max, sort);
+    }, 0);
+
+    // Create new item
+    const newItem = await db
+      .insert(invoice_items)
+      .values({
+        bubble_id: bubbleId,
+        description: data.description.trim(),
+        qty: qtyValue.toString(),
+        unit_price: unitPriceValue.toString(),
+        amount: amountValue.toString(),
+        linked_invoice: invoice.bubble_id,
+        sort: (maxSort + 1).toString(),
+        created_at: new Date(),
+        updated_at: new Date(),
+      })
+      .returning();
+
+    if (newItem.length === 0) {
+      return { success: false, error: "Failed to create invoice item" };
+    }
+
+    // Update invoice: Add new bubble_id to linked_invoice_item array
+    const currentItems = invoice.linked_invoice_item || [];
+    await db
+      .update(invoices)
+      .set({
+        linked_invoice_item: [...currentItems, bubbleId],
+        updated_at: new Date(),
+      })
+      .where(eq(invoices.id, invoiceId));
+
+    // Recalculate invoice total
+    await recalculateInvoiceTotal(invoiceId);
+
+    revalidatePath("/invoices");
+    return { success: true, item: newItem[0] };
+  } catch (error) {
+    console.error("Error creating invoice item:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function deleteInvoiceItem(itemId: number, invoiceId: number) {
+  try {
+    // Get item
+    const item = await db.query.invoice_items.findFirst({
+      where: eq(invoice_items.id, itemId),
+    });
+
+    if (!item) {
+      return { success: false, error: "Invoice item not found" };
+    }
+
+    // Get invoice
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+    });
+
+    if (!invoice) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    // Delete item
+    await db.delete(invoice_items).where(eq(invoice_items.id, itemId));
+
+    // Update invoice: Remove bubble_id from linked_invoice_item array
+    const currentItems = invoice.linked_invoice_item || [];
+    const updatedItems = currentItems.filter((id) => id !== item.bubble_id);
+
+    await db
+      .update(invoices)
+      .set({
+        linked_invoice_item: updatedItems,
+        updated_at: new Date(),
+      })
+      .where(eq(invoices.id, invoiceId));
+
+    // Recalculate invoice total
+    await recalculateInvoiceTotal(invoiceId);
+
+    revalidatePath("/invoices");
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting invoice item:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function updateInvoiceAgent(invoiceId: number, agentBubbleId: string) {
+  try {
+    // Validate agent exists
+    const agent = await db.query.agents.findFirst({
+      where: eq(agents.bubble_id, agentBubbleId),
+    });
+
+    if (!agent) {
+      return { success: false, error: "Agent not found" };
+    }
+
+    // Update invoice
+    const updated = await db
+      .update(invoices)
+      .set({
+        linked_agent: agentBubbleId,
+        updated_at: new Date(),
+      })
+      .where(eq(invoices.id, invoiceId))
+      .returning();
+
+    if (updated.length === 0) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    revalidatePath("/invoices");
+    return { success: true, invoice: updated[0] };
+  } catch (error) {
+    console.error("Error updating invoice agent:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function getAgentsForSelection() {
+  try {
+    const agentsList = await db.query.agents.findMany({
+      columns: {
+        id: true,
+        bubble_id: true,
+        name: true,
+      },
+      orderBy: (agents, { asc }) => [asc(agents.name)],
+    });
+
+    return {
+      success: true,
+      agents: agentsList.map((agent) => ({
+        id: agent.id,
+        bubble_id: agent.bubble_id || "",
+        name: agent.name || "Unnamed Agent",
+      })),
+    };
+  } catch (error) {
+    console.error("Error fetching agents:", error);
+    return { success: false, error: String(error), agents: [] };
+  }
+}
