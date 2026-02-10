@@ -209,6 +209,60 @@ export async function diagnoseMissingInvoices() {
   }
 }
 
+import { generateWithGemini } from "@/lib/ai-router";
+
+export async function analyzePaymentAttachment(attachmentUrl: string) {
+  try {
+    console.log("Analyzing attachment:", attachmentUrl);
+    
+    // 1. Fetch the attachment and convert to base64
+    const response = await fetch(attachmentUrl);
+    if (!response.ok) throw new Error("Failed to fetch attachment");
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64Data = buffer.toString('base64');
+    const mimeType = response.headers.get('content-type') || 'image/jpeg';
+
+    // 2. Prepare prompt for Gemini
+    const prompt = `
+      Extract the following details from this payment receipt/bank transfer screenshot:
+      1. Total Payment Amount (numeric only, e.g., 1250.00)
+      2. Payment Date (in YYYY-MM-DD format)
+      
+      Respond ONLY with a JSON object like this:
+      {
+        "amount": "1250.00",
+        "date": "2024-05-20"
+      }
+      If you cannot find the information, return null for that field.
+    `;
+
+    // 3. Call AI Router
+    const aiResponse = await generateWithGemini(prompt, {
+      model: "gemini-3-flash-preview",
+      temperature: 0,
+      file: {
+        mimeType,
+        data: base64Data
+      }
+    });
+
+    console.log("AI Response:", aiResponse);
+
+    // 4. Parse JSON from AI response
+    // Sometimes AI wraps response in ```json ... ```
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("Failed to parse AI response as JSON");
+    
+    const extractedData = JSON.parse(jsonMatch[0]);
+    return { success: true, data: extractedData };
+  } catch (error: any) {
+    console.error("AI Analysis Error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function verifyPayment(submittedPaymentId: number, adminId: string) {
   try {
     // 1. Get the submitted payment data

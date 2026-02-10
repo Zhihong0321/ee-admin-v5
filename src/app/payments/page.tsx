@@ -39,11 +39,13 @@ import {
   updateVerifiedPayment,
   updateSubmittedPayment,
   softDeleteSubmittedPayment,
-  runPaymentReconciliation
+  runPaymentReconciliation,
+  analyzePaymentAttachment
 } from "./actions";
 import { cn } from "@/lib/utils";
 import InvoiceViewer from "@/components/InvoiceViewer";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
+import { Sparkles, Zap, AlertTriangle } from "lucide-react";
 
 function formatDate(dateInput: string | Date | null | undefined): string {
   if (!dateInput) return 'N/A';
@@ -67,6 +69,10 @@ export default function PaymentsPage() {
   const [syncing, setSyncing] = useState(false);
   const [reconciling, setReconciling] = useState(false);
   
+  // AI Analysis State
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiData, setAIData] = useState<{ amount: string, date: string } | null>(null);
+
   // View Modal State
   const [viewingPayment, setViewingPayment] = useState<any | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -119,6 +125,36 @@ export default function PaymentsPage() {
       }
     }
   }, [selectedInvoice, showInvoiceInline]);
+
+  const handleAIAnalysis = async () => {
+    if (!viewingPayment?.attachment?.[0]) return;
+    
+    setAnalyzing(true);
+    setAIData(null);
+    try {
+      const result = await analyzePaymentAttachment(viewingPayment.attachment[0]);
+      if (result.success) {
+        setAIData(result.data);
+      } else {
+        alert("AI Analysis failed: " + result.error);
+      }
+    } catch (error) {
+      console.error("AI Error:", error);
+      alert("AI Error occurred.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const applyAIData = () => {
+    if (!aiData) return;
+    setEditForm({
+      ...editForm,
+      amount: aiData.amount,
+      payment_date: aiData.date
+    });
+    setIsEditing(true);
+  };
 
   async function fetchData() {
     setLoading(true);
@@ -206,6 +242,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
       payment_method: payment.payment_method,
       payment_date: payment.payment_date ? new Date(payment.payment_date).toISOString().split('T')[0] : ''
     });
+    setAIData(null); // Reset AI data
     setShowInvoiceInModal(false);
     setIsViewModalOpen(true);
     setIsEditing(false);
@@ -857,6 +894,82 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
 
               {/* Attachment Preview */}
               <div className="flex-1 bg-secondary-900 relative overflow-hidden flex items-center justify-center p-4">
+                {/* AI Analysis Overlay */}
+                <div className="absolute top-4 right-4 z-40 flex flex-col gap-2 max-w-xs">
+                  {!aiData && !analyzing ? (
+                    <button 
+                      onClick={handleAIAnalysis}
+                      className="btn-primary bg-primary-600 hover:bg-primary-500 shadow-lg border-none py-2 px-4 flex items-center gap-2 group transition-all"
+                    >
+                      <Sparkles className="h-4 w-4 group-hover:animate-pulse" />
+                      Scan with Gemini AI
+                    </button>
+                  ) : analyzing ? (
+                    <div className="bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-xl border border-primary-200 flex items-center gap-3 animate-pulse">
+                      <Loader2 className="h-5 w-5 text-primary-600 animate-spin" />
+                      <span className="text-sm font-semibold text-primary-900">AI Analyzing Receipt...</span>
+                    </div>
+                  ) : aiData && (
+                    <div className="bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-primary-100 flex flex-col gap-3 animate-scale-in">
+                      <div className="flex items-center justify-between border-b border-secondary-100 pb-2">
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-amber-500 fill-amber-500" />
+                          <span className="text-xs font-bold text-secondary-900 uppercase tracking-wider">AI Extracted Data</span>
+                        </div>
+                        <button onClick={() => setAIData(null)} className="text-secondary-400 hover:text-secondary-600">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {/* Amount Match */}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-secondary-500 uppercase font-bold">Amount</span>
+                          <div className={cn(
+                            "flex items-center justify-between p-2 rounded-lg border",
+                            parseFloat(aiData.amount) === parseFloat(viewingPayment.amount)
+                              ? "bg-green-50 border-green-200 text-green-700"
+                              : "bg-red-50 border-red-200 text-red-700"
+                          )}>
+                            <span className="font-bold">RM {parseFloat(aiData.amount).toLocaleString()}</span>
+                            {parseFloat(aiData.amount) === parseFloat(viewingPayment.amount) ? (
+                              <CheckCircle className="h-4 w-4" />
+                            ) : (
+                              <AlertTriangle className="h-4 w-4" />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Date Match */}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-secondary-500 uppercase font-bold">Payment Date</span>
+                          <div className={cn(
+                            "flex items-center justify-between p-2 rounded-lg border",
+                            aiData.date === (viewingPayment.payment_date ? new Date(viewingPayment.payment_date).toISOString().split('T')[0] : '')
+                              ? "bg-green-50 border-green-200 text-green-700"
+                              : "bg-red-50 border-red-200 text-red-700"
+                          )}>
+                            <span className="font-bold">{aiData.date || 'Not found'}</span>
+                            {aiData.date === (viewingPayment.payment_date ? new Date(viewingPayment.payment_date).toISOString().split('T')[0] : '') ? (
+                              <CheckCircle className="h-4 w-4" />
+                            ) : (
+                              <AlertTriangle className="h-4 w-4" />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={applyAIData}
+                        className="w-full mt-2 btn-secondary bg-primary-50 border-primary-200 text-primary-700 hover:bg-primary-100 py-2 flex items-center justify-center gap-2 text-xs font-bold"
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                        Use AI Data
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {viewingPayment.attachment && viewingPayment.attachment.length > 0 ? (
                   <div 
                     className="relative cursor-none group h-full w-full flex items-center justify-center"

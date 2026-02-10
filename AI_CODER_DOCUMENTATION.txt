@@ -872,3 +872,10 @@ For questions or issues, refer to:
 - README.md for basic overview
 - build-plan.txt for original build specifications
 - /docs endpoint for client integration guide
+
+## AI API Router
+- **Location:** src/lib/ai-router.ts
+- **Purpose:** Centralized router for UniAPI calls.
+- **Default Model:** gemini-3-flash-preview
+- **Usage:** Import { gemini3Flash } from '@/lib/ai-router'.
+
