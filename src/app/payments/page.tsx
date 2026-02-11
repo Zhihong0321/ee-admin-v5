@@ -32,7 +32,8 @@ import {
 import {
   getSubmittedPayments,
   getVerifiedPayments,
-  getFullyPaidInvoices,
+  getFullyPaidInvoices, 
+  getFullyPaidInvoicesByAgent, 
   verifyPayment,
   getInvoiceDetailsByBubbleId,
   triggerPaymentSync,
@@ -71,6 +72,12 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [reconciling, setReconciling] = useState(false);
+  
+  // New state for fully paid invoices view mode
+  const [viewMode, setViewMode] = useState<"list" | "by-agent">("list");
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [groupedInvoices, setGroupedInvoices] = useState<any[]>([]);
   const [scanning, setScanning] = useState(false);
 
   // AI Analysis State
@@ -167,8 +174,13 @@ export default function PaymentsPage() {
       if (activeTab === "verified") {
         data = await getVerifiedPayments(search);
       } else if (activeTab === "fully-paid") {
-        data = await getFullyPaidInvoices(search);
-        setFullyPaidInvoices(data);
+        if (viewMode === "by-agent") {
+          data = await getFullyPaidInvoicesByAgent(selectedMonth, selectedYear, search);
+          setGroupedInvoices(data);
+        } else {
+          data = await getFullyPaidInvoices(search);
+          setFullyPaidInvoices(data);
+        }
       } else {
         // Pending or Deleted
         data = await getSubmittedPayments(search, activeTab);
@@ -464,15 +476,89 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
         {/* Filters Bar */}
         <div className="p-6 border-b border-secondary-200 bg-gradient-to-r from-secondary-50/50 to-white">
           <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="relative w-full md:w-96">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search by customer, agent, or invoice number..."
-                className="input pl-12 pr-4"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+            <div className="flex flex-col md:flex-row gap-4 w-full">
+              <div className="relative w-full md:w-96">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Search by customer, agent, or invoice number..."
+                  className="input pl-12 pr-4"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              
+              {/* View Mode Toggle for Fully Paid Invoices */}
+              {activeTab === "fully-paid" && (
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-secondary-600">View:</span>
+                    <div className="flex bg-secondary-100 rounded-lg p-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewMode("list");
+                          fetchData();
+                        }}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-all ${viewMode === "list" ? "bg-white text-primary-600 shadow-sm" : "text-secondary-600 hover:text-secondary-900"}`}
+                      >
+                        List View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewMode("by-agent");
+                          fetchData();
+                        }}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-all ${viewMode === "by-agent" ? "bg-white text-primary-600 shadow-sm" : "text-secondary-600 hover:text-secondary-900"}`}
+                      >
+                        By Agent
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Month/Year Filters for By Agent View */}
+                  {viewMode === "by-agent" && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-secondary-600">Period:</span>
+                      <select
+                        value={selectedMonth}
+                        onChange={(e) => {
+                          setSelectedMonth(parseInt(e.target.value));
+                          fetchData();
+                        }}
+                        className="input py-1.5 text-sm w-28"
+                      >
+                        <option value="1">January</option>
+                        <option value="2">February</option>
+                        <option value="3">March</option>
+                        <option value="4">April</option>
+                        <option value="5">May</option>
+                        <option value="6">June</option>
+                        <option value="7">July</option>
+                        <option value="8">August</option>
+                        <option value="9">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                      </select>
+                      <select
+                        value={selectedYear}
+                        onChange={(e) => {
+                          setSelectedYear(parseInt(e.target.value));
+                          fetchData();
+                        }}
+                        className="input py-1.5 text-sm w-24"
+                      >
+                        {Array.from({ length: 5 }, (_, i) => {
+                          const year = new Date().getFullYear() - 2 + i;
+                          return <option key={year} value={year}>{year}</option>;
+                        })}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2 w-full md:w-auto relative">
@@ -564,38 +650,103 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
           </form>
         </div>
 
-        {/* Table */}
+        {/* Table or Grouped View */}
         <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>
-                  {activeTab === "fully-paid"
-                    ? "Full Payment Date"
-                    : activeTab === "verified"
-                      ? "Payment Date"
-                      : activeTab === "pending" || activeTab === "deleted"
-                        ? "Created On"
-                        : "Date"}
-                </th>
-                {activeTab === "fully-paid" ? (
-                  <>
-                    <th>Customer / Agent</th>
-                    <th>Total Amount</th>
-                    <th>Status</th>
-                    <th>Invoice # / Remark</th>
-                  </>
-                ) : (
-                  <>
-                    <th>Agent / Customer</th>
-                    <th>Amount</th>
-                    <th>Method</th>
-                    <th>Status / Remark</th>
-                  </>
-                )}
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
+          {activeTab === "fully-paid" && viewMode === "by-agent" ? (
+            // Grouped View by Agent
+            <div className="space-y-4 p-6">
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="animate-pulse bg-secondary-50 rounded-lg p-4">
+                    <div className="h-4 bg-secondary-200 rounded w-1/4 mb-2"></div>
+                    <div className="h-3 bg-secondary-200 rounded w-1/2"></div>
+                  </div>
+                ))
+              ) : groupedInvoices.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="p-4 bg-secondary-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                    <User className="h-8 w-8 text-secondary-400" />
+                  </div>
+                  <p className="text-secondary-600">No agents found with fully paid invoices in {new Date(selectedYear, selectedMonth - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
+                </div>
+              ) : (
+                groupedInvoices.map((group, index) => (
+                  <div key={group.agent_name} className="bg-white rounded-lg border border-secondary-200 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="p-4 border-b border-secondary-100 bg-secondary-50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
+                            <span className="text-primary-600 font-bold text-sm">{index + 1}</span>
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-secondary-900">{group.agent_name}</h3>
+                            <p className="text-sm text-secondary-600">
+                              {group.invoice_count} fully paid invoice{group.invoice_count !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-primary-600">
+                            RM {group.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </div>
+                          <div className="text-xs text-secondary-500">Total Amount</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
+                        {group.invoices.map((invoice: any) => (
+                          <div key={invoice.id} className="border border-secondary-200 rounded p-3 hover:bg-secondary-50 transition-colors">
+                            <div className="font-medium text-sm text-secondary-900">{invoice.invoice_number}</div>
+                            <div className="text-xs text-secondary-600 mt-1">
+                              Customer: {invoice.customer_name || 'N/A'}
+                            </div>
+                            <div className="text-xs text-secondary-500 mt-1">
+                              Paid: {formatDate(invoice.full_payment_date)}
+                            </div>
+                            <div className="text-xs font-medium text-green-600 mt-2">
+                              RM {parseFloat(invoice.total_amount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            // Regular Table View
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>
+                    {activeTab === "fully-paid" 
+                      ? "Full Payment Date" 
+                      : activeTab === "verified" 
+                        ? "Payment Date" 
+                        : activeTab === "pending" || activeTab === "deleted" 
+                          ? "Created On" 
+                          : "Date"}
+                  </th>
+                  {activeTab === "fully-paid" ? (
+                    <>
+                      <th>Customer / Agent</th>
+                      <th>Total Amount</th>
+                      <th>Status</th>
+                      <th>Invoice # / Remark</th>
+                    </>
+                  ) : (
+                    <>
+                      <th>Agent / Customer</th>
+                      <th>Amount</th>
+                      <th>Method</th>
+                      <th>Status / Remark</th>
+                    </>
+                  )}
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
             <tbody>
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
@@ -782,6 +933,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
               )}
             </tbody>
           </table>
+          )}
         </div>
 
         {/* Pagination */}

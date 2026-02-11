@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { payments, submitted_payments, agents, customers, invoices, invoice_templates, users, invoice_items } from "@/db/schema";
-import { ilike, or, desc, eq, and, sql, inArray, isNull } from "drizzle-orm";
+import { ilike, or, desc, eq, and, sql, inArray, isNull, isNotNull, gte, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncPaymentsFromBubble } from "@/lib/bubble";
 
@@ -154,6 +154,75 @@ export async function getFullyPaidInvoices(search?: string) {
     return data;
   } catch (error) {
     console.error("Database error in getFullyPaidInvoices:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get fully paid invoices grouped by agent for a specific month/year
+ */
+export async function getFullyPaidInvoicesByAgent(month: number, year: number, search?: string) {
+  try {
+    // Create date range for the selected month/year
+    const startDate = new Date(year, month - 1, 1); // First day of month
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999); // Last day of month
+    
+    const filters = search
+      ? or(
+          ilike(agents.name, `%${search}%`),
+          ilike(customers.name, `%${search}%`)
+        )
+      : undefined;
+
+    // Get all fully paid invoices in the date range
+    const invoiceData = await db
+      .select({
+        id: invoices.id,
+        bubble_id: invoices.bubble_id,
+        invoice_number: invoices.invoice_number,
+        total_amount: invoices.total_amount,
+        full_payment_date: invoices.full_payment_date,
+        agent_name: agents.name,
+        customer_name: customers.name,
+      })
+      .from(invoices)
+      .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
+      .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
+      .where(and(
+        eq(invoices.paid, true),
+        isNotNull(invoices.full_payment_date), // Ensure full_payment_date is not null
+        gte(invoices.full_payment_date, startDate),
+        lte(invoices.full_payment_date, endDate),
+        filters || undefined
+      ));
+
+    // Group by agent and count invoices
+    const agentGroups: Record<string, any> = {};
+    
+    for (const invoice of invoiceData) {
+      const agentName = invoice.agent_name || 'Unknown Agent';
+      
+      if (!agentGroups[agentName]) {
+        agentGroups[agentName] = {
+          agent_name: agentName,
+          invoice_count: 0,
+          invoices: [],
+          total_amount: 0
+        };
+      }
+      
+      agentGroups[agentName].invoice_count++;
+      agentGroups[agentName].invoices.push(invoice);
+      agentGroups[agentName].total_amount += parseFloat(invoice.total_amount || '0');
+    }
+
+    // Convert to array and sort by invoice count (descending)
+    const result = Object.values(agentGroups)
+      .sort((a: any, b: any) => b.invoice_count - a.invoice_count);
+
+    return result;
+  } catch (error) {
+    console.error("Database error in getFullyPaidInvoicesByAgent:", error);
     throw error;
   }
 }
