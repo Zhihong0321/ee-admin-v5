@@ -33,47 +33,82 @@ export async function GET(request: NextRequest) {
         updated_at: sedaRegistration.updated_at,
         created_date: sedaRegistration.created_date,
         linked_invoice: sedaRegistration.linked_invoice,
+
+        // Checkpoint fields
+        mykad_pdf: sedaRegistration.mykad_pdf,
+        ic_copy_front: sedaRegistration.ic_copy_front,
+        tnb_bill_1: sedaRegistration.tnb_bill_1,
+        tnb_bill_2: sedaRegistration.tnb_bill_2,
+        tnb_bill_3: sedaRegistration.tnb_bill_3,
+        tnb_meter: sedaRegistration.tnb_meter,
+        e_contact_name: sedaRegistration.e_contact_name,
+        e_contact_no: sedaRegistration.e_contact_no,
+        e_contact_relationship: sedaRegistration.e_contact_relationship,
+
+        // SEDA Profile fields
+        seda_profile_status: sedaRegistration.seda_profile_status,
+        seda_profile_id: sedaRegistration.seda_profile_id,
       })
       .from(sedaRegistration)
       .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))
       .leftJoin(users, eq(sedaRegistration.agent, users.bubble_id))
       .leftJoin(agents, eq(users.linked_agent_profile, agents.bubble_id))
       .orderBy(desc(sql`COALESCE(${sedaRegistration.modified_date}, ${sedaRegistration.updated_at}, ${sedaRegistration.created_date})`))
-      .limit(100);
+      .limit(1000);
 
-    // Fetch share_tokens for linked invoices
+    // Fetch invoice data for payment checkpoint
     const linkedInvoiceIds = allSeda
       .filter(s => s.linked_invoice && s.linked_invoice.length > 0)
       .flatMap(s => s.linked_invoice || []);
 
-    let shareTokenMap: Record<string, string> = {};
+    let invoiceDataMap: Record<string, { share_token: string, percent_paid: number }> = {};
 
     if (linkedInvoiceIds.length > 0) {
       const invoiceRecords = await db
         .select({
           bubble_id: invoices.bubble_id,
           share_token: invoices.share_token,
+          percent_paid: invoices.percent_of_total_amount,
         })
         .from(invoices)
-        .where(or(
-          ...linkedInvoiceIds.map(id => eq(invoices.bubble_id, id))
-        ));
+        .where(
+          or(...linkedInvoiceIds.map(id => eq(invoices.bubble_id, id)))
+        );
 
-      shareTokenMap = Object.fromEntries(
-        invoiceRecords.map(inv => [inv.bubble_id, inv.share_token || ''])
+      invoiceDataMap = Object.fromEntries(
+        invoiceRecords.map(inv => [
+          inv.bubble_id,
+          {
+            share_token: inv.share_token || '',
+            percent_paid: parseFloat(inv.percent_paid || "0")
+          }
+        ])
       );
     }
 
-    // Enrich SEDA records with share_token (use first linked invoice's share_token)
+    // Enrich SEDA records with calculations
     const enrichedSeda = allSeda.map(seda => {
-      let shareToken = null;
-      if (seda.linked_invoice && seda.linked_invoice.length > 0) {
-        const firstLinkedInvoiceId = seda.linked_invoice[0];
-        shareToken = shareTokenMap[firstLinkedInvoiceId] || null;
-      }
+      const firstInvoiceId = seda.linked_invoice?.[0];
+      const invData = firstInvoiceId ? invoiceDataMap[firstInvoiceId] : null;
+
+      const hasName = !!seda.customer_name;
+      const hasAddress = !!seda.installation_address;
+      const hasMykad = !!(seda.mykad_pdf || seda.ic_copy_front);
+      const hasBills = !!(seda.tnb_bill_1 && seda.tnb_bill_2 && seda.tnb_bill_3);
+      const hasMeter = !!seda.tnb_meter;
+      const hasEmergency = !!(seda.e_contact_name && seda.e_contact_no && seda.e_contact_relationship);
+      const has5Percent = (invData?.percent_paid || 0) >= 5;
+
+      const completed_count = [hasName, hasAddress, hasMykad, hasBills, hasMeter, hasEmergency, has5Percent].filter(Boolean).length;
+      const is_form_completed = completed_count === 7;
+
       return {
         ...seda,
-        share_token: shareToken,
+        share_token: invData?.share_token || null,
+        percent_of_total_amount: invData?.percent_paid || 0,
+        completed_count,
+        is_form_completed,
+        has_5_percent: has5Percent
       };
     });
 

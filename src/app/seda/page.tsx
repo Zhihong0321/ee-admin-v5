@@ -3,42 +3,40 @@
 import { useState, useEffect } from "react";
 import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock } from "lucide-react";
 
-interface InvoiceNeedingSeda {
-  invoice_bubble_id: string;
-  invoice_number: string | null;
-  total_amount: string | null;
-  percent_of_total_amount: string | null;
-  customer_name: string | null;
-  customer_bubble_id: string | null;
-  agent_bubble_id: string | null;
-  agent_name: string | null;
-  linked_seda_registration: string | null;
-  invoice_date: string | null;
-  invoice_status: string | null;
-  invoice_updated_at: string | null;
-  seda_bubble_id: string | null;
+interface SedaRegistration {
+  id: number;
+  bubble_id: string;
   seda_status: string | null;
-  seda_modified_date: string | null;
-  seda_updated_at: string | null;
-  seda_installation_address: string | null;
-  seda_profile_status: string | null;
-  seda_profile_id: string | null;
+  installation_address: string | null;
+  city: string | null;
+  state: string | null;
+  ic_no: string | null;
+  email: string | null;
+  customer_name: string | null;
+  agent_name: string | null;
+  modified_date: string | null;
+  updated_at: string | null;
+  created_date: string | null;
+  linked_invoice: string[] | null;
+  share_token: string | null;
+  percent_of_total_amount: number;
   completed_count: number;
   is_form_completed: boolean;
   has_5_percent: boolean;
+  seda_profile_status: string | null;
+  seda_profile_id: string | null;
 }
 
-interface InvoiceGroup {
-  group: string;
-  group_type: string;
+interface SedaGroup {
+  seda_status: string;
   count: number;
-  invoices: InvoiceNeedingSeda[];
+  registrations: SedaRegistration[];
 }
 
 export default function SedaListPage() {
-  const [data, setData] = useState<InvoiceGroup[]>([]);
+  const [data, setData] = useState<SedaGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<string>("pending");
+  const [activeTab, setActiveTab] = useState<string>("Pending");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -63,7 +61,9 @@ export default function SedaListPage() {
 
   useEffect(() => {
     if (data.length > 0 && expandedGroups.size === 0) {
-      setExpandedGroups(new Set([data[0].group]));
+      // Find the group that matches activeTab or just take the first
+      const activeGroup = data.find(g => g.seda_status === activeTab) || data[0];
+      setExpandedGroups(new Set([activeGroup.seda_status]));
     }
   }, [data]);
 
@@ -71,19 +71,24 @@ export default function SedaListPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.append("group", activeTab);
+      // In this new registrations-only view, we might want to filter by status or show all
+      // For now, let's show all and filter in JS if activeTab is set, 
+      // or use the API statusFilter if available.
+      if (activeTab && activeTab !== "All") {
+        params.append("status", activeTab);
+      }
       if (search) {
         params.append("search", search);
       }
 
-      const response = await fetch(`/api/seda/invoices-needing-seda?${params}`);
+      const response = await fetch(`/api/seda/registrations?${params}`);
       if (!response.ok) throw new Error("Failed to fetch");
 
-      const result: InvoiceGroup[] = await response.json();
+      const result: SedaGroup[] = await response.json();
       setData(result);
     } catch (error) {
-      console.error("Error fetching invoices:", error);
-      alert("Failed to load invoices. Please try again.");
+      console.error("Error fetching SEDA registrations:", error);
+      alert("Failed to load SEDA registrations. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -106,36 +111,11 @@ export default function SedaListPage() {
     });
   };
 
-  const getPaymentPercentage = (invoice: InvoiceNeedingSeda): number => {
-    return parseFloat(invoice.percent_of_total_amount || "0");
-  };
-
   const getPaymentColor = (percent: number): string => {
     if (percent < 25) return "bg-red-500";
     if (percent < 50) return "bg-orange-500";
     if (percent < 75) return "bg-yellow-500";
     return "bg-emerald-500";
-  };
-
-  const getStatusBadgeColor = (status: string | null): string => {
-    if (!status) return "bg-slate-100 text-slate-700";
-
-    const normalizedStatus = status.toLowerCase();
-
-    if (normalizedStatus.includes('approved') || normalizedStatus.includes('approved by seda')) {
-      return "bg-emerald-100 text-emerald-700 border-emerald-200";
-    }
-    if (normalizedStatus.includes('demo')) {
-      return "bg-amber-100 text-amber-700 border-amber-200";
-    }
-    if (normalizedStatus.includes('incomplete') || normalizedStatus.includes('pending')) {
-      return "bg-blue-100 text-blue-700 border-blue-200";
-    }
-    if (normalizedStatus.includes('rejected') || normalizedStatus.includes('declined')) {
-      return "bg-red-100 text-red-700 border-red-200";
-    }
-
-    return "bg-slate-100 text-slate-700 border-slate-200";
   };
 
   const formatDate = (dateStr: string | null): string => {
@@ -149,23 +129,29 @@ export default function SedaListPage() {
 
   const tabs = [
     {
-      id: "pending",
+      id: "Pending",
       label: "Pending Verification",
-      description: "Admin check required",
+      description: "Ready for admin check",
       icon: AlertCircle
     },
     {
-      id: "submitted",
+      id: "Submitted",
       label: "Submitted to SEDA",
-      description: "Waiting for approval",
+      description: "Waiting for portal approval",
       icon: Eye
     },
     {
-      id: "approved",
+      id: "Approved",
       label: "Approved by SEDA",
       description: "Completed registrations",
       icon: Receipt
     },
+    {
+      id: "All",
+      label: "All Registrations",
+      description: "View all records",
+      icon: Search
+    }
   ];
 
   const totalCount = data.reduce((sum, group) => sum + group.count, 0);
@@ -178,10 +164,10 @@ export default function SedaListPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-                SEDA Processing
+                SEDA Registration Management
               </h1>
               <p className="text-slate-500 mt-1">
-                Manage invoices requiring SEDA approval
+                View and manage existing SEDA registration forms
               </p>
             </div>
 
@@ -239,7 +225,7 @@ export default function SedaListPage() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search by customer, agent..."
+              placeholder="Search by customer, address, IC number..."
               className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -253,65 +239,22 @@ export default function SedaListPage() {
           </div>
         </form>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Total Paid Invoices</p>
-                <p className="text-3xl font-bold text-slate-900 mt-2">{totalCount}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-                <Receipt className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Ready to Submit</p>
-                <p className="text-3xl font-bold text-emerald-600 mt-2">
-                  {data.reduce((sum, g) => sum + g.invoices.filter(i => i.is_form_completed && i.has_5_percent).length, 0)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-emerald-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Incomplete Forms</p>
-                <p className="text-3xl font-bold text-orange-600 mt-2">
-                  {data.reduce((sum, g) => sum + g.invoices.filter(i => !i.is_form_completed).length, 0)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center">
-                <Eye className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Data */}
         {loading ? (
           <div className="bg-white border border-slate-200 rounded-xl p-16 text-center shadow-sm">
             <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-400" />
-            <p className="mt-4 text-slate-500">Loading invoices...</p>
+            <p className="mt-4 text-slate-500">Loading registrations...</p>
           </div>
-        ) : data.length === 0 || totalCount === 0 ? (
+        ) : data.length === 0 ? (
           <div className="bg-white border border-slate-200 rounded-xl p-16 text-center shadow-sm">
             <div className="flex flex-col items-center gap-4">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
                 <Receipt className="w-8 h-8 text-slate-400" />
               </div>
               <div>
-                <p className="font-semibold text-slate-900">No invoices found</p>
+                <p className="font-semibold text-slate-900">No registrations found</p>
                 <p className="text-sm text-slate-500">
-                  {search ? "Try adjusting your search criteria" : "No invoices match this filter"}
+                  {search ? "Try adjusting your search criteria" : "No registrations match this filter"}
                 </p>
               </div>
             </div>
@@ -319,28 +262,28 @@ export default function SedaListPage() {
         ) : (
           <div className="space-y-3">
             {data.map((group) => (
-              <div key={group.group} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div key={group.seda_status} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                 {/* Group Header */}
                 <button
-                  onClick={() => toggleGroup(group.group)}
+                  onClick={() => toggleGroup(group.seda_status)}
                   className="w-full px-6 py-4 bg-slate-50 hover:bg-slate-100 transition-colors flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3">
                     <span className="font-semibold text-slate-900">
-                      {group.group}
+                      {group.seda_status === "null" ? "Unknown Status" : group.seda_status}
                     </span>
                     <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-white border border-slate-200 text-slate-600">
                       {group.count}
                     </span>
                   </div>
-                  <span className={`text-slate-400 transition-transform ${expandedGroups.has(group.group) ? 'rotate-180' : ''
+                  <span className={`text-slate-400 transition-transform ${expandedGroups.has(group.seda_status) ? 'rotate-180' : ''
                     }`}>
                     ▼
                   </span>
                 </button>
 
                 {/* Group Table */}
-                {expandedGroups.has(group.group) && (
+                {expandedGroups.has(group.seda_status) && (
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
@@ -369,12 +312,12 @@ export default function SedaListPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {group.invoices.map((invoice) => {
-                          const percent = getPaymentPercentage(invoice);
-                          const isReady = invoice.is_form_completed && invoice.has_5_percent;
+                        {group.registrations.map((seda) => {
+                          const percent = seda.percent_of_total_amount;
+                          const isReady = seda.is_form_completed && seda.has_5_percent;
 
                           return (
-                            <tr key={invoice.invoice_bubble_id} className="hover:bg-slate-50 transition-colors">
+                            <tr key={seda.bubble_id} className="hover:bg-slate-50 transition-colors">
                               {/* Submission Ready */}
                               <td className="px-6 py-4">
                                 {isReady ? (
@@ -391,10 +334,10 @@ export default function SedaListPage() {
                               {/* Customer */}
                               <td className="px-6 py-4">
                                 <div className="text-sm text-slate-900 font-medium max-w-xs truncate">
-                                  {invoice.customer_name || "N/A"}
+                                  {seda.customer_name || "N/A"}
                                 </div>
                                 <div className="text-xs text-slate-400 mt-1">
-                                  {invoice.invoice_number}
+                                  {seda.ic_no || "No IC"}
                                 </div>
                               </td>
 
@@ -402,13 +345,13 @@ export default function SedaListPage() {
                               <td className="px-6 py-4">
                                 <div className="flex flex-col gap-1">
                                   <div className="text-xs font-semibold text-slate-700">
-                                    {invoice.completed_count}/7 Complete
+                                    {seda.completed_count}/7 Complete
                                   </div>
                                   <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                     <div
-                                      className={`h-full transition-all ${invoice.completed_count === 7 ? "bg-emerald-500" : "bg-blue-400"
+                                      className={`h-full transition-all ${seda.completed_count === 7 ? "bg-emerald-500" : "bg-blue-400"
                                         }`}
-                                      style={{ width: `${(invoice.completed_count / 7) * 100}%` }}
+                                      style={{ width: `${(seda.completed_count / 7) * 100}%` }}
                                     />
                                   </div>
                                 </div>
@@ -434,10 +377,10 @@ export default function SedaListPage() {
 
                               {/* SEDA Profile Status */}
                               <td className="px-6 py-4">
-                                {invoice.seda_profile_status === "profile_created" ? (
-                                  invoice.seda_profile_id ? (
+                                {seda.seda_profile_status === "profile_created" ? (
+                                  seda.seda_profile_id ? (
                                     <a
-                                      href={`https://atap.seda.gov.my/profiles/individuals/${invoice.seda_profile_id}/edit`}
+                                      href={`https://atap.seda.gov.my/profiles/individuals/${seda.seda_profile_id}/edit`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200 transition-colors"
@@ -451,12 +394,12 @@ export default function SedaListPage() {
                                       Created
                                     </span>
                                   )
-                                ) : invoice.seda_profile_status === "not_found" ? (
+                                ) : seda.seda_profile_status === "not_found" ? (
                                   <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-700 border border-amber-200">
                                     <XCircle className="w-3 h-3" />
                                     Not Found
                                   </span>
-                                ) : invoice.seda_profile_status === "error" ? (
+                                ) : seda.seda_profile_status === "error" ? (
                                   <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700 border border-red-200">
                                     <AlertCircle className="w-3 h-3" />
                                     Error
@@ -472,39 +415,31 @@ export default function SedaListPage() {
                               {/* Last Modified */}
                               <td className="px-6 py-4">
                                 <div className="text-sm text-slate-500">
-                                  {formatDate(invoice.seda_modified_date || invoice.seda_updated_at || invoice.invoice_updated_at)}
+                                  {formatDate(seda.modified_date || seda.updated_at || seda.created_date)}
                                 </div>
                               </td>
 
                               {/* Actions */}
                               <td className="px-6 py-4">
                                 <div className="flex items-center justify-end gap-1">
-                                  <a
-                                    href={`/invoice/${invoice.invoice_bubble_id}`}
-                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                    title="View Invoice"
-                                  >
-                                    <Receipt className="w-4 h-4" />
-                                  </a>
-                                  {invoice.seda_bubble_id ? (
+                                  {seda.linked_invoice?.[0] && (
                                     <a
-                                      href={`/seda/${invoice.seda_bubble_id}`}
-                                      className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                      title="View SEDA"
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                    </a>
-                                  ) : (
-                                    <a
-                                      href={`https://calculator.atap.solar/seda?invoice=${invoice.invoice_bubble_id}`}
+                                      href={seda.share_token ? `https://calculator.atap.solar/view/${seda.share_token}` : `/invoice/${seda.linked_invoice[0]}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="px-3 py-2 text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg border border-emerald-200 transition-colors"
-                                      title="Create SEDA"
+                                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                      title="View Invoice"
                                     >
-                                      Create
+                                      <Receipt className="w-4 h-4" />
                                     </a>
                                   )}
+                                  <a
+                                    href={`/seda/${seda.bubble_id}`}
+                                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                    title="View SEDA Details"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </a>
                                 </div>
                               </td>
                             </tr>
