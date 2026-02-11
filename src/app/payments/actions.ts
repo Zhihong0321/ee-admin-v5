@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { payments, submitted_payments, agents, customers, invoices, invoice_templates, users, invoice_items } from "@/db/schema";
-import { ilike, or, desc, eq, and, sql, inArray } from "drizzle-orm";
+import { ilike, or, desc, eq, and, sql, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncPaymentsFromBubble } from "@/lib/bubble";
 
@@ -18,14 +18,14 @@ export async function getSubmittedPayments(search?: string, status: string = 'pe
   try {
     const searchFilters = search
       ? or(
-          ilike(submitted_payments.remark, `%${search}%`),
-          ilike(submitted_payments.payment_method, `%${search}%`),
-          ilike(agents.name, `%${search}%`),
-          ilike(customers.name, `%${search}%`)
-        )
+        ilike(submitted_payments.remark, `%${search}%`),
+        ilike(submitted_payments.payment_method, `%${search}%`),
+        ilike(agents.name, `%${search}%`),
+        ilike(customers.name, `%${search}%`)
+      )
       : undefined;
 
-    const whereClause = searchFilters 
+    const whereClause = searchFilters
       ? and(eq(submitted_payments.status, status), searchFilters)
       : eq(submitted_payments.status, status);
 
@@ -66,11 +66,11 @@ export async function getVerifiedPayments(search?: string) {
   try {
     const filters = search
       ? or(
-          ilike(payments.remark, `%${search}%`),
-          ilike(payments.payment_method, `%${search}%`),
-          ilike(agents.name, `%${search}%`),
-          ilike(customers.name, `%${search}%`)
-        )
+        ilike(payments.remark, `%${search}%`),
+        ilike(payments.payment_method, `%${search}%`),
+        ilike(agents.name, `%${search}%`),
+        ilike(customers.name, `%${search}%`)
+      )
       : undefined;
 
     const data = await db
@@ -119,13 +119,13 @@ export async function getFullyPaidInvoices(search?: string) {
   try {
     const filters = search
       ? or(
-          ilike(invoices.invoice_number, `%${search}%`),
-          ilike(customers.name, `%${search}%`),
-          ilike(agents.name, `%${search}%`)
-        )
+        ilike(invoices.invoice_number, `%${search}%`),
+        ilike(customers.name, `%${search}%`),
+        ilike(agents.name, `%${search}%`)
+      )
       : undefined;
 
-    const whereClause = filters 
+    const whereClause = filters
       ? and(eq(invoices.paid, true), filters)
       : eq(invoices.paid, true);
 
@@ -165,7 +165,7 @@ export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
     const isNumeric = !isNaN(numericId) && /^\d+$/.test(bubbleId);
 
     const invoice = await db.query.invoices.findFirst({
-      where: isNumeric 
+      where: isNumeric
         ? or(eq(invoices.bubble_id, bubbleId), eq(invoices.invoice_id, numericId))
         : eq(invoices.bubble_id, bubbleId),
     });
@@ -262,11 +262,11 @@ import { generateWithGemini } from "@/lib/ai-router";
 export async function analyzePaymentAttachment(attachmentUrl: string) {
   try {
     console.log("Analyzing attachment:", attachmentUrl);
-    
+
     // 1. Fetch the attachment and convert to base64
     const response = await fetch(attachmentUrl);
     if (!response.ok) throw new Error("Failed to fetch attachment");
-    
+
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const base64Data = buffer.toString('base64');
@@ -302,7 +302,7 @@ export async function analyzePaymentAttachment(attachmentUrl: string) {
     // Sometimes AI wraps response in ```json ... ```
     const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("Failed to parse AI response as JSON");
-    
+
     const extractedData = JSON.parse(jsonMatch[0]);
     return { success: true, data: extractedData };
   } catch (error: any) {
@@ -395,7 +395,7 @@ async function recalculateInvoicePaymentStatus(invoiceBubbleId: string, triggere
     }
 
     const totalAmount = parseFloat(invoice.total_amount || '0');
-    
+
     // Skip if total_amount is 0 or null
     if (totalAmount <= 0) {
       console.warn(`Invoice ${invoiceBubbleId}: total_amount is ${totalAmount}, skipping recalculation`);
@@ -411,11 +411,11 @@ async function recalculateInvoicePaymentStatus(invoiceBubbleId: string, triggere
     // 3. Sum up all payments
     let totalPaid = 0;
     let latestPaymentDate: Date | null = null;
-    
+
     for (const payment of linkedPayments) {
       const amount = parseFloat(payment.amount || '0');
       totalPaid += amount;
-      
+
       if (payment.payment_date) {
         const paymentDate = new Date(payment.payment_date);
         if (!latestPaymentDate || paymentDate > latestPaymentDate) {
@@ -427,7 +427,7 @@ async function recalculateInvoicePaymentStatus(invoiceBubbleId: string, triggere
     // 4. Calculate percentage
     const percentage = (totalPaid / totalAmount) * 100;
     const isFullyPaid = totalPaid >= totalAmount; // Full payment when sum >= total_amount
-    
+
     // 5. Determine full payment date
     // Use the latest payment date if fully paid, otherwise null
     const fullPaymentDate = isFullyPaid && latestPaymentDate ? latestPaymentDate : null;
@@ -547,7 +547,7 @@ export async function updateSubmittedPayment(id: number, updates: UpdatePaymentP
 
 export async function softDeleteSubmittedPayment(id: number, user: string) {
   try {
-     const current = await db.query.submitted_payments.findFirst({
+    const current = await db.query.submitted_payments.findFirst({
       where: eq(submitted_payments.id, id)
     });
 
@@ -577,13 +577,13 @@ export async function runPaymentReconciliation() {
   try {
     // 1. Get all pending submitted payments
     const pending = await db.select().from(submitted_payments).where(eq(submitted_payments.status, 'pending'));
-    
+
     let matchedCount = 0;
 
     for (const p of pending) {
       // 2. Check for match in verified payments
       // Match criteria: Amount, Date (roughly), Agent, Customer, Invoice
-      
+
       const conditions = [
         p.amount ? eq(payments.amount, p.amount) : undefined,
         p.linked_agent ? eq(payments.linked_agent, p.linked_agent) : undefined,
@@ -592,28 +592,28 @@ export async function runPaymentReconciliation() {
 
       // Note: Dates might differ slightly due to timezones, so exact match is risky.
       // But for now, let's trust the 5-column rule requested: Amount, Agent, Customer, Invoice, Date
-      
+
       const potentialMatches = await db.select().from(payments).where(and(...conditions as any));
 
       // Refine match: Check date within 24 hours? Or exact?
       // "pick 5 column to check" -> let's try strict match first, if it fails, maybe relax date
-      
+
       const match = potentialMatches.find(pm => {
         // Date check (ignore time)
         const d1 = pm.payment_date ? new Date(pm.payment_date).toDateString() : '';
         const d2 = p.payment_date ? new Date(p.payment_date).toDateString() : '';
-        
+
         // Customer check
         const c1 = pm.linked_customer || '';
         const c2 = p.linked_customer || '';
-        
+
         return d1 === d2 && c1 === c2;
       });
 
       if (match) {
         // 3. Mark as verified/deleted if match found
         await db.update(submitted_payments)
-          .set({ 
+          .set({
             status: 'deleted', // or 'verified' -> Request says "mark the submitted payment as deleted"
             log: (p.log || '') + `\n[${new Date().toISOString()}] System Auto-Reconciliation: Matched with verified payment ID ${match.id}`,
             updated_at: new Date()
@@ -627,6 +627,79 @@ export async function runPaymentReconciliation() {
     return { success: true, count: matchedCount };
   } catch (error) {
     console.error("Reconciliation error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Rescans all paid invoices that are missing a full_payment_date
+ * and populates it based on the latest payment date.
+ */
+export async function rescanFullPaymentDates() {
+  try {
+    // 1. Find all paid invoices where full_payment_date is null
+    const paidInvoices = await db
+      .select({
+        id: invoices.id,
+        bubble_id: invoices.bubble_id,
+        total_amount: invoices.total_amount,
+      })
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.paid, true),
+          isNull(invoices.full_payment_date)
+        )
+      );
+
+    console.log(`Rescanning ${paidInvoices.length} paid invoices for missing full_payment_date...`);
+    let updatedCount = 0;
+
+    for (const inv of paidInvoices) {
+      if (!inv.bubble_id) continue;
+
+      // 2. Find all verified payments for this invoice
+      const vPayments = await db
+        .select({
+          payment_date: payments.payment_date,
+          amount: payments.amount,
+        })
+        .from(payments)
+        .where(eq(payments.linked_invoice, inv.bubble_id));
+
+      if (vPayments.length === 0) continue;
+
+      // 3. Find latest payment date
+      let latestDate: Date | null = null;
+      let totalPaid = 0;
+
+      for (const p of vPayments) {
+        totalPaid += parseFloat(p.amount || "0");
+        if (p.payment_date) {
+          const d = new Date(p.payment_date);
+          if (!latestDate || d > latestDate) {
+            latestDate = d;
+          }
+        }
+      }
+
+      // 4. Update if we found a date
+      if (latestDate) {
+        await db.update(invoices)
+          .set({
+            full_payment_date: latestDate,
+            last_payment_date: latestDate,
+            updated_at: new Date()
+          })
+          .where(eq(invoices.id, inv.id));
+        updatedCount++;
+      }
+    }
+
+    revalidatePath("/payments");
+    return { success: true, count: updatedCount };
+  } catch (error) {
+    console.error("Scan error:", error);
     throw error;
   }
 }

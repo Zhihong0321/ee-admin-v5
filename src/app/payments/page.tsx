@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { 
-  Search, 
-  Filter, 
-  ArrowUpDown, 
-  Eye, 
-  CreditCard, 
-  CheckCircle, 
-  Clock, 
-  ChevronLeft, 
-  ChevronRight, 
-  Plus, 
-  ZoomIn, 
+import {
+  Search,
+  Filter,
+  ArrowUpDown,
+  Eye,
+  CreditCard,
+  CheckCircle,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  ZoomIn,
   X,
   User,
   Calendar,
@@ -29,19 +29,20 @@ import {
   Terminal,
   Calculator
 } from "lucide-react";
-import { 
-  getSubmittedPayments, 
-  getVerifiedPayments, 
-  getFullyPaidInvoices, 
-  verifyPayment, 
-  getInvoiceDetailsByBubbleId, 
-  triggerPaymentSync, 
+import {
+  getSubmittedPayments,
+  getVerifiedPayments,
+  getFullyPaidInvoices,
+  verifyPayment,
+  getInvoiceDetailsByBubbleId,
+  triggerPaymentSync,
   diagnoseMissingInvoices,
   updateVerifiedPayment,
   updateSubmittedPayment,
   softDeleteSubmittedPayment,
   runPaymentReconciliation,
-  analyzePaymentAttachment
+  analyzePaymentAttachment,
+  rescanFullPaymentDates
 } from "./actions";
 import { cn } from "@/lib/utils";
 import InvoiceViewer from "@/components/InvoiceViewer";
@@ -70,7 +71,8 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [reconciling, setReconciling] = useState(false);
-  
+  const [scanning, setScanning] = useState(false);
+
   // AI Analysis State
   const [analyzing, setAnalyzing] = useState(false);
   const [aiData, setAIData] = useState<{ amount: string, date: string } | null>(null);
@@ -80,11 +82,11 @@ export default function PaymentsPage() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
-  
+
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
-  
+
   // Invoice state
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [loadingInvoice, setLoadingInvoice] = useState(false);
@@ -130,7 +132,7 @@ export default function PaymentsPage() {
 
   const handleAIAnalysis = async () => {
     if (!viewingPayment?.attachment?.[0]) return;
-    
+
     setAnalyzing(true);
     setAIData(null);
     try {
@@ -212,6 +214,21 @@ export default function PaymentsPage() {
     }
   }
 
+  async function handleRescan() {
+    if (!confirm("This will scan all paid invoices missing a full payment date and backfill them based on recorded payments. Continue?")) return;
+    setScanning(true);
+    try {
+      const result = await rescanFullPaymentDates();
+      alert(`Scan complete. ${result.count} invoices updated with full payment dates.`);
+      fetchData();
+    } catch (error) {
+      console.error("Scan error", error);
+      alert("Scan failed.");
+    } finally {
+      setScanning(false);
+    }
+  }
+
   async function handleDiagnose() {
     try {
       const result = await diagnoseMissingInvoices();
@@ -255,7 +272,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
 
   const handleVerify = async (id: number) => {
     if (!confirm("Are you sure you want to verify this payment?")) return;
-    
+
     try {
       await verifyPayment(id, "System Admin");
       fetchData();
@@ -330,9 +347,9 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
     <div className="space-y-6 animate-fade-in">
       {/* Invoice Viewer Modal (only for standalone view if ever needed, but now we have inline) */}
       {selectedInvoice && !isViewModalOpen && (
-        <InvoiceViewer 
-          invoiceData={selectedInvoice} 
-          onClose={() => setSelectedInvoice(null)} 
+        <InvoiceViewer
+          invoiceData={selectedInvoice}
+          onClose={() => setSelectedInvoice(null)}
           version="v2"
         />
       )}
@@ -354,7 +371,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
             Manage payments and view fully paid invoices.
           </p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <button
             onClick={handleReconcile}
@@ -370,6 +387,14 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
           >
             <FileText className="h-4 w-4" />
             Diagnose Invoices
+          </button>
+          <button
+            onClick={handleRescan}
+            disabled={scanning}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <History className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? 'Scanning...' : 'Re-scan Dates'}
           </button>
           <button
             onClick={handleSync}
@@ -449,7 +474,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            
+
             <div className="flex items-center gap-2 w-full md:w-auto relative">
               {/* Filter Button */}
               <div className="relative">
@@ -498,25 +523,25 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         {Array.from(new Set(payments.map(p => p.payment_method).filter(Boolean)))
                           .sort()
                           .map(method => (
-                          <button
-                            key={method}
-                            onClick={() => {
-                              setPaymentMethodFilter(method);
-                              setShowFilterDropdown(false);
-                            }}
-                            className={cn(
-                              "w-full text-left px-3 py-2 rounded-md text-sm flex items-center justify-between transition-colors",
-                              paymentMethodFilter.toLowerCase() === method.toLowerCase()
-                                ? "bg-primary-50 text-primary-700 font-medium"
-                                : "text-secondary-700 hover:bg-secondary-50"
-                            )}
-                          >
-                            <span>{method}</span>
-                            {paymentMethodFilter.toLowerCase() === method.toLowerCase() && (
-                              <CheckCircle className="h-4 w-4 text-primary-600" />
-                            )}
-                          </button>
-                        ))}
+                            <button
+                              key={method}
+                              onClick={() => {
+                                setPaymentMethodFilter(method);
+                                setShowFilterDropdown(false);
+                              }}
+                              className={cn(
+                                "w-full text-left px-3 py-2 rounded-md text-sm flex items-center justify-between transition-colors",
+                                paymentMethodFilter.toLowerCase() === method.toLowerCase()
+                                  ? "bg-primary-50 text-primary-700 font-medium"
+                                  : "text-secondary-700 hover:bg-secondary-50"
+                              )}
+                            >
+                              <span>{method}</span>
+                              {paymentMethodFilter.toLowerCase() === method.toLowerCase() && (
+                                <CheckCircle className="h-4 w-4 text-primary-600" />
+                              )}
+                            </button>
+                          ))}
                       </div>
                     </div>
                   </>
@@ -545,12 +570,12 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
             <thead>
               <tr>
                 <th>
-                  {activeTab === "fully-paid" 
-                    ? "Full Payment Date" 
-                    : activeTab === "verified" 
-                      ? "Payment Date" 
-                      : activeTab === "pending" || activeTab === "deleted" 
-                        ? "Created On" 
+                  {activeTab === "fully-paid"
+                    ? "Full Payment Date"
+                    : activeTab === "verified"
+                      ? "Payment Date"
+                      : activeTab === "pending" || activeTab === "deleted"
+                        ? "Created On"
                         : "Date"}
                 </th>
                 {activeTab === "fully-paid" ? (
@@ -592,14 +617,14 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           {activeTab === "fully-paid" ? "No invoices found" : "No payments found"}
                         </p>
                         <p className="text-sm text-secondary-600">
-                          {search 
-                            ? "Try adjusting your search criteria" 
-                            : activeTab === "fully-paid" 
-                              ? "No fully paid invoices" 
-                              : activeTab === "pending" 
-                                ? "No pending payments" 
-                                : activeTab === "deleted" 
-                                  ? "No deleted submissions" 
+                          {search
+                            ? "Try adjusting your search criteria"
+                            : activeTab === "fully-paid"
+                              ? "No fully paid invoices"
+                              : activeTab === "pending"
+                                ? "No pending payments"
+                                : activeTab === "deleted"
+                                  ? "No deleted submissions"
                                   : "No verified payments"}
                         </p>
                       </div>
@@ -656,7 +681,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     </td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button 
+                        <button
                           onClick={() => handleViewInvoice(invoice.bubble_id, invoice.share_token)}
                           className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
                         >
@@ -674,7 +699,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     <td>
                       <div className="flex flex-col">
                         <span className="font-medium text-secondary-900">
-                          {activeTab === "verified" 
+                          {activeTab === "verified"
                             ? `Payment Date: ${formatDate(payment.payment_date || payment.created_at)}`
                             : activeTab === "pending" || activeTab === "deleted"
                               ? `Created On: ${formatDate(payment.created_at || payment.payment_date)}`
@@ -718,9 +743,9 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         {(activeTab === "pending" || activeTab === "deleted") && (
                           <span className={cn(
                             "w-fit px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-                            payment.status === 'pending' ? "bg-yellow-100 text-yellow-700" : 
-                            payment.status === 'deleted' ? "bg-red-100 text-red-700" :
-                            "bg-secondary-100 text-secondary-700"
+                            payment.status === 'pending' ? "bg-yellow-100 text-yellow-700" :
+                              payment.status === 'deleted' ? "bg-red-100 text-red-700" :
+                                "bg-secondary-100 text-secondary-700"
                           )}>
                             {payment.status || 'pending'}
                           </span>
@@ -732,7 +757,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     </td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button 
+                        <button
                           onClick={() => handleViewClick(payment)}
                           className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
                         >
@@ -741,7 +766,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         </button>
                         {activeTab === "pending" && payment.status === 'pending' && (
                           <>
-                            <button 
+                            <button
                               onClick={() => handleDeleteSubmission(payment.id)}
                               className="btn-ghost text-red-600 hover:text-red-700 flex items-center gap-1.5"
                               title="Delete Submission"
@@ -806,7 +831,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
               </div>
               <div className="flex items-center gap-2">
                 {!isEditing && (
-                  <button 
+                  <button
                     onClick={() => setIsEditing(true)}
                     className="p-2 text-primary-600 hover:bg-primary-50 rounded-full transition-colors flex items-center gap-2 px-4"
                   >
@@ -814,7 +839,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     Edit
                   </button>
                 )}
-                <button 
+                <button
                   onClick={() => setIsViewModalOpen(false)}
                   className="p-2 hover:bg-secondary-100 rounded-full transition-colors"
                 >
@@ -827,28 +852,28 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
               {/* Info Sidebar */}
               <div className="w-full md:w-80 bg-secondary-50 p-6 space-y-6 overflow-y-auto border-r border-secondary-200">
                 {isEditing ? (
-                   <div className="space-y-4 bg-white p-4 rounded-lg shadow-sm border border-primary-200">
+                  <div className="space-y-4 bg-white p-4 rounded-lg shadow-sm border border-primary-200">
                     <h3 className="text-xs font-bold text-primary-600 uppercase tracking-widest flex items-center gap-2">
                       <Edit className="h-3 w-3" />
                       Editing Payment
                     </h3>
-                    
+
                     <div className="space-y-3">
                       <div>
                         <label className="text-xs text-secondary-500">Payment Date</label>
-                        <input 
-                          type="date" 
+                        <input
+                          type="date"
                           className="input w-full text-sm py-1"
                           value={editForm.payment_date}
-                          onChange={e => setEditForm({...editForm, payment_date: e.target.value})}
+                          onChange={e => setEditForm({ ...editForm, payment_date: e.target.value })}
                         />
                       </div>
                       <div>
                         <label className="text-xs text-secondary-500">Method</label>
-                        <select 
+                        <select
                           className="input w-full text-sm py-1"
                           value={editForm.payment_method}
-                          onChange={e => setEditForm({...editForm, payment_method: e.target.value})}
+                          onChange={e => setEditForm({ ...editForm, payment_method: e.target.value })}
                         >
                           <option value="Cash">Cash</option>
                           <option value="Online Transfer">Online Transfer</option>
@@ -859,12 +884,12 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       </div>
                       <div>
                         <label className="text-xs text-secondary-500">Amount (RM)</label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           step="0.01"
                           className="input w-full text-sm py-1 font-bold"
                           value={editForm.amount}
-                          onChange={e => setEditForm({...editForm, amount: e.target.value})}
+                          onChange={e => setEditForm({ ...editForm, amount: e.target.value })}
                         />
                       </div>
                     </div>
@@ -873,7 +898,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       <button onClick={handleSaveChanges} className="flex-1 btn-primary py-1.5 text-xs">Save</button>
                       <button onClick={() => setIsEditing(false)} className="flex-1 btn-secondary py-1.5 text-xs">Cancel</button>
                     </div>
-                   </div>
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     <h3 className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Transaction Info</h3>
@@ -896,7 +921,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           <p className="text-xs text-secondary-500">Method</p>
                           <p className="text-sm font-medium text-secondary-900">{viewingPayment.payment_method}</p>
                           {viewingPayment.issuer_bank && (
-                             <p className="text-xs text-secondary-500">{viewingPayment.issuer_bank}</p>
+                            <p className="text-xs text-secondary-500">{viewingPayment.issuer_bank}</p>
                           )}
                         </div>
                       </div>
@@ -907,7 +932,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           <p className="text-sm font-bold text-secondary-900">RM {parseFloat(viewingPayment.amount).toLocaleString()}</p>
                         </div>
                       </div>
-                      
+
                       {/* Detailed info for verified payments */}
                       {activeTab === "verified" && (
                         <>
@@ -976,10 +1001,10 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     </button>
                   </div>
                 )}
-                
+
                 {activeTab === "pending" && viewingPayment.status === 'pending' && (
                   <div className="flex gap-2 pt-4">
-                     <button
+                    <button
                       onClick={() => {
                         handleVerify(viewingPayment.id);
                         setIsViewModalOpen(false);
@@ -989,7 +1014,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       <CheckCircle className="h-5 w-5" />
                       Verify
                     </button>
-                     <button
+                    <button
                       onClick={() => {
                         handleDeleteSubmission(viewingPayment.id);
                         setIsViewModalOpen(false);
@@ -1007,7 +1032,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 {/* AI Analysis Overlay */}
                 <div className="absolute top-4 right-4 z-40 flex flex-col gap-2 max-w-xs">
                   {!aiData && !analyzing ? (
-                    <button 
+                    <button
                       onClick={handleAIAnalysis}
                       className="btn-primary bg-primary-600 hover:bg-primary-500 shadow-lg border-none py-2 px-4 flex items-center gap-2 group transition-all"
                     >
@@ -1069,7 +1094,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         </div>
                       </div>
 
-                      <button 
+                      <button
                         onClick={applyAIData}
                         className="w-full mt-2 btn-secondary bg-primary-50 border-primary-200 text-primary-700 hover:bg-primary-100 py-2 flex items-center justify-center gap-2 text-xs font-bold"
                       >
@@ -1081,7 +1106,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 </div>
 
                 {viewingPayment.attachment && viewingPayment.attachment.length > 0 ? (
-                  <div 
+                  <div
                     className="relative cursor-none group h-full w-full flex items-center justify-center"
                     onMouseMove={handleMouseMove}
                     onMouseEnter={() => setShowMagnifier(true)}
@@ -1093,11 +1118,11 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       alt="Payment Attachment"
                       className="max-h-full max-w-full object-contain shadow-2xl transition-opacity group-hover:opacity-90"
                     />
-                    
+
                     {showMagnifier && (
                       <>
                         {/* Custom Cursor / Magnifier Ring */}
-                        <div 
+                        <div
                           className="pointer-events-none absolute border-2 border-primary-500 rounded-full shadow-2xl z-50 overflow-hidden"
                           style={{
                             left: `${cursorPos.x - 75}px`,
