@@ -544,12 +544,25 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
           <table className="table">
             <thead>
               <tr>
-                <th>Full Payment Date</th>
-                <th>Customer / Agent</th>
-                <th>Total Amount</th>
-                <th>Status</th>
-                <th>Invoice # / Remark</th>
-                <th className="text-right">Actions</th>
+                {activeTab === "fully-paid" ? (
+                  <>
+                    <th>Full Payment Date</th>
+                    <th>Customer / Agent</th>
+                    <th>Total Amount</th>
+                    <th>Status</th>
+                    <th>Invoice # / Remark</th>
+                    <th className="text-right">Actions</th>
+                  </>
+                ) : (
+                  <>
+                    <th>Date</th>
+                    <th>Agent / Customer</th>
+                    <th>Amount</th>
+                    <th>Method</th>
+                    <th>Status / Remark</th>
+                    <th className="text-right">Actions</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -569,15 +582,26 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         <CreditCard className="h-8 w-8 text-secondary-400" />
                       </div>
                       <div>
-                        <p className="font-medium text-secondary-900 mb-1">No invoices found</p>
+                        <p className="font-medium text-secondary-900 mb-1">
+                          {activeTab === "fully-paid" ? "No invoices found" : "No payments found"}
+                        </p>
                         <p className="text-sm text-secondary-600">
-                          {search ? "Try adjusting your search criteria" : "No fully paid invoices"}
+                          {search 
+                            ? "Try adjusting your search criteria" 
+                            : activeTab === "fully-paid" 
+                              ? "No fully paid invoices" 
+                              : activeTab === "pending" 
+                                ? "No pending payments" 
+                                : activeTab === "deleted" 
+                                  ? "No deleted submissions" 
+                                  : "No verified payments"}
                         </p>
                       </div>
                     </div>
                   </td>
                 </tr>
-              ) : (
+              ) : activeTab === "fully-paid" ? (
+                // Fully Paid Invoices View
                 filteredAndSortedPayments.map((invoice) => (
                   <tr key={invoice.id}>
                     <td>
@@ -633,6 +657,89 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           <Eye className="h-4 w-4" />
                           View Invoice
                         </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                // Payment Views (Pending/Verified/Deleted)
+                filteredAndSortedPayments.map((payment) => (
+                  <tr key={payment.id}>
+                    <td>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-secondary-900">
+                          {formatDate(payment.payment_date || payment.created_at)}
+                        </span>
+                        <span className="text-xs text-secondary-500">
+                          {formatTime(payment.payment_date || payment.created_at)}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-secondary-900">
+                          <User className="h-3.5 w-3.5 text-primary-500" />
+                          {payment.agent_name || "Unknown Agent"}
+                        </div>
+                        <div className="text-xs text-secondary-500 pl-5">
+                          Cust: {payment.customer_name || "N/A"}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="text-sm font-bold text-secondary-900">
+                        RM {parseFloat(payment.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="flex flex-col gap-1">
+                        <span className="px-2.5 py-1 bg-secondary-100 text-secondary-700 rounded-full text-xs font-medium w-fit">
+                          {payment.payment_method || "N/A"}
+                        </span>
+                        {payment.issuer_bank && (
+                          <span className="text-xs text-secondary-500">
+                            Bank: {payment.issuer_bank}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="flex flex-col gap-1">
+                        {(activeTab === "pending" || activeTab === "deleted") && (
+                          <span className={cn(
+                            "w-fit px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                            payment.status === 'pending' ? "bg-yellow-100 text-yellow-700" : 
+                            payment.status === 'deleted' ? "bg-red-100 text-red-700" :
+                            "bg-secondary-100 text-secondary-700"
+                          )}>
+                            {payment.status || 'pending'}
+                          </span>
+                        )}
+                        <p className="text-xs text-secondary-600 italic line-clamp-1 max-w-[200px]">
+                          {payment.remark || "No remark"}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => handleViewClick(payment)}
+                          className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </button>
+                        {activeTab === "pending" && payment.status === 'pending' && (
+                          <>
+                            <button 
+                              onClick={() => handleDeleteSubmission(payment.id)}
+                              className="btn-ghost text-red-600 hover:text-red-700 flex items-center gap-1.5"
+                              title="Delete Submission"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -1,0 +1,25 @@
+--- GLOBAL Payment Table Scan ---
+Total Records in 'payment' table: 2665
+Records WITHOUT Attachment (including empty strings): 68
+
+--- Status Breakdown ---
+Verified: NO | Total: 134 | No Attachment: 64 | (47.76%)
+Verified: YES | Total: 2531 | No Attachment: 4 | (0.16%)
+
+--- Submitted Payment Table Scan ---
+Status: deleted | Total: 10 | No Attachment: 0 | (0.00%)
+Status: NULL | Total: 13 | No Attachment: 0 | (0.00%)
+Status: verified | Total: 22 | No Attachment: 0 | (0.00%)
+Status: pending | Total: 3 | No Attachment: 0 | (0.00%)
+
+--- Top 10 Records with no attachment (Payment Table) ---
+ID: 1770080258156x793511522041856000 | Amt: 27300 | Date: Mon Feb 02 2026 00:00:00 GMT+0800 (China Standard Time) | Ver: null | Attachments: null
+ID: 1770016853793x782661317788434400 | Amt: 1120 | Date: Sat Jan 31 2026 00:00:00 GMT+0800 (China Standard Time) | Ver: null | Attachments: null
+ID: 1769995012522x836498338668347400 | Amt: 1950 | Date: Sat Jan 31 2026 00:00:00 GMT+0800 (China Standard Time) | Ver: null | Attachments: null
+ID: 1770083579992x666549723018821600 | Amt: 1450 | Date: Sat Jan 31 2026 00:00:00 GMT+0800 (China Standard Time) | Ver: null | Attachments: null
+ID: 1770016941295x972974799683321900 | Amt: 21049.55 | Date: Sat Jan 31 2026 00:00:00 GMT+0800 (China Standard Time) | Ver: null | Attachments: null
+ID: 1770016896283x332417187040722940 | Amt: 1700 | Date: Sat Jan 31 2026 00:00:00 GMT+0800 (China Standard Time) | Ver: null | Attachments: null
+ID: 1770017814120x961356463933751300 | Amt: 1050 | Date: Sat Jan 31 2026 00:00:00 GMT+0800 (China Standard Time) | Ver: null | Attachments: null
+ID: 1770016784143x988865326494515200 | Amt: 1083 | Date: Sat Jan 31 2026 00:00:00 GMT+0800 (China Standard Time) | Ver: null | Attachments: null
+ID: 1770080751889x757989509591203800 | Amt: 1290 | Date: Sat Jan 31 2026 00:00:00 GMT+0800 (China Standard Time) | Ver: null | Attachments: null
+ID: 1770080140766x989996746129014800 | Amt: 2100 | Date: Fri Jan 30 2026 00:00:00 GMT+0800 (China Standard Time) | Ver: null | Attachments: null

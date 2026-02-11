@@ -18,6 +18,18 @@ import { fetchBubbleRecordByTypeName, fetchAllBubbleIds } from "./fetch-helpers"
 import { getInvoiceTotalWithFallback } from "./utils";
 
 /**
+ * Helper to parse Bubble attachment field (usually a string URL or "//" empty ref)
+ */
+function parseAttachment(value: any): string[] | null {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed === "//") return null;
+  // If it starts with // (common in Bubble), we keep it as is or add https:
+  // The UI usually handles // URLs, but storing as an array as per schema
+  return [trimmed];
+}
+
+/**
  * ============================================================================
  * FUNCTION: syncPaymentsFromBubble
  * ============================================================================
@@ -142,6 +154,7 @@ export async function syncPaymentsFromBubble() {
       linked_agent: b["Linked Agent"],
       linked_customer: b["Linked Customer"],
       linked_invoice: b["Linked Invoice"],
+      attachment: b.Attachment ? [b.Attachment] : null,
       created_by: b["Created By"],
       created_date: b["Created Date"] ? new Date(b["Created Date"]) : null,
       modified_date: new Date(b["Modified Date"]),
@@ -158,6 +171,7 @@ export async function syncPaymentsFromBubble() {
       linked_agent: b["Linked Agent"],
       linked_customer: b["Linked Customer"],
       linked_invoice: b["Linked Invoice"],
+      attachment: b.Attachment ? [b.Attachment] : null,
       created_by: b["Created By"],
       created_date: b["Created Date"] ? new Date(b["Created Date"]) : null,
       modified_date: new Date(b["Modified Date"]),
