@@ -22,7 +22,7 @@ interface SedaRegistration {
   percent_of_total_amount: number;
   completed_count: number;
   is_form_completed: boolean;
-  has_5_percent: boolean;
+  has_required_payment: boolean;
   seda_profile_status: string | null;
   seda_profile_id: string | null;
 }
@@ -314,7 +314,7 @@ export default function SedaListPage() {
                       <tbody className="divide-y divide-slate-100">
                         {group.registrations.map((seda) => {
                           const percent = seda.percent_of_total_amount;
-                          const isReady = seda.is_form_completed && seda.has_5_percent;
+                          const isReady = seda.is_form_completed && seda.has_required_payment;
 
                           return (
                             <tr key={seda.bubble_id} className="hover:bg-slate-50 transition-colors">
@@ -361,10 +361,10 @@ export default function SedaListPage() {
                               <td className="px-6 py-4">
                                 <div className="flex flex-col gap-1">
                                   <div className="flex items-center justify-between text-[10px] font-bold">
-                                    <span className={percent >= 5 ? "text-emerald-600" : "text-red-600"}>
+                                    <span className={percent >= 4 ? "text-emerald-600" : "text-red-600"}>
                                       {percent.toFixed(1)}%
                                     </span>
-                                    {percent >= 5 && <span className="text-emerald-600">✓ 5%</span>}
+                                    {percent >= 4 && <span className="text-emerald-600">✓ 4%</span>}
                                   </div>
                                   <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                     <div

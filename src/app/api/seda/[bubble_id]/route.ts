@@ -49,7 +49,7 @@ export async function GET(
     const { seda, customer_name, invoice_number, invoice_total, invoice_percent_paid, invoice_id } = result[0];
 
     // Calculate checkpoints
-    const has5Percent = parseFloat(invoice_percent_paid || "0") >= 5;
+    const hasRequiredPayment = parseFloat(invoice_percent_paid || "0") >= 4;
 
     const checkpoints = {
       name: !!customer_name,
@@ -58,7 +58,7 @@ export async function GET(
       tnb_bill: !!(seda.tnb_bill_1 && seda.tnb_bill_2 && seda.tnb_bill_3),
       tnb_meter: !!seda.tnb_meter,
       emergency_contact: !!(seda.e_contact_name && seda.e_contact_no && seda.e_contact_relationship),
-      payment_5percent: has5Percent,
+      payment_required: hasRequiredPayment,
     };
 
     const completed_count = Object.values(checkpoints).filter(Boolean).length;

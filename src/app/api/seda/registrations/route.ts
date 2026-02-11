@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))
       .leftJoin(users, eq(sedaRegistration.agent, users.bubble_id))
       .leftJoin(agents, eq(users.linked_agent_profile, agents.bubble_id))
-      .orderBy(desc(sql`COALESCE(${sedaRegistration.modified_date}, ${sedaRegistration.updated_at}, ${sedaRegistration.created_date})`))
+      .orderBy(desc(sedaRegistration.created_date))
       .limit(1000);
 
     // Fetch invoice data for payment checkpoint
@@ -97,9 +97,9 @@ export async function GET(request: NextRequest) {
       const hasBills = !!(seda.tnb_bill_1 && seda.tnb_bill_2 && seda.tnb_bill_3);
       const hasMeter = !!seda.tnb_meter;
       const hasEmergency = !!(seda.e_contact_name && seda.e_contact_no && seda.e_contact_relationship);
-      const has5Percent = (invData?.percent_paid || 0) >= 5;
+      const hasRequiredPayment = (invData?.percent_paid || 0) >= 4;
 
-      const completed_count = [hasName, hasAddress, hasMykad, hasBills, hasMeter, hasEmergency, has5Percent].filter(Boolean).length;
+      const completed_count = [hasName, hasAddress, hasMykad, hasBills, hasMeter, hasEmergency, hasRequiredPayment].filter(Boolean).length;
       const is_form_completed = completed_count === 7;
 
       return {
@@ -108,12 +108,12 @@ export async function GET(request: NextRequest) {
         percent_of_total_amount: invData?.percent_paid || 0,
         completed_count,
         is_form_completed,
-        has_5_percent: has5Percent
+        has_required_payment: hasRequiredPayment
       };
     });
 
-    // Filter in JavaScript
-    let filtered = enrichedSeda;
+    // Filter in JavaScript - MUST ONLY list when percent_of_total_payment >= 4
+    let filtered = enrichedSeda.filter(s => s.percent_of_total_amount >= 4);
 
     if (statusFilter && statusFilter !== "all") {
       filtered = filtered.filter(s => s.seda_status === statusFilter);

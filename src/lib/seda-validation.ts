@@ -10,7 +10,7 @@ export interface SedaCheckpointResult {
   tnb_bill: boolean;
   tnb_meter: boolean;
   emergency_contact: boolean;
-  payment_5percent: boolean;
+  payment_required: boolean;
 }
 
 export interface SedaCheckpointDetails {
@@ -36,7 +36,7 @@ export async function validateSedaCheckpoints(
     tnb_bill: validateTnbBill(sedaData),
     tnb_meter: validateTnbMeter(sedaData),
     emergency_contact: validateEmergencyContact(sedaData),
-    payment_5percent: validatePayment5Percent(invoiceData, paymentsData),
+    payment_required: validatePaymentRequired(invoiceData, paymentsData),
   };
 
   const completed_count = Object.values(checkpoints).filter(Boolean).length;
@@ -127,11 +127,11 @@ function validateEmergencyContact(seda: any): boolean {
 }
 
 /**
- * Checkpoint 7: Payment >= 5%
- * Validates if payment percentage is >= 5% of invoice total
+ * Checkpoint 7: Payment >= 4%
+ * Validates if payment percentage is >= 4% of invoice total
  * Uses first invoice only
  */
-function validatePayment5Percent(invoice: any, payments: any[]): boolean {
+function validatePaymentRequired(invoice: any, payments: any[]): boolean {
   if (!invoice) return false;
 
   const invoiceTotal = parseFloat(invoice.total_amount || "0");
@@ -146,7 +146,7 @@ function validatePayment5Percent(invoice: any, payments: any[]): boolean {
   // Calculate percentage
   const paymentPercentage = (totalPaid / invoiceTotal) * 100;
 
-  return paymentPercentage >= 5;
+  return paymentPercentage >= 4;
 }
 
 /**
@@ -159,7 +159,7 @@ export const CHECKPOINT_LABELS = {
   tnb_bill: "TNB Bills (3 months)",
   tnb_meter: "TNB Meter",
   emergency_contact: "Emergency Contact",
-  payment_5percent: "Payment ≥5%",
+  payment_required: "Payment ≥4%",
 };
 
 /**
@@ -172,5 +172,5 @@ export const CHECKPOINT_ICONS = {
   tnb_bill: "📄",
   tnb_meter: "⚡",
   emergency_contact: "📞",
-  payment_5percent: "💰",
+  payment_required: "💰",
 };

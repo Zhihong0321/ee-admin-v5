@@ -12,7 +12,7 @@ interface ProgressBarProps {
     tnb_bill: boolean;
     tnb_meter: boolean;
     emergency_contact: boolean;
-    payment_5percent: boolean;
+    payment_required: boolean;
   };
   showLabel?: boolean;
   size?: "sm" | "md" | "lg";
@@ -73,7 +73,7 @@ export function ProgressBar({
           <CheckpointIcon label="TNB" complete={checkpoints.tnb_bill} />
           <CheckpointIcon label="Meter" complete={checkpoints.tnb_meter} />
           <CheckpointIcon label="Emergency" complete={checkpoints.emergency_contact} />
-          <CheckpointIcon label="Payment" complete={checkpoints.payment_5percent} />
+          <CheckpointIcon label="Payment" complete={checkpoints.payment_required} />
         </div>
       )}
     </div>
@@ -92,11 +92,10 @@ function CheckpointIcon({ label, complete }: CheckpointIconProps) {
       title={label}
     >
       <div
-        className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${
-          complete
+        className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${complete
             ? "bg-green-500 text-white"
             : "bg-gray-300 text-gray-600"
-        }`}
+          }`}
       >
         {complete ? "✓" : "✗"}
       </div>
