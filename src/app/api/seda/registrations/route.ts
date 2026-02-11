@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
 
       return {
         ...seda,
+        seda_status: seda.seda_status || "Pending", // Treat null as Pending
         percent_of_total_amount: parseFloat(seda.percent_of_total_amount || "0"),
         completed_count,
         is_form_completed,
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
     // Filter by search/status remaining in JS
     let filtered = enrichedSeda;
 
-    if (statusFilter && statusFilter !== "all") {
+    if (statusFilter && statusFilter.toLowerCase() !== "all") {
       filtered = filtered.filter(s => s.seda_status === statusFilter);
     }
 
@@ -107,14 +108,15 @@ export async function GET(request: NextRequest) {
       filtered = filtered.filter(s =>
         (s.installation_address?.toLowerCase().includes(searchQuery)) ||
         (s.ic_no?.toLowerCase().includes(searchQuery)) ||
-        (s.email?.toLowerCase().includes(searchQuery))
+        (s.email?.toLowerCase().includes(searchQuery)) ||
+        (s.customer_name?.toLowerCase().includes(searchQuery))
       );
     }
 
     // Group by seda_status
     const grouped: Record<string, any[]> = {};
     filtered.forEach(seda => {
-      const status = seda.seda_status || "null";
+      const status = seda.seda_status || "Pending";
       if (!grouped[status]) grouped[status] = [];
       grouped[status].push(seda);
     });
@@ -125,9 +127,10 @@ export async function GET(request: NextRequest) {
       registrations: sedas
     }));
 
+    // Sorting of groups: Pending first
     response.sort((a, b) => {
-      if (a.seda_status === "null") return -1;
-      if (b.seda_status === "null") return 1;
+      if (a.seda_status === "Pending") return -1;
+      if (b.seda_status === "Pending") return 1;
       return a.seda_status.localeCompare(b.seda_status);
     });
 
