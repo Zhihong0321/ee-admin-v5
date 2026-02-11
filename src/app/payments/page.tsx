@@ -544,25 +544,31 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
           <table className="table">
             <thead>
               <tr>
+                <th>
+                  {activeTab === "fully-paid" 
+                    ? "Full Payment Date" 
+                    : activeTab === "verified" 
+                      ? "Payment Date" 
+                      : activeTab === "pending" || activeTab === "deleted" 
+                        ? "Created On" 
+                        : "Date"}
+                </th>
                 {activeTab === "fully-paid" ? (
                   <>
-                    <th>Full Payment Date</th>
                     <th>Customer / Agent</th>
                     <th>Total Amount</th>
                     <th>Status</th>
                     <th>Invoice # / Remark</th>
-                    <th className="text-right">Actions</th>
                   </>
                 ) : (
                   <>
-                    <th>Date</th>
                     <th>Agent / Customer</th>
                     <th>Amount</th>
                     <th>Method</th>
                     <th>Status / Remark</th>
-                    <th className="text-right">Actions</th>
                   </>
                 )}
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -607,7 +613,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     <td>
                       <div className="flex flex-col">
                         <span className="font-medium text-secondary-900">
-                          {formatDate(invoice.full_payment_date || invoice.last_payment_date)}
+                          Full Payment Date: {formatDate(invoice.full_payment_date || invoice.last_payment_date)}
                         </span>
                         <span className="text-xs text-secondary-500">
                           {formatTime(invoice.full_payment_date || invoice.last_payment_date)}
@@ -668,7 +674,11 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     <td>
                       <div className="flex flex-col">
                         <span className="font-medium text-secondary-900">
-                          {formatDate(payment.payment_date || payment.created_at)}
+                          {activeTab === "verified" 
+                            ? `Payment Date: ${formatDate(payment.payment_date || payment.created_at)}`
+                            : activeTab === "pending" || activeTab === "deleted"
+                              ? `Created On: ${formatDate(payment.created_at || payment.payment_date)}`
+                              : `${formatDate(payment.payment_date || payment.created_at)}`}
                         </span>
                         <span className="text-xs text-secondary-500">
                           {formatTime(payment.payment_date || payment.created_at)}

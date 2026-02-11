@@ -215,18 +215,15 @@ export default function SedaListPage() {
                 `}
               >
                 <div className="flex items-center gap-3">
-                  <tab.icon className={`w-5 h-5 flex-shrink-0 ${
-                    activeTab === tab.id ? 'text-slate-900' : 'text-slate-400'
-                  }`} />
+                  <tab.icon className={`w-5 h-5 flex-shrink-0 ${activeTab === tab.id ? 'text-slate-900' : 'text-slate-400'
+                    }`} />
                   <div>
-                    <div className={`text-sm font-semibold ${
-                      activeTab === tab.id ? 'text-slate-900' : 'text-slate-600'
-                    }`}>
+                    <div className={`text-sm font-semibold ${activeTab === tab.id ? 'text-slate-900' : 'text-slate-600'
+                      }`}>
                       {tab.label}
                     </div>
-                    <div className={`text-xs ${
-                      activeTab === tab.id ? 'text-slate-500' : 'text-slate-400'
-                    }`}>
+                    <div className={`text-xs ${activeTab === tab.id ? 'text-slate-500' : 'text-slate-400'
+                      }`}>
                       {tab.description}
                     </div>
                   </div>
@@ -336,9 +333,8 @@ export default function SedaListPage() {
                       {group.count}
                     </span>
                   </div>
-                  <span className={`text-slate-400 transition-transform ${
-                    expandedGroups.has(group.group) ? 'rotate-180' : ''
-                  }`}>
+                  <span className={`text-slate-400 transition-transform ${expandedGroups.has(group.group) ? 'rotate-180' : ''
+                    }`}>
                     ▼
                   </span>
                 </button>
@@ -410,9 +406,8 @@ export default function SedaListPage() {
                                   </div>
                                   <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                     <div
-                                      className={`h-full transition-all ${
-                                        invoice.completed_count === 7 ? "bg-emerald-500" : "bg-blue-400"
-                                      }`}
+                                      className={`h-full transition-all ${invoice.completed_count === 7 ? "bg-emerald-500" : "bg-blue-400"
+                                        }`}
                                       style={{ width: `${(invoice.completed_count / 7) * 100}%` }}
                                     />
                                   </div>
@@ -491,9 +486,9 @@ export default function SedaListPage() {
                                   >
                                     <Receipt className="w-4 h-4" />
                                   </a>
-                                  {invoice.linked_seda_registration ? (
+                                  {invoice.seda_bubble_id ? (
                                     <a
-                                      href={`/seda/${invoice.linked_seda_registration}`}
+                                      href={`/seda/${invoice.seda_bubble_id}`}
                                       className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                                       title="View SEDA"
                                     >
@@ -501,7 +496,7 @@ export default function SedaListPage() {
                                     </a>
                                   ) : (
                                     <a
-                                      href={`https://calculator.atap.solar/new?invoice=${invoice.invoice_bubble_id}`}
+                                      href={`https://calculator.atap.solar/seda?invoice=${invoice.invoice_bubble_id}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="px-3 py-2 text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg border border-emerald-200 transition-colors"

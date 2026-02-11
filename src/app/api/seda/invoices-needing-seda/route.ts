@@ -91,7 +91,10 @@ export async function GET(request: NextRequest) {
         agent_name: agents.name,
       })
       .from(invoices)
-      .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
+      .leftJoin(sedaRegistration, or(
+        eq(invoices.linked_seda_registration, sedaRegistration.bubble_id),
+        sql`${invoices.bubble_id} = ANY(${sedaRegistration.linked_invoice})`
+      ))
       .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
       .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
       .where(whereCondition)
