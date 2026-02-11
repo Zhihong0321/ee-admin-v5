@@ -351,7 +351,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
         <div className="space-y-1">
           <h1 className="text-3xl font-bold text-secondary-900">Payment Management</h1>
           <p className="text-secondary-600">
-            Verify agent submitted payments and view payment history.
+            Manage payments and view fully paid invoices.
           </p>
         </div>
         
@@ -443,7 +443,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search by agent, customer, or remark..."
+                placeholder="Search by customer, agent, or invoice number..."
                 className="input pl-12 pr-4"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -544,11 +544,11 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
           <table className="table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Agent / Customer</th>
-                <th>Amount</th>
-                <th>Method</th>
-                <th>Status / Remark</th>
+                <th>Full Payment Date</th>
+                <th>Customer / Agent</th>
+                <th>Total Amount</th>
+                <th>Status</th>
+                <th>Invoice # / Remark</th>
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
@@ -569,24 +569,24 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         <CreditCard className="h-8 w-8 text-secondary-400" />
                       </div>
                       <div>
-                        <p className="font-medium text-secondary-900 mb-1">No payments found</p>
+                        <p className="font-medium text-secondary-900 mb-1">No invoices found</p>
                         <p className="text-sm text-secondary-600">
-                          {search ? "Try adjusting your search criteria" : "No payments in this category"}
+                          {search ? "Try adjusting your search criteria" : "No fully paid invoices"}
                         </p>
                       </div>
                     </div>
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedPayments.map((payment) => (
-                  <tr key={payment.id}>
+                filteredAndSortedPayments.map((invoice) => (
+                  <tr key={invoice.id}>
                     <td>
                       <div className="flex flex-col">
                         <span className="font-medium text-secondary-900">
-                          {formatDate(payment.payment_date || payment.created_at)}
+                          {formatDate(invoice.full_payment_date || invoice.last_payment_date)}
                         </span>
                         <span className="text-xs text-secondary-500">
-                          {formatTime(payment.payment_date || payment.created_at)}
+                          {formatTime(invoice.full_payment_date || invoice.last_payment_date)}
                         </span>
                       </div>
                     </td>
@@ -594,67 +594,45 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5 text-sm font-semibold text-secondary-900">
                           <User className="h-3.5 w-3.5 text-primary-500" />
-                          {payment.agent_name || "Unknown Agent"}
+                          {invoice.customer_name || "Unknown Customer"}
                         </div>
                         <div className="text-xs text-secondary-500 pl-5">
-                          Cust: {payment.customer_name || "N/A"}
+                          Agent: {invoice.agent_name || "N/A"}
                         </div>
                       </div>
                     </td>
                     <td>
                       <div className="text-sm font-bold text-secondary-900">
-                        RM {parseFloat(payment.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        RM {parseFloat(invoice.total_amount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-xs text-secondary-500">
+                        Paid: {parseFloat(invoice.percent_of_total_amount || '0').toFixed(1)}%
                       </div>
                     </td>
                     <td>
+                      <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium w-fit">
+                        FULLY PAID
+                      </span>
+                    </td>
+                    <td>
                       <div className="flex flex-col gap-1">
-                        <span className="px-2.5 py-1 bg-secondary-100 text-secondary-700 rounded-full text-xs font-medium w-fit">
-                          {payment.payment_method || "N/A"}
+                        <span className="text-xs font-medium text-secondary-900">
+                          {invoice.invoice_number || "N/A"}
                         </span>
-                        {payment.issuer_bank && (
-                          <span className="text-xs text-secondary-500">
-                            Bank: {payment.issuer_bank}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex flex-col gap-1">
-                        {(activeTab === "pending" || activeTab === "deleted") && (
-                          <span className={cn(
-                            "w-fit px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-                            payment.status === 'pending' ? "bg-yellow-100 text-yellow-700" : 
-                            payment.status === 'deleted' ? "bg-red-100 text-red-700" :
-                            "bg-secondary-100 text-secondary-700"
-                          )}>
-                            {payment.status || 'pending'}
-                          </span>
-                        )}
                         <p className="text-xs text-secondary-600 italic line-clamp-1 max-w-[200px]">
-                          {payment.remark || "No remark"}
+                          {invoice.remark || "No remark"}
                         </p>
                       </div>
                     </td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button 
-                          onClick={() => handleViewClick(payment)}
+                          onClick={() => handleViewInvoice(invoice.bubble_id, invoice.share_token)}
                           className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
                         >
                           <Eye className="h-4 w-4" />
-                          View
+                          View Invoice
                         </button>
-                        {activeTab === "pending" && payment.status === 'pending' && (
-                          <>
-                            <button 
-                              onClick={() => handleDeleteSubmission(payment.id)}
-                              className="btn-ghost text-red-600 hover:text-red-700 flex items-center gap-1.5"
-                              title="Delete Submission"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </>
-                        )}
                       </div>
                     </td>
                   </tr>
