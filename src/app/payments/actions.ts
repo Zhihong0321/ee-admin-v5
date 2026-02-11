@@ -112,6 +112,52 @@ export async function getVerifiedPayments(search?: string) {
   }
 }
 
+/**
+ * Get fully paid invoices with payment details
+ */
+export async function getFullyPaidInvoices(search?: string) {
+  try {
+    const filters = search
+      ? or(
+          ilike(invoices.invoice_number, `%${search}%`),
+          ilike(customers.name, `%${search}%`),
+          ilike(agents.name, `%${search}%`)
+        )
+      : undefined;
+
+    const whereClause = filters 
+      ? and(eq(invoices.paid, true), filters)
+      : eq(invoices.paid, true);
+
+    const data = await db
+      .select({
+        id: invoices.id,
+        bubble_id: invoices.bubble_id,
+        invoice_number: invoices.invoice_number,
+        total_amount: invoices.total_amount,
+        percent_of_total_amount: invoices.percent_of_total_amount,
+        full_payment_date: invoices.full_payment_date,
+        last_payment_date: invoices.last_payment_date,
+        paid: invoices.paid,
+        customer_name: customers.name,
+        agent_name: agents.name,
+        created_at: invoices.created_at,
+        updated_at: invoices.updated_at,
+      })
+      .from(invoices)
+      .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
+      .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
+      .where(whereClause)
+      .orderBy(desc(invoices.full_payment_date), desc(invoices.updated_at))
+      .limit(50);
+
+    return data;
+  } catch (error) {
+    console.error("Database error in getFullyPaidInvoices:", error);
+    throw error;
+  }
+}
+
 export async function getInvoiceDetailsByBubbleId(bubbleId: string) {
   try {
     // Try to parse as integer for invoice_id search
@@ -265,6 +311,14 @@ export async function analyzePaymentAttachment(attachmentUrl: string) {
   }
 }
 
+/**
+ * Enhanced verifyPayment function that:
+ * 1. Inserts payment into verified table
+ * 2. Updates submitted payment status
+ * 3. Recalculates invoice payment percentage
+ * 4. Checks if payment completes full payment
+ * 5. Updates invoice.paid and full_payment_date if applicable
+ */
 export async function verifyPayment(submittedPaymentId: number, adminId: string) {
   try {
     // 1. Get the submitted payment data
@@ -304,17 +358,95 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
       log: p.log, // Preserve log from submission
     });
 
-    // 3. Update status in submitted_payments or delete it
-    // For now, let's update status to 'verified'
+    // 3. Update status in submitted_payments
     await db
       .update(submitted_payments)
       .set({ status: 'verified', updated_at: new Date(), verified_by: adminId })
       .where(eq(submitted_payments.id, submittedPaymentId));
 
+    // 4. If this payment is linked to an invoice, recalculate payment status
+    if (p.linked_invoice) {
+      await recalculateInvoicePaymentStatus(p.linked_invoice, adminId);
+    }
+
     revalidatePath("/payments");
     return { success: true };
   } catch (error) {
     console.error("Database error in verifyPayment:", error);
+    throw error;
+  }
+}
+
+/**
+ * Recalculate invoice payment percentage and check for full payment
+ * @param invoiceBubbleId - The bubble_id of the invoice to recalculate
+ * @param triggeredBy - Who triggered this recalculation (for logging)
+ */
+async function recalculateInvoicePaymentStatus(invoiceBubbleId: string, triggeredBy: string) {
+  try {
+    // 1. Get the invoice
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.bubble_id, invoiceBubbleId)
+    });
+
+    if (!invoice) {
+      console.warn(`Invoice ${invoiceBubbleId} not found for payment recalculation`);
+      return;
+    }
+
+    const totalAmount = parseFloat(invoice.total_amount || '0');
+    
+    // Skip if total_amount is 0 or null
+    if (totalAmount <= 0) {
+      console.warn(`Invoice ${invoiceBubbleId}: total_amount is ${totalAmount}, skipping recalculation`);
+      return;
+    }
+
+    // 2. Get all verified payments linked to this invoice
+    const linkedPayments = await db
+      .select({ amount: payments.amount, payment_date: payments.payment_date })
+      .from(payments)
+      .where(eq(payments.linked_invoice, invoiceBubbleId));
+
+    // 3. Sum up all payments
+    let totalPaid = 0;
+    let latestPaymentDate: Date | null = null;
+    
+    for (const payment of linkedPayments) {
+      const amount = parseFloat(payment.amount || '0');
+      totalPaid += amount;
+      
+      if (payment.payment_date) {
+        const paymentDate = new Date(payment.payment_date);
+        if (!latestPaymentDate || paymentDate > latestPaymentDate) {
+          latestPaymentDate = paymentDate;
+        }
+      }
+    }
+
+    // 4. Calculate percentage
+    const percentage = (totalPaid / totalAmount) * 100;
+    const isFullyPaid = totalPaid >= totalAmount; // Full payment when sum >= total_amount
+    
+    // 5. Determine full payment date
+    // Use the latest payment date if fully paid, otherwise null
+    const fullPaymentDate = isFullyPaid && latestPaymentDate ? latestPaymentDate : null;
+
+    // 6. Update invoice with new values
+    await db.update(invoices)
+      .set({
+        percent_of_total_amount: percentage.toString(),
+        paid: isFullyPaid,
+        full_payment_date: fullPaymentDate,
+        last_payment_date: latestPaymentDate,
+        updated_at: new Date()
+      })
+      .where(eq(invoices.bubble_id, invoiceBubbleId));
+
+    console.log(`Invoice ${invoiceBubbleId}: ${percentage.toFixed(2)}% paid (${isFullyPaid ? 'FULLY PAID' : 'PARTIAL'}), triggered by ${triggeredBy}`);
+
+  } catch (error) {
+    console.error(`Error recalculating payment status for invoice ${invoiceBubbleId}:`, error);
     throw error;
   }
 }

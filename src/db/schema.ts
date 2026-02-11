@@ -69,6 +69,9 @@ export const invoices = pgTable('invoice', {
 
   // Calculated Fields (synced from Bubble)
   percent_of_total_amount: numeric('percent_of_total_amount'), // Payment percentage (0-100)
+  paid: boolean('paid').default(false), // Whether invoice is fully paid
+  full_payment_date: timestamp('full_payment_date', { withTimezone: true }), // Date when invoice was fully paid
+  last_payment_date: timestamp('last_payment_date', { withTimezone: true }), // Date of last payment received
 
   // Legacy Columns (kept for backward compatibility)
   amount: numeric('amount'),

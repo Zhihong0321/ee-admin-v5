@@ -32,6 +32,7 @@ import {
 import { 
   getSubmittedPayments, 
   getVerifiedPayments, 
+  getFullyPaidInvoices, 
   verifyPayment, 
   getInvoiceDetailsByBubbleId, 
   triggerPaymentSync, 
@@ -62,9 +63,10 @@ function formatTime(dateInput: string | Date | null | undefined): string {
 }
 
 export default function PaymentsPage() {
-  const [activeTab, setActiveTab] = useState<"pending" | "verified" | "deleted">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "verified" | "deleted" | "fully-paid">("pending");
   const [search, setSearch] = useState("");
   const [payments, setPayments] = useState<any[]>([]);
+  const [fullyPaidInvoices, setFullyPaidInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [reconciling, setReconciling] = useState(false);
@@ -162,6 +164,9 @@ export default function PaymentsPage() {
       let data;
       if (activeTab === "verified") {
         data = await getVerifiedPayments(search);
+      } else if (activeTab === "fully-paid") {
+        data = await getFullyPaidInvoices(search);
+        setFullyPaidInvoices(data);
       } else {
         // Pending or Deleted
         data = await getSubmittedPayments(search, activeTab);
@@ -414,6 +419,18 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
         >
           <Trash2 className="h-4 w-4" />
           Deleted Submissions
+        </button>
+        <button
+          onClick={() => setActiveTab("fully-paid")}
+          className={cn(
+            "px-6 py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2",
+            activeTab === "fully-paid"
+              ? "border-green-600 text-green-600 bg-green-50/50"
+              : "border-transparent text-secondary-500 hover:text-secondary-700 hover:bg-secondary-50"
+          )}
+        >
+          <CheckCircle className="h-4 w-4" />
+          Fully Paid Invoices
         </button>
       </div>
 
