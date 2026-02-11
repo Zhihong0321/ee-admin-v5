@@ -14,9 +14,9 @@ export async function GET(request: NextRequest) {
     const searchValue = searchParams.get("search");
     const searchQuery = searchValue ? searchValue.toLowerCase() : "";
 
-    // Fetch SEDA with customer name and agent name via LEFT JOIN
-    // Chain: seda.agent -> user.bubble_id -> user.linked_agent_profile -> agent.bubble_id
-    const allSeda = await db
+    // Pivot: Fetch SEDA registrations via Invoices that have >= 4% payment
+    // This ensures we ONLY get records with payments, directly from the DB.
+    const results = await db
       .select({
         id: sedaRegistration.id,
         bubble_id: sedaRegistration.bubble_id,
@@ -48,72 +48,56 @@ export async function GET(request: NextRequest) {
         // SEDA Profile fields
         seda_profile_status: sedaRegistration.seda_profile_status,
         seda_profile_id: sedaRegistration.seda_profile_id,
+
+        // Invoice info for enrichment
+        percent_of_total_amount: invoices.percent_of_total_amount,
+        share_token: invoices.share_token,
+        invoice_bubble_id: invoices.bubble_id
       })
-      .from(sedaRegistration)
+      .from(invoices)
+      .innerJoin(sedaRegistration, or(
+        eq(invoices.linked_seda_registration, sedaRegistration.bubble_id),
+        sql`${invoices.bubble_id} = ANY(${sedaRegistration.linked_invoice})`
+      ))
       .leftJoin(customers, eq(sedaRegistration.linked_customer, customers.customer_id))
       .leftJoin(users, eq(sedaRegistration.agent, users.bubble_id))
       .leftJoin(agents, eq(users.linked_agent_profile, agents.bubble_id))
+      .where(sql`CAST(${invoices.percent_of_total_amount} AS NUMERIC) >= 4`)
       .orderBy(desc(sedaRegistration.created_date))
       .limit(1000);
 
-    // Fetch invoice data for payment checkpoint
-    const linkedInvoiceIds = allSeda
-      .filter(s => s.linked_invoice && s.linked_invoice.length > 0)
-      .flatMap(s => s.linked_invoice || []);
-
-    let invoiceDataMap: Record<string, { share_token: string, percent_paid: number }> = {};
-
-    if (linkedInvoiceIds.length > 0) {
-      const invoiceRecords = await db
-        .select({
-          bubble_id: invoices.bubble_id,
-          share_token: invoices.share_token,
-          percent_paid: invoices.percent_of_total_amount,
-        })
-        .from(invoices)
-        .where(
-          or(...linkedInvoiceIds.map(id => eq(invoices.bubble_id, id)))
-        );
-
-      invoiceDataMap = Object.fromEntries(
-        invoiceRecords.map(inv => [
-          inv.bubble_id,
-          {
-            share_token: inv.share_token || '',
-            percent_paid: parseFloat(inv.percent_paid || "0")
-          }
-        ])
-      );
-    }
+    // Remove duplicates if multiple invoices point to the same SEDA registration
+    const seenSedaIds = new Set<string>();
+    const uniqueSeda = results.filter(row => {
+      if (seenSedaIds.has(row.bubble_id!)) return false;
+      seenSedaIds.add(row.bubble_id!);
+      return true;
+    });
 
     // Enrich SEDA records with calculations
-    const enrichedSeda = allSeda.map(seda => {
-      const firstInvoiceId = seda.linked_invoice?.[0];
-      const invData = firstInvoiceId ? invoiceDataMap[firstInvoiceId] : null;
-
+    const enrichedSeda = uniqueSeda.map(seda => {
       const hasName = !!seda.customer_name;
       const hasAddress = !!seda.installation_address;
       const hasMykad = !!(seda.mykad_pdf || seda.ic_copy_front);
       const hasBills = !!(seda.tnb_bill_1 && seda.tnb_bill_2 && seda.tnb_bill_3);
       const hasMeter = !!seda.tnb_meter;
       const hasEmergency = !!(seda.e_contact_name && seda.e_contact_no && seda.e_contact_relationship);
-      const hasRequiredPayment = (invData?.percent_paid || 0) >= 4;
+      const hasRequiredPayment = parseFloat(seda.percent_of_total_amount || "0") >= 4;
 
       const completed_count = [hasName, hasAddress, hasMykad, hasBills, hasMeter, hasEmergency, hasRequiredPayment].filter(Boolean).length;
       const is_form_completed = completed_count === 7;
 
       return {
         ...seda,
-        share_token: invData?.share_token || null,
-        percent_of_total_amount: invData?.percent_paid || 0,
+        percent_of_total_amount: parseFloat(seda.percent_of_total_amount || "0"),
         completed_count,
         is_form_completed,
         has_required_payment: hasRequiredPayment
       };
     });
 
-    // Filter in JavaScript - MUST ONLY list when percent_of_total_payment >= 4
-    let filtered = enrichedSeda.filter(s => s.percent_of_total_amount >= 4);
+    // Filter by search/status remaining in JS
+    let filtered = enrichedSeda;
 
     if (statusFilter && statusFilter !== "all") {
       filtered = filtered.filter(s => s.seda_status === statusFilter);
