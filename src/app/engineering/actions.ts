@@ -17,7 +17,10 @@ const FILE_BASE_URL = process.env.FILE_BASE_URL || "https://admin.atap.solar";
  */
 export async function getEngineeringInvoices(search?: string) {
   try {
-    let whereCondition = sql`${invoices.status} != 'deleted'`;
+    let whereCondition = and(
+      sql`${invoices.status} != 'deleted'`,
+      eq(invoices.is_latest, true)
+    )!;
 
     if (search) {
       whereCondition = and(
@@ -52,7 +55,7 @@ export async function getEngineeringInvoices(search?: string) {
       .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
       .where(whereCondition)
       .orderBy(desc(invoices.created_at))
-      .limit(100);
+      .limit(200);
 
     return results.map((row) => ({
       ...row,
@@ -90,6 +93,7 @@ export async function getInvoicesWithDrawingTags(search?: string) {
     // Build where condition
     let whereCondition = and(
       sql`${invoices.status} != 'deleted'`,
+      eq(invoices.is_latest, true),
       inArray(invoices.bubble_id, invoiceIds)
     )!;
 
@@ -99,7 +103,8 @@ export async function getInvoicesWithDrawingTags(search?: string) {
         or(
           ilike(invoices.invoice_number, `%${search}%`),
           ilike(customers.name, `%${search}%`),
-          ilike(agents.name, `%${search}%`)
+          ilike(agents.name, `%${search}%`),
+          ilike(sedaRegistration.installation_address, `%${search}%`)
         )
       )!;
     }
@@ -125,7 +130,7 @@ export async function getInvoicesWithDrawingTags(search?: string) {
       .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
       .where(whereCondition)
       .orderBy(desc(invoices.created_at))
-      .limit(100);
+      .limit(200);
 
     return results.map((row) => ({
       ...row,

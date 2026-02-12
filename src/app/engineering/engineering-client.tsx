@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition, useMemo } from "react";
+import React, { useState, useTransition, useMemo, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -62,25 +62,54 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
   const [activeTab, setActiveTab] = useState<"tagged" | "all">("tagged");
   const [allInvoices, setAllInvoices] = useState<EngineeringInvoice[]>([]);
   const [loadingAll, setLoadingAll] = useState(false);
+  const [allLoaded, setAllLoaded] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch "All" invoices from DB with search term
+  const fetchAllInvoices = useCallback(async (searchTerm: string) => {
+    setLoadingAll(true);
+    try {
+      const data = await getEngineeringInvoices(searchTerm || undefined);
+      setAllInvoices(data);
+      setAllLoaded(true);
+    } catch (error) {
+      console.error("Failed to load all invoices", error);
+    } finally {
+      setLoadingAll(false);
+    }
+  }, []);
 
   const handleTabChange = async (tab: "tagged" | "all") => {
     setActiveTab(tab);
-    if (tab === "all" && allInvoices.length === 0) {
-      setLoadingAll(true);
-      try {
-        const data = await getEngineeringInvoices();
-        setAllInvoices(data);
-      } catch (error) {
-        console.error("Failed to load all invoices", error);
-      } finally {
-        setLoadingAll(false);
-      }
+    if (tab === "all" && !allLoaded) {
+      fetchAllInvoices(search);
     }
   };
 
+  // Debounced DB search for "All" tab
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    if (activeTab === "all") {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        fetchAllInvoices(value);
+      }, 400);
+    }
+  };
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const sourceInvoices = activeTab === "tagged" ? initialInvoices : allInvoices;
 
+  // Client-side fuzzy filter only for "Tagged" tab (small dataset from chat tags)
+  // "All" tab uses DB search directly
   const displayedInvoices = useMemo(() => {
+    if (activeTab === "all") return sourceInvoices;
     if (!search.trim()) return sourceInvoices;
     return sourceInvoices.filter((inv) => {
       const searchable = [
@@ -93,12 +122,7 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
         .join(" ");
       return fuzzyMatch(search, searchable);
     });
-  }, [search, sourceInvoices]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    // search is already applied instantly via useMemo
-  };
+  }, [search, sourceInvoices, activeTab]);
 
   const handleViewInvoice = (invoice: EngineeringInvoice) => {
     // We need to get the bubble_id or share_token for this invoice
@@ -223,11 +247,11 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                 placeholder="Search customer, invoice, agent..."
                 className="input pl-10 pr-9 py-2 text-sm"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
               />
               {search && (
                 <button
-                  onClick={() => setSearch("")}
+                  onClick={() => handleSearchChange("")}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary-400 hover:text-secondary-600"
                 >
                   <X className="w-4 h-4" />
