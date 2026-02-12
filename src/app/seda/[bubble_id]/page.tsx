@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, Loader2, FileText, ExternalLink, Save, X, Pencil, Check, RefreshCw, UserPlus, CheckCircle, XCircle, AlertCircle, Clock } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, ExternalLink, Save, X, Pencil, Check, RefreshCw, UserPlus, CheckCircle, XCircle, AlertCircle, Clock, Sparkles } from "lucide-react";
 import { StatusBadge } from "@/components/seda/status-badge";
 import { StatusDropdown } from "@/components/seda/status-dropdown";
 import { ProgressBar } from "@/components/seda/progress-bar";
@@ -225,6 +225,8 @@ export default function SedaDetailPage() {
   const [profileCheckResult, setProfileCheckResult] = useState<any>(null);
   const [resyncing, setResyncing] = useState(false);
   const [resyncResult, setResyncResult] = useState<any>(null);
+  const [extractingBill, setExtractingBill] = useState(false);
+  const [extractResult, setExtractResult] = useState<{ address: string | null; tnb_account_no: string | null } | null>(null);
 
   useEffect(() => {
     if (params.bubble_id) {
@@ -397,6 +399,59 @@ export default function SedaDetailPage() {
       setResyncResult({ success: false, error: "Failed to re-sync with Bubble" });
     } finally {
       setResyncing(false);
+    }
+  };
+
+  const handleExtractTnbBill = async () => {
+    if (!data?.seda) return;
+    const seda = data.seda;
+    const billField = seda.tnb_bill_1 ? "tnb_bill_1" : seda.tnb_bill_2 ? "tnb_bill_2" : seda.tnb_bill_3 ? "tnb_bill_3" : null;
+    if (!billField) {
+      alert("No TNB bill uploaded. Please upload a TNB bill first.");
+      return;
+    }
+
+    setExtractingBill(true);
+    setExtractResult(null);
+    try {
+      const response = await fetch(`/api/seda/${bubbleId}/extract-tnb-bill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ billField }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        setExtractResult(result.data);
+      } else {
+        alert(result.error || "Failed to extract data from TNB bill");
+      }
+    } catch (error) {
+      console.error("Error extracting TNB bill:", error);
+      alert("Failed to extract data from TNB bill");
+    } finally {
+      setExtractingBill(false);
+    }
+  };
+
+  const handleApplyExtract = async () => {
+    if (!extractResult) return;
+    setSaving(true);
+    try {
+      const patch: Record<string, string> = {};
+      if (extractResult.address) patch.installation_address = extractResult.address;
+      if (extractResult.tnb_account_no) patch.tnb_account_no = extractResult.tnb_account_no;
+      if (Object.keys(patch).length === 0) {
+        alert("No data to apply");
+        return;
+      }
+      await patchSeda(patch);
+      await fetchData(bubbleId);
+      setExtractResult(null);
+    } catch (error) {
+      console.error("Error applying extracted data:", error);
+      alert(error instanceof Error ? error.message : "Failed to apply extracted data");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -780,6 +835,58 @@ export default function SedaDetailPage() {
 
       {/* TNB Information */}
       <Section title="TNB Information">
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={handleExtractTnbBill}
+            disabled={extractingBill || (!seda.tnb_bill_1 && !seda.tnb_bill_2 && !seda.tnb_bill_3)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg disabled:opacity-60 transition-colors"
+            title="Use AI to extract address and TNB account number from the uploaded bill"
+          >
+            {extractingBill ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {extractingBill ? "Extracting..." : "Extract from TNB Bill"}
+          </button>
+        </div>
+
+        {extractResult && (
+          <div className="mb-4 border border-violet-200 bg-violet-50 rounded-lg p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-semibold text-violet-800">AI Extracted Data:</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-600">Address: </span>
+                    <span className="text-gray-900">{extractResult.address || "Not found"}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-600">TNB Account No: </span>
+                    <span className="text-gray-900">{extractResult.tnb_account_no || "Not found"}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleApplyExtract}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-md disabled:opacity-60 transition-colors"
+                >
+                  {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                  Apply
+                </button>
+                <button
+                  onClick={() => setExtractResult(null)}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {renderFieldsForSection("tnb")}
       </Section>
 
