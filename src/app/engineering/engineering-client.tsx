@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -42,9 +42,19 @@ interface Props {
   initialSearch: string;
 }
 
+/**
+ * Simple fuzzy match: every word in the query must appear somewhere
+ * in the target string (case-insensitive).
+ */
+function fuzzyMatch(query: string, target: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const hay = target.toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
 export default function EngineeringClient({ initialInvoices, initialSearch }: Props) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [search, setSearch] = useState(initialSearch);
   const [selectedInvoice, setSelectedInvoice] = useState<EngineeringInvoice | null>(null);
   const [uploadingType, setUploadingType] = useState<string | null>(null);
@@ -58,7 +68,7 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
     if (tab === "all" && allInvoices.length === 0) {
       setLoadingAll(true);
       try {
-        const data = await getEngineeringInvoices(search);
+        const data = await getEngineeringInvoices();
         setAllInvoices(data);
       } catch (error) {
         console.error("Failed to load all invoices", error);
@@ -68,13 +78,38 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
     }
   };
 
-  const displayedInvoices = activeTab === "tagged" ? initialInvoices : allInvoices;
+  const sourceInvoices = activeTab === "tagged" ? initialInvoices : allInvoices;
+
+  const displayedInvoices = useMemo(() => {
+    if (!search.trim()) return sourceInvoices;
+    return sourceInvoices.filter((inv) => {
+      const searchable = [
+        inv.customer_name,
+        inv.invoice_number,
+        inv.agent_name,
+        inv.address,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return fuzzyMatch(search, searchable);
+    });
+  }, [search, sourceInvoices]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    startTransition(() => {
-      router.push(`/engineering?search=${encodeURIComponent(search)}`);
-    });
+    // search is already applied instantly via useMemo
+  };
+
+  const handleViewInvoice = (invoice: EngineeringInvoice) => {
+    // We need to get the bubble_id or share_token for this invoice
+    // Since the EngineeringInvoice interface doesn't include these fields,
+    // we'll need to either fetch them or assume they exist
+    const targetId = invoice.seda_bubble_id; // Using seda_bubble_id as fallback
+    if (!targetId) {
+      alert("No valid Bubble ID found for this invoice.");
+      return;
+    }
+    window.open(`https://calculator.atap.solar/view/${targetId}`, '_blank');
   };
 
   const handleDelete = async (url: string, type: "system" | "engineering" | "roof") => {
@@ -180,21 +215,29 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
           </div>
 
           {/* Search in same row */}
-          <form onSubmit={handleSearch} className="flex gap-2 px-6 py-2">
+          <div className="flex gap-2 px-6 py-2 items-center">
             <div className="relative w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary-400 w-4 h-4" />
               <input
                 type="text"
-                placeholder="Search..."
-                className="input pl-10 pr-4 py-2 text-sm"
+                placeholder="Search customer, invoice, agent..."
+                className="input pl-10 pr-9 py-2 text-sm"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary-400 hover:text-secondary-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
-            <button type="submit" disabled={isPending} className="btn-primary px-4 py-2 text-sm">
-              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Search"}
-            </button>
-          </form>
+            {search && (
+              <span className="text-xs text-secondary-500">{displayedInvoices.length} results</span>
+            )}
+          </div>
         </div>
 
       {/* Table */}
@@ -274,13 +317,24 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                     </span>
                   </td>
                   <td className="text-right">
-                    <button
-                      onClick={() => setSelectedInvoice(inv)}
-                      className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5 ml-auto"
-                    >
-                      <Eye className="w-4 h-4" />
-                      Enter
-                    </button>
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <button
+                        onClick={() => handleViewInvoice(inv)}
+                        className="btn-ghost text-accent-600 hover:text-accent-700 flex items-center gap-1.5"
+                        title="View Invoice in Calculator"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        View
+                      </button>
+                      <button
+                        onClick={() => setSelectedInvoice(inv)}
+                        className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
+                        title="Manage Files"
+                      >
+                        <Eye className="w-4 h-4" />
+                        Files
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
