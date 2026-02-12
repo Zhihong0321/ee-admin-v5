@@ -56,7 +56,9 @@ export async function POST(
     }
 
     // 2. Fetch the bill image/PDF and convert to base64
-    const response = await fetch(billUrl);
+    // Handle protocol-relative URLs (//cdn.bubble.io/...)
+    const fetchUrl = billUrl.startsWith("//") ? `https:${billUrl}` : billUrl;
+    const response = await fetch(fetchUrl);
     if (!response.ok) {
       return NextResponse.json(
         { error: "Failed to fetch bill file from URL" },
