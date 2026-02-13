@@ -330,7 +330,7 @@ export default function PaymentsPage() {
   }
 
   async function handleCalculateCommission() {
-    if (!confirm("This will calculate commission amounts for fully paid invoices.\nIt processes in batches of 50, prioritizing unprocessed invoices.\n\nContinue?")) return;
+    if (!confirm("This will calculate commission amounts for ALL fully paid invoices.\nIt processes ALL valid invoices based on updated date (oldest first).\n\nThis may take some time. Continue?")) return;
 
     setCalculatingCommission(true);
     try {

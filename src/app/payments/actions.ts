@@ -1170,8 +1170,9 @@ export async function runCommissionCalculation() {
     // Prioritize those with empty description, but also include some others to ensure updates
     // For simplicity in this action, we'll just grab 50 fully paid invoices where description is null OR order by updated_at ASC
 
-    // Actually, user wants to RUN it. Let's prioritize NULLs first.
-    let invoicesToProcess = await db.select({
+    // 1. Fetch ALL fully paid invoices to process
+    // Prioritize oldest updated_at to ensure consistent updates across all records
+    const invoicesToProcess = await db.select({
       id: invoices.id,
       bubble_id: invoices.bubble_id,
       invoice_number: invoices.invoice_number,
@@ -1182,40 +1183,12 @@ export async function runCommissionCalculation() {
     })
       .from(invoices)
       .where(
-        and(
-          or(
-            eq(invoices.status, 'FULLY PAID'),
-            sql`CAST(${invoices.percent_of_total_amount} AS NUMERIC) >= 99.9`
-          ),
-          or(
-            isNull(invoices.eligible_amount_description),
-            eq(invoices.eligible_amount_description, '')
-          )
+        or(
+          eq(invoices.status, 'FULLY PAID'),
+          sql`CAST(${invoices.percent_of_total_amount} AS NUMERIC) >= 99.9`
         )
       )
-      .limit(50);
-
-    // If no NULLs found, just pick 50 oldest updated fully paid invoices to refresh them
-    if (invoicesToProcess.length === 0) {
-      invoicesToProcess = await db.select({
-        id: invoices.id,
-        bubble_id: invoices.bubble_id,
-        invoice_number: invoices.invoice_number,
-        total_amount: invoices.total_amount,
-        amount: invoices.amount,
-        linked_payment: invoices.linked_payment,
-        linked_invoice_item: invoices.linked_invoice_item
-      })
-        .from(invoices)
-        .where(
-          or(
-            eq(invoices.status, 'FULLY PAID'),
-            sql`CAST(${invoices.percent_of_total_amount} AS NUMERIC) >= 99.9`
-          )
-        )
-        .orderBy(invoices.updated_at)
-        .limit(50);
-    }
+      .orderBy(invoices.updated_at);
 
     if (invoicesToProcess.length === 0) {
       return { success: true, count: 0, message: "No fully paid invoices found." };
