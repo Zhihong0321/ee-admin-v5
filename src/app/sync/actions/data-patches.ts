@@ -108,6 +108,7 @@ export async function updatePaymentCalculations() {
       invoice_number: invoices.invoice_number,
       total_amount: invoices.total_amount,
       amount: invoices.amount,
+      linked_payment: invoices.linked_payment,
     })
       .from(invoices)
       .where(and(
@@ -123,47 +124,47 @@ export async function updatePaymentCalculations() {
     let updatedCount = 0;
     let fullyPaidCount = 0;
 
-    // 2. Fetch all verified payments
+    // 2. Fetch all verified payments into a Map for O(1) lookup
     const allPayments = await db.select({
-      id: payments.id,
+      bubble_id: payments.bubble_id,
       amount: payments.amount,
-      payment_date: payments.payment_date,
-      linked_invoice: payments.linked_invoice
-    }).from(payments)
-      .where(isNotNull(payments.linked_invoice));
+      payment_date: payments.payment_date
+    }).from(payments);
 
-    // 3. Group payments by linked_invoice
-    const invoicePaymentsMap = new Map<string, { amount: number, date: Date | null }[]>();
+    const paymentMap = new Map<string, { amount: number, date: Date | null }>();
+    allPayments.forEach(p => {
+      if (p.bubble_id) {
+        paymentMap.set(p.bubble_id, {
+          amount: parseFloat(p.amount || '0'),
+          date: p.payment_date ? new Date(p.payment_date) : null
+        });
+      }
+    });
 
-    for (const p of allPayments) {
-      if (!p.linked_invoice) continue;
-
-      const currentList = invoicePaymentsMap.get(p.linked_invoice) || [];
-      currentList.push({
-        amount: parseFloat(p.amount || '0'),
-        date: p.payment_date ? new Date(p.payment_date) : null
-      });
-      invoicePaymentsMap.set(p.linked_invoice, currentList);
-    }
-
-    // 4. Calculate for each invoice
+    // 3. Process each invoice
     for (const inv of allInvoices) {
-      if (!inv.bubble_id) continue;
-
       const totalAmount = parseFloat(inv.total_amount || inv.amount || '0');
+
+      // Skip invalid or zero-amount invoices
       if (totalAmount <= 0) continue;
 
       let totalPaid = 0;
       let lastPaymentDate: Date | null = null;
 
-      const linkedPayments = invoicePaymentsMap.get(inv.bubble_id);
+      // Use linked_payment array from invoice as source of truth
+      if (inv.linked_payment && inv.linked_payment.length > 0) {
+        for (const pid of inv.linked_payment) {
+          if (!pid) continue;
 
-      if (linkedPayments) {
-        for (const p of linkedPayments) {
-          totalPaid += p.amount;
-          if (p.date) {
-            if (!lastPaymentDate || p.date > lastPaymentDate) {
-              lastPaymentDate = p.date;
+          const pData = paymentMap.get(pid);
+          if (pData) {
+            totalPaid += pData.amount;
+
+            // Track latest payment date
+            if (pData.date) {
+              if (!lastPaymentDate || pData.date > lastPaymentDate) {
+                lastPaymentDate = pData.date;
+              }
             }
           }
         }
