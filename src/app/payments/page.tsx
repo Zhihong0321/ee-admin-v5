@@ -424,7 +424,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
         issuer_bank: editForm.issuer_bank || null,
       };
 
-      if (activeTab === "verified") {
+      if (activeTab === "verified" || activeTab === "update-method" || activeTab === "epp-costs") {
         await updateVerifiedPayment(viewingPayment.id, updates, "System Admin");
       } else {
         await updateSubmittedPayment(viewingPayment.id, updates, "System Admin");
