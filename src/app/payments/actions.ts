@@ -241,7 +241,7 @@ export async function getFullyPaidInvoicesByAgent(month: number, year: number, s
 
       paymentRecords.forEach(p => {
         const date = p.date ? new Date(p.date) : new Date(p.created_at || '');
-        if (!isNaN(date.getTime())) {
+        if (!isNaN(date.getTime()) && p.bubble_id) {
           paymentDatesMap.set(p.bubble_id, date);
         }
       });
