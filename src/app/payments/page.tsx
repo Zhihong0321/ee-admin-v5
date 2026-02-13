@@ -48,7 +48,7 @@ import {
   bulkAIUpdatePaymentMethod
 } from "./actions";
 import { cn } from "@/lib/utils";
-import { EPP_BANKS, EPP_RATES, getEppRate } from "@/lib/epp-rates";
+import { EPP_BANKS, EPP_RATES, getEppRate, calculateEppCost } from "@/lib/epp-rates";
 import InvoiceViewer from "@/components/InvoiceViewer";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
 import { Sparkles, Zap, AlertTriangle } from "lucide-react";
@@ -348,6 +348,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
       epp_type: payment.epp_type || '',
       epp_month: payment.epp_month || '',
       issuer_bank: payment.issuer_bank || '',
+      epp_cost: payment.epp_cost || '',
     });
     setAIData(null); // Reset AI data
     setShowInvoiceInModal(false);
@@ -896,20 +897,21 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     <th>Amount</th>
                     <th>Attachment</th>
                     <th>Remark</th>
+                    <th className="text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="animate-pulse">
-                        <td colSpan={6} className="px-6 py-6">
+                        <td colSpan={7} className="px-6 py-6">
                           <div className="h-4 bg-secondary-200 rounded w-3/4"></div>
                         </td>
                       </tr>
                     ))
                   ) : filteredAndSortedPayments.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-16 text-center">
+                      <td colSpan={7} className="px-6 py-16 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <div className="p-4 bg-green-100 rounded-full">
                             <CheckCircle className="h-8 w-8 text-green-400" />
@@ -998,6 +1000,15 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                                 {result.success ? `→ ${result.payment_method}` : result.error}
                               </span>
                             )}
+                          </td>
+                          <td className="text-right">
+                            <button
+                              onClick={() => handleViewClick(payment)}
+                              className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
+                            >
+                              <Eye className="h-4 w-4" />
+                              View
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1395,9 +1406,17 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           {editForm.issuer_bank && editForm.epp_month && (() => {
                             const rate = getEppRate(editForm.issuer_bank, parseInt(editForm.epp_month));
                             return rate != null ? (
-                              <div className="bg-primary-50 border border-primary-200 rounded-lg p-2 text-center">
-                                <p className="text-[10px] text-primary-500 uppercase font-bold">EPP Rate</p>
-                                <p className="text-lg font-bold text-primary-700">{rate}%</p>
+                              <div className="space-y-2">
+                                <div className="bg-primary-50 border border-primary-200 rounded-lg p-2 text-center">
+                                  <p className="text-[10px] text-primary-500 uppercase font-bold">EPP Rate</p>
+                                  <p className="text-lg font-bold text-primary-700">{rate}%</p>
+                                </div>
+                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-center">
+                                  <p className="text-[10px] text-amber-600 uppercase font-bold">EPP Cost</p>
+                                  <p className="text-lg font-bold text-amber-700">
+                                    RM{calculateEppCost(parseFloat(editForm.amount || '0'), rate).toFixed(2)}
+                                  </p>
+                                </div>
                               </div>
                             ) : null;
                           })()}
@@ -1496,13 +1515,24 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           {viewingPayment.issuer_bank && viewingPayment.epp_month && (() => {
                             const rate = getEppRate(viewingPayment.issuer_bank, parseInt(viewingPayment.epp_month));
                             return rate != null ? (
-                              <div className="flex items-start gap-3">
-                                <DollarSign className="h-4 w-4 text-secondary-400 mt-0.5" />
-                                <div>
-                                  <p className="text-xs text-secondary-500">EPP Rate</p>
-                                  <p className="text-sm font-bold text-primary-600">{rate}%</p>
+                              <>
+                                <div className="flex items-start gap-3">
+                                  <DollarSign className="h-4 w-4 text-secondary-400 mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-secondary-500">EPP Rate</p>
+                                    <p className="text-sm font-bold text-primary-600">{rate}%</p>
+                                  </div>
                                 </div>
-                              </div>
+                                {viewingPayment.epp_cost && (
+                                  <div className="flex items-start gap-3">
+                                    <Calculator className="h-4 w-4 text-amber-500 mt-0.5" />
+                                    <div>
+                                      <p className="text-xs text-secondary-500">EPP Cost</p>
+                                      <p className="text-sm font-bold text-amber-600">RM{parseFloat(viewingPayment.epp_cost).toFixed(2)}</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
                             ) : null;
                           })()}
                         </div>

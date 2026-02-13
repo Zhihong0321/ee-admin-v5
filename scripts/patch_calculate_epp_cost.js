@@ -128,24 +128,17 @@ async function runPatch() {
         console.log('║     EPP Cost Calculation Patch Script                          ║');
         console.log('╚════════════════════════════════════════════════════════╝');
 
-        // Process payment table
-        const paymentResults = await patchPayments(client, 'payment');
-
-        // Process submitted_payment table
-        const submittedResults = await patchPayments(client, 'submitted_payment');
-
-        const totalUpdated = paymentResults.updated + submittedResults.updated;
-        const totalSkipped = paymentResults.skipped + submittedResults.skipped;
-        const totalErrors = paymentResults.errors + submittedResults.errors;
+        // Process payment table only (submitted_payment doesn't need epp_cost)
+        const results = await patchPayments(client, 'payment');
 
         console.log('\n╔════════════════════════════════════════════════════════╗');
         console.log('║                     FINAL SUMMARY                             ║');
         console.log('╚════════════════════════════════════════════════════════╝');
-        console.log(`✅ Successfully updated: ${totalUpdated}`);
-        console.log(`⚠️  Skipped: ${totalSkipped}`);
-        console.log(`❌ Errors: ${totalErrors}`);
+        console.log(`✅ Successfully updated: ${results.updated}`);
+        console.log(`⚠️  Skipped: ${results.skipped}`);
+        console.log(`❌ Errors: ${results.errors}`);
 
-        if (totalUpdated > 0) {
+        if (results.updated > 0) {
             console.log('\n✅ Patch completed successfully!');
         } else {
             console.log('\n⚠️  No payments were updated.');

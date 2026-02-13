@@ -334,7 +334,6 @@ export const submitted_payments = pgTable('submitted_payment', {
   verified_by: text('verified_by'),
   edit_history: text('edit_history'),
   log: text('log'),
-  epp_cost: numeric('epp_cost'),
 });
 
 // Invoice Items Table (CRITICAL: Was missing from schema!)
