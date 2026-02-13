@@ -218,7 +218,7 @@ export const SEDA_REGISTRATION_FIELD_MAPPING: Record<string, FieldMappingConfig>
   'Customer Signature': { column: 'customer_signature', type: 'string' },
   'IC Copy Front': { column: 'ic_copy_front', type: 'string' },
   'IC Copy Back': { column: 'ic_copy_back', type: 'string' },
-  'TNB BIll 1': { column: 'tnb_bill_1', type: 'string' },
+  'TNB Bill 1': { column: 'tnb_bill_1', type: 'string' },
   'TNB Bill 2': { column: 'tnb_bill_2', type: 'string' },
   'TNB Bill 3': { column: 'tnb_bill_3', type: 'string' },
   'NEM Cert': { column: 'nem_cert', type: 'string' },
