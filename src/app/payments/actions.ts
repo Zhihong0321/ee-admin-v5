@@ -5,6 +5,7 @@ import { payments, submitted_payments, agents, customers, invoices, invoice_temp
 import { ilike, or, desc, eq, and, sql, inArray, isNull, isNotNull, gte, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncPaymentsFromBubble } from "@/lib/bubble";
+import { calculateEppCost } from "@/lib/epp-rates";
 
 export async function triggerPaymentSync() {
   const result = await syncPaymentsFromBubble();
@@ -790,6 +791,77 @@ export async function runPaymentReconciliation() {
  * Rescans all paid invoices that are missing a full_payment_date
  * and populates it based on the latest payment date.
  */
+export async function getEppPayments(search?: string) {
+  try {
+    // Get all EPP payments with epp_cost (including calculated ones)
+    const whereClause = search
+      ? or(
+          ilike(payments.remark, `%${search}%`),
+          ilike(payments.payment_method, `%${search}%`),
+          ilike(agents.name, `%${search}%`),
+          ilike(customers.name, `%${search}%`)
+        )
+      : undefined;
+
+    const data = await db
+      .select({
+        id: payments.id,
+        bubble_id: payments.bubble_id,
+        amount: payments.amount,
+        payment_date: payments.payment_date,
+        attachment: payments.attachment,
+        agent_name: agents.name,
+        customer_name: customers.name,
+        issuer_bank: payments.issuer_bank,
+        epp_month: payments.epp_month,
+        epp_type: payments.epp_type,
+        epp_cost: payments.epp_cost,
+        remark: payments.remark,
+        log: payments.log,
+      })
+      .from(payments)
+      .leftJoin(agents, eq(payments.linked_agent, agents.bubble_id))
+      .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
+      .where(whereClause)
+      .orderBy(desc(payments.payment_date))
+      .limit(100);
+
+    // Calculate EPP cost for any that are missing it
+    const updatedData = await Promise.all(data.map(async (payment) => {
+      if (payment.epp_type === 'EPP' && (!payment.epp_cost || payment.epp_cost === 0)) {
+        const tenure = payment.epp_month ? parseInt(payment.epp_month) : null;
+        const amount = payment.amount ? parseFloat(payment.amount) : null;
+        const bank = payment.issuer_bank;
+
+        if (amount && tenure && bank) {
+          const rate = await getEppRateFromDb(bank, tenure);
+          if (rate !== null) {
+            const eppCost = calculateEppCost(amount, rate);
+            await db.update(payments)
+              .set({ epp_cost: eppCost.toString() })
+              .where(eq(payments.id, payment.id));
+          }
+        }
+      }
+      return payment;
+    }));
+
+    return updatedData;
+  } catch (error) {
+    console.error("Database error in getEppPayments:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get EPP rate from database (fallback to config if needed)
+ */
+async function getEppRateFromDb(bank: string, tenure: number): Promise<number> {
+  // First try to get from database
+  // For now, use the config function
+  return getEppRate(bank, tenure);
+}
+
 export async function getPaymentsWithoutMethod(search?: string) {
   try {
     const searchFilters = search
