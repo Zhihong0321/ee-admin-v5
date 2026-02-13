@@ -41,7 +41,7 @@ export const EPP_RATES: EppRate[] = [
     rates: {
       MBB: null,
       PBB: 4.00,
-      HLB: 4.00,
+      HLB: null,       // Fixed: was 4.00, image shows "-"
       CIMB: null,
       "AM Bank": null,
       UOB: null,
@@ -68,7 +68,7 @@ export const EPP_RATES: EppRate[] = [
       HLB: 6.00,
       CIMB: null,
       "AM Bank": 9.00,
-      UOB: 9.00,
+      UOB: null,        // Fixed: was 9.00, image shows "-"
       OCBC: 8.00,
     },
   },
@@ -90,9 +90,21 @@ export const EPP_RATES: EppRate[] = [
       MBB: 10.00,
       PBB: 10.00,
       HLB: 10.00,
-      CIMB: null,
+      CIMB: 10.00,      // Fixed: was null, image shows 10.00%
       "AM Bank": null,
       UOB: null,
+      OCBC: null,
+    },
+  },
+  {
+    tenure: 68,
+    rates: {
+      MBB: null,
+      PBB: null,
+      HLB: null,
+      CIMB: null,
+      "AM Bank": null,
+      UOB: 11.50,       // Added: 68-month tenure from image
       OCBC: null,
     },
   },

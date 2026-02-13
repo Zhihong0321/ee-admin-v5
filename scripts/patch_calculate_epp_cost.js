@@ -18,15 +18,16 @@ const pool = new Pool({
     connectionString,
 });
 
-// EPP Interest Rates (from Eternal Energy rate table)
+// EPP Interest Rates (from Eternal Energy rate table - updated 2026)
 const EPP_RATES = {
     6: { 'MBB': 2.50, 'PBB': 2.50, 'HLB': null, 'CIMB': 2.50, 'AM Bank': null, 'UOB': 2.50, 'OCBC': 4.00 },
     12: { 'MBB': 3.50, 'PBB': 3.50, 'HLB': 3.50, 'CIMB': 3.50, 'AM Bank': null, 'UOB': 3.50, 'OCBC': 5.00 },
-    18: { 'MBB': null, 'PBB': 4.00, 'HLB': 4.00, 'CIMB': null, 'AM Bank': null, 'UOB': null, 'OCBC': 6.00 },
+    18: { 'MBB': null, 'PBB': 4.00, 'HLB': null, 'CIMB': null, 'AM Bank': null, 'UOB': null, 'OCBC': 6.00 },
     24: { 'MBB': 5.50, 'PBB': 5.50, 'HLB': 5.50, 'CIMB': 5.50, 'AM Bank': 7.00, 'UOB': 5.50, 'OCBC': 7.00 },
-    36: { 'MBB': 6.00, 'PBB': 6.00, 'HLB': 6.00, 'CIMB': null, 'AM Bank': 9.00, 'UOB': 9.00, 'OCBC': 8.00 },
+    36: { 'MBB': 6.00, 'PBB': 6.00, 'HLB': 6.00, 'CIMB': null, 'AM Bank': 9.00, 'UOB': null, 'OCBC': 8.00 },
     48: { 'MBB': 8.00, 'PBB': 8.00, 'HLB': 8.00, 'CIMB': null, 'AM Bank': null, 'UOB': 8.50, 'OCBC': 9.00 },
-    60: { 'MBB': 10.00, 'PBB': 10.00, 'HLB': 10.00, 'CIMB': null, 'AM Bank': null, 'UOB': null, 'OCBC': null },
+    60: { 'MBB': 10.00, 'PBB': 10.00, 'HLB': 10.00, 'CIMB': 10.00, 'AM Bank': null, 'UOB': null, 'OCBC': null },
+    68: { 'MBB': null, 'PBB': null, 'HLB': null, 'CIMB': null, 'AM Bank': null, 'UOB': 11.50, 'OCBC': null },
 };
 
 /**

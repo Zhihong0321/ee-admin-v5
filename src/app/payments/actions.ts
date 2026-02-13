@@ -793,15 +793,17 @@ export async function runPaymentReconciliation() {
  */
 export async function getEppPayments(search?: string) {
   try {
-    // Get all EPP payments with epp_cost (including calculated ones)
-    const whereClause = search
+    // Get only EPP payments (filtered by epp_type = 'EPP')
+    const eppFilter = eq(payments.epp_type, 'EPP');
+    const searchFilter = search
       ? or(
         ilike(payments.remark, `%${search}%`),
-        ilike(payments.payment_method, `%${search}%`),
+        ilike(payments.issuer_bank, `%${search}%`),
         ilike(agents.name, `%${search}%`),
         ilike(customers.name, `%${search}%`)
       )
       : undefined;
+    const whereClause = searchFilter ? and(eppFilter, searchFilter) : eppFilter;
 
     const data = await db
       .select({
@@ -816,6 +818,7 @@ export async function getEppPayments(search?: string) {
         epp_month: payments.epp_month,
         epp_type: payments.epp_type,
         epp_cost: payments.epp_cost,
+        payment_method: payments.payment_method,
         remark: payments.remark,
         log: payments.log,
       })
@@ -824,7 +827,7 @@ export async function getEppPayments(search?: string) {
       .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
       .where(whereClause)
       .orderBy(desc(payments.payment_date))
-      .limit(100);
+      .limit(500);
 
     // Calculate EPP cost for any that are missing it
     const updatedData = await Promise.all(data.map(async (payment) => {

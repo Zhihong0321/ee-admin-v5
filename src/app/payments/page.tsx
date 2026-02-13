@@ -204,12 +204,13 @@ export default function PaymentsPage() {
         setBulkResults([]);
       } else if (activeTab === "epp-costs") {
         data = await getEppPayments(search);
-        setPayments(data);
       } else {
         // Pending or Deleted
         data = await getSubmittedPayments(search, activeTab);
       }
-      setPayments(data);
+      if (activeTab !== "fully-paid") {
+        setPayments(data);
+      }
     } catch (error) {
       console.error("Failed to fetch payments", error);
     } finally {
@@ -854,37 +855,53 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
               )}
             </div>
           ) : activeTab === "epp-costs" ? (
-            <div className="space-y-6">
-              <h3 className="text-lg font-bold text-secondary-900 mb-4">
-                EPP Payments ({payments.length})
-              </h3>
-              <p className="text-sm text-secondary-600 mb-4">
-                Showing all EPP payments with their calculated costs
-              </p>
+            <div>
+              <div className="p-6 border-b border-secondary-200 bg-gradient-to-r from-amber-50/50 to-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-secondary-900">
+                      EPP Payments ({payments.length})
+                    </h3>
+                    <p className="text-sm text-secondary-500 mt-1">
+                      All EPP installment payments with calculated interest costs
+                    </p>
+                  </div>
+                  {payments.length > 0 && (
+                    <div className="text-right">
+                      <div className="text-sm text-secondary-500">Total EPP Cost</div>
+                      <div className="text-lg font-bold text-red-600">
+                        RM {payments.reduce((sum: number, p: any) => sum + (p.epp_cost ? parseFloat(p.epp_cost) : 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
               <table className="table">
                 <thead>
                   <tr>
                     <th>Date</th>
+                    <th>Customer</th>
                     <th>Bank</th>
                     <th>Tenure</th>
-                    <th>Amount</th>
-                    <th>EPP Cost</th>
-                    <th>Customer</th>
+                    <th>Rate</th>
+                    <th className="text-right">Amount</th>
+                    <th className="text-right">EPP Cost</th>
                     <th>Attachment</th>
+                    <th className="text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="animate-pulse">
-                        <td colSpan={6} className="px-6 py-6">
+                        <td colSpan={9} className="px-6 py-6">
                           <div className="h-4 bg-secondary-200 rounded w-3/4"></div>
                         </td>
                       </tr>
                     ))
                   ) : payments.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-16 text-center">
+                      <td colSpan={9} className="px-6 py-16 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <div className="p-4 bg-secondary-100 rounded-full">
                             <Calculator className="h-8 w-8 text-secondary-400" />
@@ -898,8 +915,9 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     </tr>
                   ) : (
                     payments.map((payment: any) => {
-                      const eppRate = payment.issuer_bank && payment.epp_month
-                        ? getEppRate(payment.issuer_bank, parseInt(payment.epp_month))
+                      const tenure = payment.epp_month ? parseInt(payment.epp_month) : null;
+                      const eppRate = payment.issuer_bank && tenure
+                        ? getEppRate(payment.issuer_bank, tenure)
                         : null;
 
                       return (
@@ -915,35 +933,48 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                             </div>
                           </td>
                           <td>
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-1.5 text-sm font-semibold text-secondary-900">
-                                <CreditCard className="h-3.5 w-3.5 text-primary-500" />
-                                {payment.issuer_bank || "N/A"}
-                              </div>
-                              {payment.epp_month && (
-                                <div className="text-xs text-secondary-500 pl-5">
-                                  Tenure: {payment.epp_month} months
-                                </div>
-                              )}
+                            <div className="text-sm font-medium text-secondary-900">
+                              {payment.customer_name || "N/A"}
+                            </div>
+                            <div className="text-xs text-secondary-500">
+                              {payment.agent_name || ""}
                             </div>
                           </td>
                           <td>
+                            <div className="flex items-center gap-1.5 text-sm font-semibold text-secondary-900">
+                              <CreditCard className="h-3.5 w-3.5 text-primary-500" />
+                              {payment.issuer_bank || "N/A"}
+                            </div>
+                          </td>
+                          <td>
+                            {tenure ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                {tenure} mo
+                              </span>
+                            ) : (
+                              <span className="text-xs text-secondary-400">N/A</span>
+                            )}
+                          </td>
+                          <td>
+                            {eppRate !== null ? (
+                              <span className="text-sm font-medium text-secondary-700">{eppRate}%</span>
+                            ) : (
+                              <span className="text-xs text-amber-500">N/A</span>
+                            )}
+                          </td>
+                          <td className="text-right">
                             <div className="text-sm font-bold text-secondary-900">
                               RM {parseFloat(payment.amount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </div>
                           </td>
-                          <td>
-                            <div className="text-sm font-bold text-green-600">
-                              RM {payment.epp_cost ? parseFloat(payment.epp_cost).toFixed(2) : "0.00"}
-                            </div>
-                            {!payment.epp_cost && (
-                              <span className="text-xs text-amber-500">(Not calculated)</span>
+                          <td className="text-right">
+                            {payment.epp_cost && parseFloat(payment.epp_cost) > 0 ? (
+                              <div className="text-sm font-bold text-red-600">
+                                RM {parseFloat(payment.epp_cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-amber-500 font-medium">(Not calculated)</span>
                             )}
-                          </td>
-                          <td>
-                            <div className="text-sm font-semibold text-secondary-900">
-                              {payment.customer_name || "N/A"}
-                            </div>
                           </td>
                           <td>
                             {payment.attachment && payment.attachment.length > 0 ? (
@@ -954,13 +985,10 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                                 className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 hover:underline"
                               >
                                 <FileText className="h-3.5 w-3.5" />
-                                View Receipt
+                                View
                               </a>
                             ) : (
-                              <span className="text-xs text-amber-600 flex items-center gap-1">
-                                <AlertTriangle className="h-3.5 w-3.5" />
-                                No Attachment
-                              </span>
+                              <span className="text-xs text-secondary-400">-</span>
                             )}
                           </td>
                           <td className="text-right">
