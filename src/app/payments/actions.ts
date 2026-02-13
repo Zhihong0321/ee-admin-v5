@@ -503,7 +503,7 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
       .where(eq(submitted_payments.id, submittedPaymentId));
 
     // 4. If this payment is linked to an invoice, link it and recalculate
-    if (p.linked_invoice) {
+    if (p.linked_invoice && p.bubble_id) {
       // 4a. Add to invoice's linked_payment array
       await linkPaymentToInvoice(p.linked_invoice, p.bubble_id);
 
