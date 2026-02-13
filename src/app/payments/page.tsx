@@ -88,6 +88,7 @@ export default function PaymentsPage() {
   const [bulkScanning, setBulkScanning] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(0);
   const [bulkResults, setBulkResults] = useState<{ id: number; success: boolean; payment_method?: string; is_epp?: boolean; bank?: string | null; tenure?: string | null; error?: string }[]>([]);
+  const [calculatingEpp, setCalculatingEpp] = useState(false);
 
   // AI Analysis State
   const [analyzing, setAnalyzing] = useState(false);
@@ -294,6 +295,30 @@ export default function PaymentsPage() {
     }
   }
 
+  async function handleCalculateEppCost() {
+    if (!confirm("Calculate EPP Cost for ALL EPP payments with empty cost?\n\nThis will update epp_cost for all EPP payments where it's currently empty. Continue?")) return;
+
+    setCalculatingEpp(true);
+    try {
+      const response = await fetch('/api/payments/calculate-epp-cost', {
+        method: 'POST',
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`✅ EPP Cost Calculation Complete!\n\nUpdated: ${result.updated} payments\nSkipped: ${result.skipped}\nErrors: ${result.errors}`);
+        fetchData();
+      } else {
+        alert(`❌ Failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error("EPP Cost calculation error:", error);
+      alert("Failed to calculate EPP costs.");
+    } finally {
+      setCalculatingEpp(false);
+    }
+  }
+
   function togglePaymentSelection(id: number) {
     setSelectedPaymentIds(prev => {
       const next = new Set(prev);
@@ -492,6 +517,14 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
           >
             <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? 'Syncing...' : 'Sync Bubble'}
+          </button>
+          <button
+            onClick={handleCalculateEppCost}
+            disabled={calculatingEpp}
+            className="btn-secondary flex items-center gap-2 bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+          >
+            <Calculator className={`h-4 w-4 ${calculatingEpp ? 'animate-spin' : ''}`} />
+            {calculatingEpp ? 'Calculating...' : 'Calculate EPP Cost'}
           </button>
         </div>
       </div>
