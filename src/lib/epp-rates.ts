@@ -120,12 +120,34 @@ export const FOREIGN_CARD_RATES: { [bank: string]: number } = {
 
 export const AMEX_RATE = 0.30; // Standard MDR, No EPP
 
+// Map common bank name variations to the short code used in EPP_RATES
+const BANK_ALIASES: { [key: string]: string } = {
+  "MAYBANK": "MBB",
+  "MBB": "MBB",
+  "PUBLIC BANK": "PBB",
+  "PBB": "PBB",
+  "HONG LEONG": "HLB",
+  "HONG LEONG BANK": "HLB",
+  "HLB": "HLB",
+  "CIMB": "CIMB",
+  "CIMB BANK": "CIMB",
+  "AM BANK": "AM Bank",
+  "AMBANK": "AM Bank",
+  "UOB": "UOB",
+  "OCBC": "OCBC",
+};
+
+export function normalizeBankName(bank: string): string {
+  return BANK_ALIASES[bank.toUpperCase().trim()] ?? bank;
+}
+
 export function getEppRate(bank: string, tenure: number): number | null {
   const rateConfig = EPP_RATES.find((r) => r.tenure === tenure);
   if (!rateConfig) return null;
 
+  const normalizedBank = normalizeBankName(bank);
   // @ts-ignore
-  return rateConfig.rates[bank] ?? null;
+  return rateConfig.rates[normalizedBank] ?? null;
 }
 
 /**
