@@ -266,32 +266,31 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="table">
+        <table className="table w-full table-fixed">
           <thead>
             <tr>
-              <th className="w-[10%]">Invoice No.</th>
-              <th className="w-[12%]">Customer</th>
-              <th className="w-[13%]">Agent</th>
-              <th className="w-[20%]">Address</th>
-              <th className="text-right w-[11%]">Amount</th>
-              <th className="text-center w-[10%]">System Drawing</th>
-              <th className="text-center w-[9%]">Roof Images</th>
-              <th className="text-center w-[9%]">Eng Drawing</th>
-              <th className="text-right w-[6%]">Actions</th>
+              <th className="w-[13%]">Invoice No.</th>
+              <th className="w-[18%]">Customer</th>
+              <th className="w-[15%]">Agent</th>
+              <th className="text-right w-[12%]">Amount</th>
+              <th className="text-center w-[12%]">System Drawing</th>
+              <th className="text-center w-[10%]">Roof Images</th>
+              <th className="text-center w-[10%]">Eng Drawing</th>
+              <th className="text-right w-[10%]">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loadingAll && activeTab === "all" ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="animate-pulse">
-                  <td colSpan={9}>
+                  <td colSpan={8}>
                     <div className="h-4 bg-secondary-200 rounded w-3/4"></div>
                   </td>
                 </tr>
               ))
             ) : displayedInvoices.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-6 py-16 text-center">
+                <td colSpan={8} className="px-6 py-16 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="p-4 bg-secondary-100 rounded-full">
                       <FileText className="h-8 w-8 text-secondary-400" />
@@ -316,9 +315,6 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                   </td>
                   <td>
                     <div className="text-secondary-600 truncate">{inv.agent_name}</div>
-                  </td>
-                  <td>
-                    <div className="text-secondary-600 truncate max-w-[16rem]" title={inv.address || ""}>{inv.address}</div>
                   </td>
                   <td className="text-right">
                     <div className="font-bold text-secondary-900">
