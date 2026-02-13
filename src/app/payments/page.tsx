@@ -32,8 +32,8 @@ import {
 import {
   getSubmittedPayments,
   getVerifiedPayments,
-  getFullyPaidInvoices, 
-  getFullyPaidInvoicesByAgent, 
+  getFullyPaidInvoices,
+  getFullyPaidInvoicesByAgent,
   verifyPayment,
   getInvoiceDetailsByBubbleId,
   triggerPaymentSync,
@@ -43,9 +43,12 @@ import {
   softDeleteSubmittedPayment,
   runPaymentReconciliation,
   analyzePaymentAttachment,
-  rescanFullPaymentDates
+  rescanFullPaymentDates,
+  getPaymentsWithoutMethod,
+  bulkAIUpdatePaymentMethod
 } from "./actions";
 import { cn } from "@/lib/utils";
+import { EPP_BANKS, EPP_RATES, getEppRate } from "@/lib/epp-rates";
 import InvoiceViewer from "@/components/InvoiceViewer";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
 import { Sparkles, Zap, AlertTriangle } from "lucide-react";
@@ -65,7 +68,7 @@ function formatTime(dateInput: string | Date | null | undefined): string {
 }
 
 export default function PaymentsPage() {
-  const [activeTab, setActiveTab] = useState<"pending" | "verified" | "deleted" | "fully-paid">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "verified" | "deleted" | "fully-paid" | "update-method">("pending");
   const [search, setSearch] = useState("");
   const [payments, setPayments] = useState<any[]>([]);
   const [fullyPaidInvoices, setFullyPaidInvoices] = useState<any[]>([]);
@@ -80,9 +83,15 @@ export default function PaymentsPage() {
   const [groupedInvoices, setGroupedInvoices] = useState<any[]>([]);
   const [scanning, setScanning] = useState(false);
 
+  // Bulk AI Update Method state
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState<Set<number>>(new Set());
+  const [bulkScanning, setBulkScanning] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
+  const [bulkResults, setBulkResults] = useState<{ id: number; success: boolean; payment_method?: string; is_epp?: boolean; bank?: string | null; tenure?: string | null; error?: string }[]>([]);
+
   // AI Analysis State
   const [analyzing, setAnalyzing] = useState(false);
-  const [aiData, setAIData] = useState<{ amount: string, date: string } | null>(null);
+  const [aiData, setAIData] = useState<{ amount: string; date: string; is_epp?: boolean; bank?: string | null; tenure?: string | null } | null>(null);
 
   // View Modal State
   const [viewingPayment, setViewingPayment] = useState<any | null>(null);
@@ -159,11 +168,17 @@ export default function PaymentsPage() {
 
   const applyAIData = () => {
     if (!aiData) return;
-    setEditForm({
+    const updates: any = {
       ...editForm,
       amount: aiData.amount,
-      payment_date: aiData.date
-    });
+      payment_date: aiData.date,
+    };
+    if (aiData.is_epp && aiData.bank && aiData.tenure) {
+      updates.epp_type = 'EPP';
+      updates.issuer_bank = aiData.bank;
+      updates.epp_month = aiData.tenure;
+    }
+    setEditForm(updates);
     setIsEditing(true);
   };
 
@@ -181,6 +196,10 @@ export default function PaymentsPage() {
           data = await getFullyPaidInvoices(search);
           setFullyPaidInvoices(data);
         }
+      } else if (activeTab === "update-method") {
+        data = await getPaymentsWithoutMethod(search);
+        setSelectedPaymentIds(new Set());
+        setBulkResults([]);
       } else {
         // Pending or Deleted
         data = await getSubmittedPayments(search, activeTab);
@@ -241,6 +260,57 @@ export default function PaymentsPage() {
     }
   }
 
+  async function handleBulkScan() {
+    const ids = Array.from(selectedPaymentIds);
+    // Filter out payments with no attachment
+    const scannable = ids.filter(id => {
+      const p = payments.find((pay: any) => pay.id === id);
+      return p?.attachment && p.attachment.length > 0;
+    });
+
+    if (scannable.length === 0) {
+      alert("No scannable payments selected (all missing attachments).");
+      return;
+    }
+
+    if (!confirm(`Scan ${scannable.length} payment(s) with AI to detect payment method? Results will be saved directly to DB.`)) return;
+
+    setBulkScanning(true);
+    setBulkProgress(0);
+    setBulkResults([]);
+
+    try {
+      const results = await bulkAIUpdatePaymentMethod(scannable);
+      setBulkResults(results);
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+      alert(`Bulk scan complete: ${successCount} updated, ${failCount} failed.`);
+      fetchData();
+    } catch (error) {
+      console.error("Bulk scan error:", error);
+      alert("Bulk scan failed.");
+    } finally {
+      setBulkScanning(false);
+    }
+  }
+
+  function togglePaymentSelection(id: number) {
+    setSelectedPaymentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedPaymentIds.size === filteredAndSortedPayments.length) {
+      setSelectedPaymentIds(new Set());
+    } else {
+      setSelectedPaymentIds(new Set(filteredAndSortedPayments.map((p: any) => p.id)));
+    }
+  }
+
   async function handleDiagnose() {
     try {
       const result = await diagnoseMissingInvoices();
@@ -274,7 +344,10 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
     setEditForm({
       amount: payment.amount,
       payment_method: payment.payment_method,
-      payment_date: payment.payment_date ? new Date(payment.payment_date).toISOString().split('T')[0] : ''
+      payment_date: payment.payment_date ? new Date(payment.payment_date).toISOString().split('T')[0] : '',
+      epp_type: payment.epp_type || '',
+      epp_month: payment.epp_month || '',
+      issuer_bank: payment.issuer_bank || '',
     });
     setAIData(null); // Reset AI data
     setShowInvoiceInModal(false);
@@ -314,7 +387,10 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
       const updates = {
         amount: editForm.amount,
         payment_method: editForm.payment_method,
-        payment_date: new Date(editForm.payment_date)
+        payment_date: new Date(editForm.payment_date),
+        epp_type: editForm.epp_type || null,
+        epp_month: editForm.epp_month || null,
+        issuer_bank: editForm.issuer_bank || null,
       };
 
       if (activeTab === "verified") {
@@ -468,6 +544,18 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
         >
           <CheckCircle className="h-4 w-4" />
           Fully Paid Invoices
+        </button>
+        <button
+          onClick={() => setActiveTab("update-method")}
+          className={cn(
+            "px-6 py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2",
+            activeTab === "update-method"
+              ? "border-amber-600 text-amber-600 bg-amber-50/50"
+              : "border-transparent text-secondary-500 hover:text-secondary-700 hover:bg-secondary-50"
+          )}
+        >
+          <Sparkles className="h-4 w-4" />
+          Update Method
         </button>
       </div>
 
@@ -715,18 +803,221 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 ))
               )}
             </div>
+          ) : activeTab === "update-method" ? (
+            // Update Method Tab View
+            <div>
+              {/* Action Bar */}
+              <div className="p-4 border-b border-secondary-200 bg-amber-50/50 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-secondary-700">
+                    <span className="font-semibold">{selectedPaymentIds.size}</span> of{" "}
+                    <span className="font-semibold">{filteredAndSortedPayments.length}</span> selected
+                  </span>
+                  {selectedPaymentIds.size > 0 && (() => {
+                    const noAttachCount = Array.from(selectedPaymentIds).filter(id => {
+                      const p = filteredAndSortedPayments.find((pay: any) => pay.id === id);
+                      return !p?.attachment || p.attachment.length === 0;
+                    }).length;
+                    return noAttachCount > 0 ? (
+                      <span className="text-xs text-amber-600 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        {noAttachCount} without attachment (will be skipped)
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
+                <div className="flex items-center gap-2">
+                  {bulkResults.length > 0 && (
+                    <span className="text-xs text-secondary-600 bg-white px-3 py-1.5 rounded-lg border border-secondary-200">
+                      {bulkResults.filter(r => r.success).length} updated,{" "}
+                      {bulkResults.filter(r => !r.success).length} failed
+                    </span>
+                  )}
+                  <button
+                    onClick={handleBulkScan}
+                    disabled={selectedPaymentIds.size === 0 || bulkScanning}
+                    className="btn-primary bg-amber-600 hover:bg-amber-500 border-none flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {bulkScanning ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Scanning...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Scan Selected with AI
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Bulk Results Summary */}
+              {bulkResults.length > 0 && (
+                <div className="p-4 border-b border-secondary-200 bg-white">
+                  <h4 className="text-xs font-bold text-secondary-500 uppercase tracking-wider mb-2">Scan Results</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {bulkResults.map(r => (
+                      <div
+                        key={r.id}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-xs font-medium border",
+                          r.success
+                            ? "bg-green-50 border-green-200 text-green-700"
+                            : "bg-red-50 border-red-200 text-red-700"
+                        )}
+                      >
+                        #{r.id}: {r.success ? (
+                          <>
+                            {r.payment_method}
+                            {r.is_epp && ` (EPP: ${r.bank} / ${r.tenure}mo)`}
+                          </>
+                        ) : r.error}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th className="w-10">
+                      <input
+                        type="checkbox"
+                        className="rounded border-secondary-300"
+                        checked={filteredAndSortedPayments.length > 0 && selectedPaymentIds.size === filteredAndSortedPayments.length}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                    <th>Date</th>
+                    <th>Agent / Customer</th>
+                    <th>Amount</th>
+                    <th>Attachment</th>
+                    <th>Remark</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td colSpan={6} className="px-6 py-6">
+                          <div className="h-4 bg-secondary-200 rounded w-3/4"></div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : filteredAndSortedPayments.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-16 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="p-4 bg-green-100 rounded-full">
+                            <CheckCircle className="h-8 w-8 text-green-400" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-secondary-900 mb-1">All payments have a method</p>
+                            <p className="text-sm text-secondary-600">No verified payments with missing payment method found.</p>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAndSortedPayments.map((payment: any) => {
+                      const hasAttachment = payment.attachment && payment.attachment.length > 0;
+                      const result = bulkResults.find(r => r.id === payment.id);
+                      return (
+                        <tr
+                          key={payment.id}
+                          className={cn(
+                            !hasAttachment && "bg-amber-50/50",
+                            result?.success && "bg-green-50/30",
+                            result && !result.success && "bg-red-50/30"
+                          )}
+                        >
+                          <td>
+                            <input
+                              type="checkbox"
+                              className="rounded border-secondary-300"
+                              checked={selectedPaymentIds.has(payment.id)}
+                              onChange={() => togglePaymentSelection(payment.id)}
+                            />
+                          </td>
+                          <td>
+                            <div className="flex flex-col">
+                              <span className="font-medium text-secondary-900 text-sm">
+                                {formatDate(payment.payment_date)}
+                              </span>
+                              <span className="text-xs text-secondary-500">
+                                {formatTime(payment.payment_date)}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5 text-sm font-semibold text-secondary-900">
+                                <User className="h-3.5 w-3.5 text-primary-500" />
+                                {payment.agent_name || "Unknown Agent"}
+                              </div>
+                              <div className="text-xs text-secondary-500 pl-5">
+                                Cust: {payment.customer_name || "N/A"}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="text-sm font-bold text-secondary-900">
+                              RM {parseFloat(payment.amount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </div>
+                          </td>
+                          <td>
+                            {hasAttachment ? (
+                              <a
+                                href={payment.attachment[0]}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 hover:underline"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                View
+                              </a>
+                            ) : (
+                              <span className="text-xs text-amber-600 flex items-center gap-1">
+                                <AlertTriangle className="h-3.5 w-3.5" />
+                                None
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <p className="text-xs text-secondary-600 italic line-clamp-1 max-w-[200px]">
+                              {payment.remark || "No remark"}
+                            </p>
+                            {result && (
+                              <span className={cn(
+                                "mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-bold",
+                                result.success ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                              )}>
+                                {result.success ? `→ ${result.payment_method}` : result.error}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           ) : (
             // Regular Table View
             <table className="table">
               <thead>
                 <tr>
                   <th>
-                    {activeTab === "fully-paid" 
-                      ? "Full Payment Date" 
-                      : activeTab === "verified" 
-                        ? "Payment Date" 
-                        : activeTab === "pending" || activeTab === "deleted" 
-                          ? "Created On" 
+                    {activeTab === "fully-paid"
+                      ? "Full Payment Date"
+                      : activeTab === "verified"
+                        ? "Payment Date"
+                        : activeTab === "pending" || activeTab === "deleted"
+                          ? "Created On"
                           : "Date"}
                   </th>
                   {activeTab === "fully-paid" ? (
@@ -1044,6 +1335,74 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           onChange={e => setEditForm({ ...editForm, amount: e.target.value })}
                         />
                       </div>
+
+                      {/* EPP Fields */}
+                      <div className="border-t border-secondary-200 pt-3 mt-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs text-secondary-500">EPP Payment?</label>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={editForm.epp_type === 'EPP'}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  setEditForm({ ...editForm, epp_type: 'EPP' });
+                                } else {
+                                  setEditForm({ ...editForm, epp_type: '', epp_month: '', issuer_bank: '' });
+                                }
+                              }}
+                            />
+                            <div className="w-9 h-5 bg-secondary-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-secondary-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-600"></div>
+                          </label>
+                        </div>
+                      </div>
+
+                      {editForm.epp_type === 'EPP' && (
+                        <>
+                          <div>
+                            <label className="text-xs text-secondary-500">Issuer Bank</label>
+                            <select
+                              className="input w-full text-sm py-1"
+                              value={editForm.issuer_bank}
+                              onChange={e => setEditForm({ ...editForm, issuer_bank: e.target.value, epp_month: '' })}
+                            >
+                              <option value="">Select Bank</option>
+                              {EPP_BANKS.map(bank => (
+                                <option key={bank} value={bank}>{bank}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {editForm.issuer_bank && (
+                            <div>
+                              <label className="text-xs text-secondary-500">EPP Tenure</label>
+                              <select
+                                className="input w-full text-sm py-1"
+                                value={editForm.epp_month}
+                                onChange={e => setEditForm({ ...editForm, epp_month: e.target.value })}
+                              >
+                                <option value="">Select Tenure</option>
+                                {EPP_RATES
+                                  .filter(r => r.rates[editForm.issuer_bank] != null)
+                                  .map(r => (
+                                    <option key={r.tenure} value={String(r.tenure)}>{r.tenure} months</option>
+                                  ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {editForm.issuer_bank && editForm.epp_month && (() => {
+                            const rate = getEppRate(editForm.issuer_bank, parseInt(editForm.epp_month));
+                            return rate != null ? (
+                              <div className="bg-primary-50 border border-primary-200 rounded-lg p-2 text-center">
+                                <p className="text-[10px] text-primary-500 uppercase font-bold">EPP Rate</p>
+                                <p className="text-lg font-bold text-primary-700">{rate}%</p>
+                              </div>
+                            ) : null;
+                          })()}
+                        </>
+                      )}
                     </div>
 
                     <div className="flex gap-2 pt-2">
@@ -1107,6 +1466,46 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                             </div>
                           )}
                         </>
+                      )}
+
+                      {/* EPP Info */}
+                      {viewingPayment.epp_type && (
+                        <div className="border-t border-secondary-200 pt-3 mt-1 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 bg-primary-100 text-primary-700 rounded text-xs font-bold">EPP</span>
+                            <span className="text-xs text-secondary-500">Easy Payment Plan</span>
+                          </div>
+                          {viewingPayment.issuer_bank && (
+                            <div className="flex items-start gap-3">
+                              <CreditCard className="h-4 w-4 text-secondary-400 mt-0.5" />
+                              <div>
+                                <p className="text-xs text-secondary-500">Bank</p>
+                                <p className="text-sm font-medium text-secondary-900">{viewingPayment.issuer_bank}</p>
+                              </div>
+                            </div>
+                          )}
+                          {viewingPayment.epp_month && (
+                            <div className="flex items-start gap-3">
+                              <Calendar className="h-4 w-4 text-secondary-400 mt-0.5" />
+                              <div>
+                                <p className="text-xs text-secondary-500">Tenure</p>
+                                <p className="text-sm font-medium text-secondary-900">{viewingPayment.epp_month} months</p>
+                              </div>
+                            </div>
+                          )}
+                          {viewingPayment.issuer_bank && viewingPayment.epp_month && (() => {
+                            const rate = getEppRate(viewingPayment.issuer_bank, parseInt(viewingPayment.epp_month));
+                            return rate != null ? (
+                              <div className="flex items-start gap-3">
+                                <DollarSign className="h-4 w-4 text-secondary-400 mt-0.5" />
+                                <div>
+                                  <p className="text-xs text-secondary-500">EPP Rate</p>
+                                  <p className="text-sm font-bold text-primary-600">{rate}%</p>
+                                </div>
+                              </div>
+                            ) : null;
+                          })()}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1244,6 +1643,32 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                             )}
                           </div>
                         </div>
+
+                        {/* EPP Detection */}
+                        {aiData.is_epp && (
+                          <div className="flex flex-col gap-1.5 border-t border-secondary-100 pt-2">
+                            <div className="flex items-center gap-2">
+                              <span className="px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded text-[10px] font-bold">EPP DETECTED</span>
+                            </div>
+                            <div className="flex items-center justify-between p-2 rounded-lg border bg-blue-50 border-blue-200 text-blue-700">
+                              <span className="text-xs">Bank</span>
+                              <span className="font-bold text-sm">{aiData.bank || 'N/A'}</span>
+                            </div>
+                            <div className="flex items-center justify-between p-2 rounded-lg border bg-blue-50 border-blue-200 text-blue-700">
+                              <span className="text-xs">Tenure</span>
+                              <span className="font-bold text-sm">{aiData.tenure} months</span>
+                            </div>
+                            {aiData.bank && aiData.tenure && (() => {
+                              const rate = getEppRate(aiData.bank, parseInt(aiData.tenure));
+                              return rate != null ? (
+                                <div className="flex items-center justify-between p-2 rounded-lg border bg-primary-50 border-primary-200 text-primary-700">
+                                  <span className="text-xs">EPP Rate</span>
+                                  <span className="font-bold text-sm">{rate}%</span>
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+                        )}
                       </div>
 
                       <button

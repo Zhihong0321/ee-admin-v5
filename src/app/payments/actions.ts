@@ -45,6 +45,9 @@ export async function getSubmittedPayments(search?: string, status: string = 'pe
         linked_invoice: submitted_payments.linked_invoice, // This might be numeric or bubble ID
         invoice_bubble_id: invoices.bubble_id, // REAL bubble ID from join
         share_token: invoices.share_token,
+        epp_type: submitted_payments.epp_type,
+        epp_month: submitted_payments.epp_month,
+        issuer_bank: submitted_payments.issuer_bank,
         log: submitted_payments.log,
       })
       .from(submitted_payments)
@@ -346,13 +349,23 @@ export async function analyzePaymentAttachment(attachmentUrl: string) {
       Extract the following details from this payment receipt/bank transfer screenshot:
       1. Total Payment Amount (numeric only, e.g., 1250.00)
       2. Payment Date (in YYYY-MM-DD format)
-      
+      3. Check if this is an EPP (Easy Payment Plan / Installment) transaction.
+         Indicators of EPP: "TENURE", "MONTHLY REPAYMENT", "INSTALLMENT", interest rate fields, or multiple months mentioned.
+         If EPP is detected:
+         - is_epp: true
+         - bank: The issuing bank name. Map to one of these exact values: "MBB" (Maybank), "PBB" (Public Bank), "HLB" (Hong Leong Bank), "CIMB", "AM Bank" (AmBank), "UOB", "OCBC". Use the closest match.
+         - tenure: The number of months (numeric only, e.g., 36)
+         If NOT an EPP transaction, set is_epp to false.
+
       Respond ONLY with a JSON object like this:
       {
         "amount": "1250.00",
-        "date": "2024-05-20"
+        "date": "2024-05-20",
+        "is_epp": true,
+        "bank": "PBB",
+        "tenure": "36"
       }
-      If you cannot find the information, return null for that field.
+      If you cannot find the information, return null for that field. For is_epp, default to false if unsure.
     `;
 
     // 3. Call AI Router
@@ -528,6 +541,9 @@ interface UpdatePaymentParams {
   amount?: string;
   payment_method?: string;
   payment_date?: Date;
+  epp_type?: string | null;
+  epp_month?: string | null;
+  issuer_bank?: string | null;
 }
 
 export async function updateVerifiedPayment(id: number, updates: UpdatePaymentParams, user: string) {
@@ -550,6 +566,15 @@ export async function updateVerifiedPayment(id: number, updates: UpdatePaymentPa
     }
     if (updates.payment_date && current.payment_date && updates.payment_date.getTime() !== current.payment_date.getTime()) {
       changes.push(`[${dateStr}] ${user} changed Date from ${current.payment_date.toISOString()} to ${updates.payment_date.toISOString()}`);
+    }
+    if ('epp_type' in updates && (updates.epp_type ?? null) !== (current.epp_type ?? null)) {
+      changes.push(`[${dateStr}] ${user} changed EPP Type from ${current.epp_type || 'None'} to ${updates.epp_type || 'None'}`);
+    }
+    if ('issuer_bank' in updates && (updates.issuer_bank ?? null) !== (current.issuer_bank ?? null)) {
+      changes.push(`[${dateStr}] ${user} changed Issuer Bank from ${current.issuer_bank || 'None'} to ${updates.issuer_bank || 'None'}`);
+    }
+    if ('epp_month' in updates && (updates.epp_month ?? null) !== (current.epp_month ?? null)) {
+      changes.push(`[${dateStr}] ${user} changed EPP Month from ${current.epp_month || 'None'} to ${updates.epp_month || 'None'}`);
     }
 
     if (changes.length === 0) return { success: true, message: "No changes detected" };
@@ -592,6 +617,15 @@ export async function updateSubmittedPayment(id: number, updates: UpdatePaymentP
     }
     if (updates.payment_date && current.payment_date && updates.payment_date.getTime() !== current.payment_date.getTime()) {
       changes.push(`[${dateStr}] ${user} changed Date from ${current.payment_date.toISOString()} to ${updates.payment_date.toISOString()}`);
+    }
+    if ('epp_type' in updates && (updates.epp_type ?? null) !== (current.epp_type ?? null)) {
+      changes.push(`[${dateStr}] ${user} changed EPP Type from ${current.epp_type || 'None'} to ${updates.epp_type || 'None'}`);
+    }
+    if ('issuer_bank' in updates && (updates.issuer_bank ?? null) !== (current.issuer_bank ?? null)) {
+      changes.push(`[${dateStr}] ${user} changed Issuer Bank from ${current.issuer_bank || 'None'} to ${updates.issuer_bank || 'None'}`);
+    }
+    if ('epp_month' in updates && (updates.epp_month ?? null) !== (current.epp_month ?? null)) {
+      changes.push(`[${dateStr}] ${user} changed EPP Month from ${current.epp_month || 'None'} to ${updates.epp_month || 'None'}`);
     }
 
     if (changes.length === 0) return { success: true, message: "No changes detected" };
@@ -704,6 +738,186 @@ export async function runPaymentReconciliation() {
  * Rescans all paid invoices that are missing a full_payment_date
  * and populates it based on the latest payment date.
  */
+export async function getPaymentsWithoutMethod(search?: string) {
+  try {
+    const searchFilters = search
+      ? or(
+        ilike(payments.remark, `%${search}%`),
+        ilike(agents.name, `%${search}%`),
+        ilike(customers.name, `%${search}%`)
+      )
+      : undefined;
+
+    const whereClause = searchFilters
+      ? and(
+        or(isNull(payments.payment_method), eq(payments.payment_method, '')),
+        searchFilters
+      )
+      : or(isNull(payments.payment_method), eq(payments.payment_method, ''));
+
+    const data = await db
+      .select({
+        id: payments.id,
+        bubble_id: payments.bubble_id,
+        amount: payments.amount,
+        payment_date: payments.payment_date,
+        attachment: payments.attachment,
+        agent_name: agents.name,
+        customer_name: customers.name,
+        issuer_bank: payments.issuer_bank,
+        epp_type: payments.epp_type,
+        epp_month: payments.epp_month,
+        remark: payments.remark,
+        log: payments.log,
+      })
+      .from(payments)
+      .leftJoin(agents, eq(payments.linked_agent, agents.bubble_id))
+      .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
+      .where(whereClause)
+      .orderBy(desc(payments.payment_date))
+      .limit(100);
+
+    return data;
+  } catch (error) {
+    console.error("Database error in getPaymentsWithoutMethod:", error);
+    throw error;
+  }
+}
+
+export async function bulkAIUpdatePaymentMethod(paymentIds: number[]) {
+  const results: {
+    id: number;
+    success: boolean;
+    payment_method?: string;
+    is_epp?: boolean;
+    bank?: string | null;
+    tenure?: string | null;
+    error?: string;
+  }[] = [];
+
+  for (const id of paymentIds) {
+    try {
+      // 1. Fetch the payment
+      const payment = await db.query.payments.findFirst({
+        where: eq(payments.id, id),
+      });
+      if (!payment) {
+        results.push({ id, success: false, error: "Payment not found" });
+        continue;
+      }
+      if (!payment.attachment || payment.attachment.length === 0) {
+        results.push({ id, success: false, error: "No attachment" });
+        continue;
+      }
+
+      // 2. Fetch attachment and convert to base64
+      const attachmentUrl = payment.attachment[0];
+      const response = await fetch(attachmentUrl);
+      if (!response.ok) {
+        results.push({ id, success: false, error: "Failed to fetch attachment" });
+        continue;
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const base64Data = buffer.toString("base64");
+      const mimeType = response.headers.get("content-type") || "image/jpeg";
+
+      // 3. Call Gemini with enhanced payment method detection prompt
+      const prompt = `
+You are analyzing a payment receipt/bank transfer screenshot to determine the PAYMENT METHOD.
+
+**Classification rules — pick ONE:**
+| Keywords on receipt | payment_method |
+|---|---|
+| "Fund Transfer", "Giro", "Cash Deposit", "DuitNow", "IBG", "Instant Transfer", "Online Banking", "RENTAS" | "Online Transfer" |
+| "EMV SALE", "VISA", "MASTERCARD", "Credit Card", card number starting with 4xxx or 5xxx | "Credit Card" |
+| "E-Wallet", "GrabPay", "Touch n Go", "TnG", "Boost", "ShopeePay" | "E-Wallet" |
+| "Cheque", "Check", cheque number | "Cheque" |
+| No digital indicators, "Cash" | "Cash" |
+
+**EPP detection (layered on top of Credit Card):**
+If any of TENURE / MONTHLY REPAYMENT / INSTALLMENT fields are present → is_epp: true.
+When EPP is detected:
+- payment_method stays "Credit Card"
+- bank: Map to one of these exact values: "MBB" (Maybank), "PBB" (Public Bank), "HLB" (Hong Leong Bank), "CIMB", "AM Bank" (AmBank), "UOB", "OCBC". Use the closest match.
+- tenure: The number of months (numeric only, e.g., 36)
+
+**Also extract:**
+- amount: Total payment amount (numeric, e.g. "1115.00")
+- date: Payment date in YYYY-MM-DD format
+
+Respond ONLY with a JSON object:
+{
+  "amount": "1115.00",
+  "date": "2026-01-01",
+  "payment_method": "Online Transfer",
+  "is_epp": false,
+  "bank": null,
+  "tenure": null
+}
+If you cannot determine the payment method, set payment_method to null.
+For is_epp, default to false if unsure.
+`;
+
+      const aiResponse = await generateWithGemini(prompt, {
+        model: "gemini-3-flash-preview",
+        temperature: 0,
+        file: { mimeType, data: base64Data },
+      });
+
+      // 4. Parse response
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        results.push({ id, success: false, error: "Failed to parse AI response" });
+        continue;
+      }
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      if (!parsed.payment_method) {
+        results.push({ id, success: false, error: "AI could not determine method" });
+        continue;
+      }
+
+      // 5. Build update object
+      const updateObj: Record<string, any> = {
+        payment_method: parsed.payment_method,
+        updated_at: new Date(),
+      };
+      if (parsed.is_epp && parsed.bank) {
+        updateObj.epp_type = "EPP";
+        updateObj.issuer_bank = parsed.bank;
+        if (parsed.tenure) updateObj.epp_month = String(parsed.tenure);
+      }
+
+      // 6. Build log entry
+      const dateStr = new Date().toISOString();
+      const logParts = [`[${dateStr}] AI Bulk Scan: Set method to "${parsed.payment_method}"`];
+      if (parsed.is_epp) {
+        logParts.push(`EPP detected: ${parsed.bank || "?"} / ${parsed.tenure || "?"} months`);
+      }
+      const logEntry = logParts.join(", ");
+      updateObj.log = (payment.log ? payment.log + "\n" : "") + logEntry;
+
+      // 7. Write to DB
+      await db.update(payments).set(updateObj).where(eq(payments.id, id));
+
+      results.push({
+        id,
+        success: true,
+        payment_method: parsed.payment_method,
+        is_epp: parsed.is_epp || false,
+        bank: parsed.bank || null,
+        tenure: parsed.tenure || null,
+      });
+    } catch (error: any) {
+      results.push({ id, success: false, error: error.message || "Unknown error" });
+    }
+  }
+
+  revalidatePath("/payments");
+  return results;
+}
+
 export async function rescanFullPaymentDates() {
   try {
     // 1. Find all paid invoices where full_payment_date is null
