@@ -133,8 +133,17 @@ export async function getFullyPaidInvoices(search?: string) {
       : undefined;
 
     const whereClause = filters
-      ? and(eq(invoices.paid, true), filters)
-      : eq(invoices.paid, true);
+      ? and(
+        or(
+          eq(invoices.paid, true),
+          sql`cast(${invoices.percent_of_total_amount} as numeric) >= 99.9`
+        ),
+        filters
+      )
+      : or(
+        eq(invoices.paid, true),
+        sql`cast(${invoices.percent_of_total_amount} as numeric) >= 99.9`
+      );
 
     const data = await db
       .select({
