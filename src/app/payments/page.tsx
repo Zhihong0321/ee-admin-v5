@@ -1254,35 +1254,16 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 </tbody>
               </table>
             </div>
-          ) : (
-            // Regular Table View
+          ) : activeTab === "fully-paid" && viewMode === "list" ? (
+            // Dedicated Table for Fully Paid Invoices
             <table className="table">
               <thead>
                 <tr>
-                  <th>
-                    {activeTab === "fully-paid"
-                      ? "Full Payment Date"
-                      : activeTab === "verified"
-                        ? "Payment Date"
-                        : activeTab === "pending" || activeTab === "deleted"
-                          ? "Created On"
-                          : "Date"}
-                  </th>
-                  {activeTab === "fully-paid" ? (
-                    <>
-                      <th>Customer / Agent</th>
-                      <th>Total Amount</th>
-                      <th>Status</th>
-                      <th>Invoice # / Remark</th>
-                    </>
-                  ) : (
-                    <>
-                      <th>Agent / Customer</th>
-                      <th>Amount</th>
-                      <th>Method</th>
-                      <th>Status / Remark</th>
-                    </>
-                  )}
+                  <th>Full Payment Date</th>
+                  <th>Customer / Agent</th>
+                  <th>Total Amount</th>
+                  <th>Status</th>
+                  <th>Invoice # / Remark</th>
                   <th className="text-right">Actions</th>
                 </tr>
               </thead>
@@ -1295,40 +1276,31 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       </td>
                     </tr>
                   ))
-                ) : filteredAndSortedPayments.length === 0 ? (
+                ) : fullyPaidInvoices.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <div className="p-4 bg-secondary-100 rounded-full">
-                          <CreditCard className="h-8 w-8 text-secondary-400" />
+                          <CheckCircle className="h-8 w-8 text-secondary-400" />
                         </div>
                         <div>
                           <p className="font-medium text-secondary-900 mb-1">
-                            {activeTab === "fully-paid" ? "No invoices found" : "No payments found"}
+                            No fully paid invoices found
                           </p>
                           <p className="text-sm text-secondary-600">
-                            {search
-                              ? "Try adjusting your search criteria"
-                              : activeTab === "fully-paid"
-                                ? "No fully paid invoices"
-                                : activeTab === "pending"
-                                  ? "No pending payments"
-                                  : activeTab === "deleted"
-                                    ? "No deleted submissions"
-                                    : "No verified payments"}
+                            {search ? "Try adjusting your search criteria" : "Invoices with 100% payment will appear here"}
                           </p>
                         </div>
                       </div>
                     </td>
                   </tr>
-                ) : activeTab === "fully-paid" ? (
-                  // Fully Paid Invoices View
-                  filteredAndSortedPayments.map((invoice) => (
+                ) : (
+                  fullyPaidInvoices.map((invoice) => (
                     <tr key={invoice.id}>
                       <td>
                         <div className="flex flex-col">
                           <span className="font-medium text-secondary-900">
-                            Full Payment Date: {formatDate(invoice.full_payment_date || invoice.last_payment_date)}
+                            {formatDate(invoice.full_payment_date || invoice.last_payment_date)}
                           </span>
                           <span className="text-xs text-secondary-500">
                             {formatTime(invoice.full_payment_date || invoice.last_payment_date)}
@@ -1382,6 +1354,62 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       </td>
                     </tr>
                   ))
+                )}
+              </tbody>
+            </table>
+          ) : (
+            // Regular Table View (Pending / Verified / Deleted)
+            <table className="table">
+              {/* Only show headers relevant to payments, no invoice stuff mixed in */}
+              <thead>
+                <tr>
+                  <th>
+                    {activeTab === "verified"
+                      ? "Payment Date"
+                      : activeTab === "pending" || activeTab === "deleted"
+                        ? "Created On"
+                        : "Date"}
+                  </th>
+                  <th>Agent / Customer</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Status / Remark</th>
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td colSpan={6} className="px-6 py-6">
+                        <div className="h-4 bg-secondary-200 rounded w-3/4"></div>
+                      </td>
+                    </tr>
+                  ))
+                ) : filteredAndSortedPayments.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-16 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="p-4 bg-secondary-100 rounded-full">
+                          <CreditCard className="h-8 w-8 text-secondary-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-secondary-900 mb-1">
+                            No payments found
+                          </p>
+                          <p className="text-sm text-secondary-600">
+                            {search
+                              ? "Try adjusting your search criteria"
+                              : activeTab === "pending"
+                                ? "No pending payments"
+                                : activeTab === "deleted"
+                                  ? "No deleted submissions"
+                                  : "No verified payments"}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
                 ) : (
                   // Payment Views (Pending/Verified/Deleted)
                   filteredAndSortedPayments.map((payment) => (
@@ -1390,9 +1418,9 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         <div className="flex flex-col">
                           <span className="font-medium text-secondary-900">
                             {activeTab === "verified"
-                              ? `Payment Date: ${formatDate(payment.payment_date || payment.created_at)}`
+                              ? `${formatDate(payment.payment_date || payment.created_at)}`
                               : activeTab === "pending" || activeTab === "deleted"
-                                ? `Created On: ${formatDate(payment.created_at || payment.payment_date)}`
+                                ? `${formatDate(payment.created_at || payment.payment_date)}`
                                 : `${formatDate(payment.payment_date || payment.created_at)}`}
                           </span>
                           <span className="text-xs text-secondary-500">
@@ -1472,12 +1500,11 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 )}
               </tbody>
             </table>
-          )
-          }
-        </div >
+          )}
+        </div>
 
         {/* Pagination */}
-        < div className="p-6 border-t border-secondary-200 bg-secondary-50/30 flex items-center justify-between" >
+        <div className="p-6 border-t border-secondary-200 bg-secondary-50/30 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <p className="text-sm text-secondary-600">
               Showing <span className="font-semibold text-secondary-900">{filteredAndSortedPayments.length}</span> results
@@ -2002,6 +2029,6 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
           </div>
         )
       }
-    </div >
+    </div>
   );
 }
