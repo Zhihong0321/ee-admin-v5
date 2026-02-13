@@ -108,7 +108,6 @@ export async function updatePaymentCalculations() {
       invoice_number: invoices.invoice_number,
       total_amount: invoices.total_amount,
       amount: invoices.amount,
-      linked_payment: invoices.linked_payment,
     })
       .from(invoices)
       .where(and(
@@ -124,65 +123,60 @@ export async function updatePaymentCalculations() {
     let updatedCount = 0;
     let fullyPaidCount = 0;
 
-    // Pre-fetch all payments for performance
-    // Using a map for O(1) access: bubble_id -> { amount, date }
+    // 2. Fetch all verified payments
     const allPayments = await db.select({
-      bubble_id: payments.bubble_id,
+      id: payments.id,
       amount: payments.amount,
-      payment_date: payments.payment_date
-    }).from(payments);
+      payment_date: payments.payment_date,
+      linked_invoice: payments.linked_invoice
+    }).from(payments)
+      .where(isNotNull(payments.linked_invoice));
 
-    const paymentMap = new Map<string, { amount: number, date: Date | null }>();
-    allPayments.forEach(p => {
-      if (p.bubble_id) {
-        paymentMap.set(p.bubble_id, {
-          amount: parseFloat(p.amount || '0'),
-          date: p.payment_date ? new Date(p.payment_date) : null
-        });
-      }
-    });
+    // 3. Group payments by linked_invoice
+    const invoicePaymentsMap = new Map<string, { amount: number, date: Date | null }[]>();
 
+    for (const p of allPayments) {
+      if (!p.linked_invoice) continue;
+
+      const currentList = invoicePaymentsMap.get(p.linked_invoice) || [];
+      currentList.push({
+        amount: parseFloat(p.amount || '0'),
+        date: p.payment_date ? new Date(p.payment_date) : null
+      });
+      invoicePaymentsMap.set(p.linked_invoice, currentList);
+    }
+
+    // 4. Calculate for each invoice
     for (const inv of allInvoices) {
-      const totalAmount = parseFloat(inv.total_amount || inv.amount || '0');
+      if (!inv.bubble_id) continue;
 
+      const totalAmount = parseFloat(inv.total_amount || inv.amount || '0');
       if (totalAmount <= 0) continue;
 
       let totalPaid = 0;
       let lastPaymentDate: Date | null = null;
 
-      if (inv.linked_payment && inv.linked_payment.length > 0) {
-        // Iterate through linked payments
-        for (const pid of inv.linked_payment) {
-          if (!pid) continue;
-          const pData = paymentMap.get(pid);
-          if (pData) {
-            totalPaid += pData.amount;
+      const linkedPayments = invoicePaymentsMap.get(inv.bubble_id);
 
-            // Track latest payment date
-            if (pData.date) {
-              if (!lastPaymentDate || pData.date > lastPaymentDate) {
-                lastPaymentDate = pData.date;
-              }
+      if (linkedPayments) {
+        for (const p of linkedPayments) {
+          totalPaid += p.amount;
+          if (p.date) {
+            if (!lastPaymentDate || p.date > lastPaymentDate) {
+              lastPaymentDate = p.date;
             }
           }
         }
       }
 
-      // 1. Calculate Percentage
-      // Clamp between 0.00 and 100.00? User said "0.00 ~ 100.00"
+      // Calculate Percentage
       let percent = (totalPaid / totalAmount) * 100;
       if (percent < 0) percent = 0;
-      // Allow > 100 technically but usually capped. User request implied 0~100.
-      // Let's cap at 100 for the field, but logic for "paid" is >= 100.
-      // Actually, let's store exact first, but formatted.
 
       // Update Logic
-      const isPaid = percent >= 99.9; // Handling float rounding errors, slightly tolerant
+      const isPaid = percent >= 99.9;
       if (isPaid) fullyPaidCount++;
 
-      // If paid, use last payment date. Else null? Or keep existing?
-      // Request: "update invoice.full_payment_date = last payment.payment_date"
-      // Implies only if fully paid.
       const fullPaymentDate = isPaid ? lastPaymentDate : null;
 
       // Update DB
