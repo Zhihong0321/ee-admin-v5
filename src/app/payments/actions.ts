@@ -204,6 +204,7 @@ export async function getFullyPaidInvoicesByAgent(month: number, year: number, s
         customer_name: customers.name,
         eligible_amount_description: invoices.eligible_amount_description,
         amount_eligible_for_comm: invoices.amount_eligible_for_comm,
+        linked_payment: invoices.linked_payment,
       })
       .from(invoices)
       .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
@@ -216,7 +217,37 @@ export async function getFullyPaidInvoicesByAgent(month: number, year: number, s
         filters || undefined
       ));
 
-    // Group by agent and count invoices
+    // 2. Extract all Payment Bubble IDs to fetch their dates
+    const allPaymentIds: string[] = [];
+    invoiceData.forEach(inv => {
+      if (inv.linked_payment && Array.isArray(inv.linked_payment)) {
+        allPaymentIds.push(...inv.linked_payment);
+      }
+    });
+
+    // 3. Fetch Payment Dates if we have any linked payments
+    const paymentDatesMap = new Map<string, Date>();
+    if (allPaymentIds.length > 0) {
+      // Chunking if too many IDs (optional, but safer)
+      const uniqueIds = Array.from(new Set(allPaymentIds));
+      const paymentRecords = await db
+        .select({
+          bubble_id: payments.bubble_id,
+          date: payments.payment_date,
+          created_at: payments.created_at // fallback
+        })
+        .from(payments)
+        .where(inArray(payments.bubble_id, uniqueIds));
+
+      paymentRecords.forEach(p => {
+        const date = p.date ? new Date(p.date) : new Date(p.created_at || '');
+        if (!isNaN(date.getTime())) {
+          paymentDatesMap.set(p.bubble_id, date);
+        }
+      });
+    }
+
+    // 4. Group by agent and process data
     const agentGroups: Record<string, any> = {};
 
     for (const invoice of invoiceData) {
@@ -227,13 +258,33 @@ export async function getFullyPaidInvoicesByAgent(month: number, year: number, s
           agent_name: agentName,
           invoice_count: 0,
           invoices: [],
-          total_amount: 0
+          total_amount: 0,
+          total_eligible_amount: 0
         };
       }
 
+      // Calculate First Payment Date
+      let firstPaymentDate: Date | null = null;
+      if (invoice.linked_payment && Array.isArray(invoice.linked_payment)) {
+        invoice.linked_payment.forEach((pid: string) => {
+          const pDate = paymentDatesMap.get(pid);
+          if (pDate) {
+            if (!firstPaymentDate || pDate < firstPaymentDate) {
+              firstPaymentDate = pDate;
+            }
+          }
+        });
+      }
+
+      const invWithFirstPayment = {
+        ...invoice,
+        first_payment_date: firstPaymentDate
+      };
+
       agentGroups[agentName].invoice_count++;
-      agentGroups[agentName].invoices.push(invoice);
+      agentGroups[agentName].invoices.push(invWithFirstPayment);
       agentGroups[agentName].total_amount += parseFloat(invoice.total_amount || '0');
+      agentGroups[agentName].total_eligible_amount += parseFloat(invoice.amount_eligible_for_comm || '0');
     }
 
     // Convert to array and sort by invoice count (descending)
