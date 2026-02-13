@@ -159,6 +159,8 @@ export async function getFullyPaidInvoices(search?: string) {
         agent_name: agents.name,
         created_at: invoices.created_at,
         updated_at: invoices.updated_at,
+        eligible_amount_description: invoices.eligible_amount_description,
+        amount_eligible_for_comm: invoices.amount_eligible_for_comm,
       })
       .from(invoices)
       .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))

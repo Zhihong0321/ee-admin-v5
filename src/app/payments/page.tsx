@@ -97,6 +97,8 @@ export default function PaymentsPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [aiData, setAIData] = useState<{ amount: string; date: string; is_epp?: boolean; bank?: string | null; tenure?: string | null } | null>(null);
 
+  const [viewingDescription, setViewingDescription] = useState<string | null>(null);
+
   // View Modal State
   const [viewingPayment, setViewingPayment] = useState<any | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -1350,6 +1352,15 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                             <Eye className="h-4 w-4" />
                             View Invoice
                           </button>
+                          {invoice.eligible_amount_description && (
+                            <button
+                              onClick={() => setViewingDescription(invoice.eligible_amount_description)}
+                              className="p-1.5 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200"
+                              title="View Commission Eligibility"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2029,6 +2040,41 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
           </div>
         )
       }
+
+      {/* Commission Description Modal */}
+      {viewingDescription && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border border-secondary-200">
+            <div className="flex items-center justify-between p-4 border-b border-secondary-100 bg-secondary-50/50">
+              <h3 className="font-semibold text-secondary-900 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-amber-500" />
+                Commission Eligibility
+              </h3>
+              <button
+                onClick={() => setViewingDescription(null)}
+                className="p-1 rounded-lg text-secondary-400 hover:text-secondary-600 hover:bg-secondary-100 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="p-4 rounded-lg bg-amber-50/50 border border-amber-100 text-sm text-secondary-700 whitespace-pre-wrap leading-relaxed font-mono">
+                {viewingDescription}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-secondary-100 bg-secondary-50/30 flex justify-end">
+              <button
+                onClick={() => setViewingDescription(null)}
+                className="px-4 py-2 text-sm font-medium text-secondary-700 bg-white border border-secondary-200 rounded-lg hover:bg-secondary-50 transition-colors shadow-sm"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
