@@ -55,7 +55,7 @@ export async function GET(
       name: !!customer_name,
       address: !!seda.installation_address,
       mykad: !!(seda.mykad_pdf || seda.ic_copy_front),
-      tnb_bill: !!(seda.tnb_bill_1 && seda.tnb_bill_2 && seda.tnb_bill_3),
+      tnb_bill: !!(seda.tnb_bill_1 || seda.tnb_bill_2 || seda.tnb_bill_3),
       tnb_meter: !!seda.tnb_meter,
       emergency_contact: !!(seda.e_contact_name && seda.e_contact_no && seda.e_contact_relationship),
       payment_required: hasRequiredPayment,

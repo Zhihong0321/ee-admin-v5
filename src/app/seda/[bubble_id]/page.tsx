@@ -22,8 +22,13 @@ const SEDA_FIELD_CONFIG: Record<string, { label: string; type: 'text' | 'textare
 
   // Address & Location
   installation_address: { label: "Installation Address", type: "textarea", section: "address" },
+  installation_address_1: { label: "Address Line 1", type: "text", section: "address" },
+  installation_address_2: { label: "Address Line 2", type: "text", section: "address" },
+  postcode: { label: "Postcode", type: "text", section: "address" },
   city: { label: "City", type: "text", section: "address" },
   state: { label: "State", type: "text", section: "address" },
+  latitude: { label: "Latitude", type: "number", section: "address" },
+  longitude: { label: "Longitude", type: "number", section: "address" },
 
   // Solar System Details
   system_size: { label: "System Size (kW)", type: "number", section: "solar" },
@@ -226,7 +231,17 @@ export default function SedaDetailPage() {
   const [resyncing, setResyncing] = useState(false);
   const [resyncResult, setResyncResult] = useState<any>(null);
   const [extractingBill, setExtractingBill] = useState(false);
-  const [extractResult, setExtractResult] = useState<{ address: string | null; tnb_account_no: string | null } | null>(null);
+  const [extractResult, setExtractResult] = useState<{
+    address: string | null;
+    installation_address_1: string | null;
+    installation_address_2: string | null;
+    city: string | null;
+    state: string | null;
+    postcode: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    tnb_account_no: string | null
+  } | null>(null);
 
   useEffect(() => {
     if (params.bubble_id) {
@@ -437,9 +452,19 @@ export default function SedaDetailPage() {
     if (!extractResult) return;
     setSaving(true);
     try {
-      const patch: Record<string, string> = {};
+      const patch: Record<string, any> = {};
       if (extractResult.address) patch.installation_address = extractResult.address;
       if (extractResult.tnb_account_no) patch.tnb_account_no = extractResult.tnb_account_no;
+
+      // Apply new broken-down address fields
+      if (extractResult.installation_address_1) patch.installation_address_1 = extractResult.installation_address_1;
+      if (extractResult.installation_address_2) patch.installation_address_2 = extractResult.installation_address_2;
+      if (extractResult.city) patch.city = extractResult.city;
+      if (extractResult.state) patch.state = extractResult.state;
+      if (extractResult.postcode) patch.postcode = extractResult.postcode;
+      if (extractResult.latitude) patch.latitude = extractResult.latitude;
+      if (extractResult.longitude) patch.longitude = extractResult.longitude;
+
       if (Object.keys(patch).length === 0) {
         alert("No data to apply");
         return;
@@ -597,13 +622,12 @@ export default function SedaDetailPage() {
 
       {/* Re-Sync Result Banner */}
       {resyncResult && (
-        <div className={`border rounded-lg p-4 ${
-          resyncResult.success
-            ? resyncResult.filled_count > 0
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : "bg-blue-50 border-blue-200 text-blue-800"
-            : "bg-red-50 border-red-200 text-red-800"
-        }`}>
+        <div className={`border rounded-lg p-4 ${resyncResult.success
+          ? resyncResult.filled_count > 0
+            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+            : "bg-blue-50 border-blue-200 text-blue-800"
+          : "bg-red-50 border-red-200 text-red-800"
+          }`}>
           <div className="flex items-start justify-between">
             <div>
               <p className="font-medium">
@@ -757,11 +781,10 @@ export default function SedaDetailPage() {
           </div>
         </div>
         {profileCheckResult && (
-          <div className={`mt-4 p-3 rounded-lg text-sm ${
-            profileCheckResult.success
-              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-              : "bg-red-100 text-red-800 border border-red-200"
-          }`}>
+          <div className={`mt-4 p-3 rounded-lg text-sm ${profileCheckResult.success
+            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+            : "bg-red-100 text-red-800 border border-red-200"
+            }`}>
             <p className="font-medium">
               {typeof profileCheckResult.message === 'string'
                 ? profileCheckResult.message
@@ -857,10 +880,40 @@ export default function SedaDetailPage() {
               <div className="flex-1 space-y-2">
                 <p className="text-sm font-semibold text-violet-800">AI Extracted Data:</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-600">Address: </span>
+                  <div className="col-span-1 md:col-span-2">
+                    <span className="font-medium text-gray-600">Full Address: </span>
                     <span className="text-gray-900">{extractResult.address || "Not found"}</span>
                   </div>
+                  {extractResult.installation_address_1 && (
+                    <div>
+                      <span className="font-medium text-gray-600">Address 1: </span>
+                      <span className="text-gray-900">{extractResult.installation_address_1}</span>
+                    </div>
+                  )}
+                  {extractResult.installation_address_2 && (
+                    <div>
+                      <span className="font-medium text-gray-600">Address 2: </span>
+                      <span className="text-gray-900">{extractResult.installation_address_2}</span>
+                    </div>
+                  )}
+                  {extractResult.postcode && (
+                    <div>
+                      <span className="font-medium text-gray-600">Postcode: </span>
+                      <span className="text-gray-900">{extractResult.postcode}</span>
+                    </div>
+                  )}
+                  {extractResult.city && (
+                    <div>
+                      <span className="font-medium text-gray-600">City: </span>
+                      <span className="text-gray-900">{extractResult.city}</span>
+                    </div>
+                  )}
+                  {extractResult.state && (
+                    <div>
+                      <span className="font-medium text-gray-600">State: </span>
+                      <span className="text-gray-900">{extractResult.state}</span>
+                    </div>
+                  )}
                   <div>
                     <span className="font-medium text-gray-600">TNB Account No: </span>
                     <span className="text-gray-900">{extractResult.tnb_account_no || "Not found"}</span>
@@ -887,7 +940,103 @@ export default function SedaDetailPage() {
           </div>
         )}
 
-        {renderFieldsForSection("tnb")}
+        {/* Manual TNB Fields Display for Simplicity */}
+        <div className="space-y-6 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <EditableField fieldKey="tnb_account_no" value={seda.tnb_account_no} config={SEDA_FIELD_CONFIG.tnb_account_no} onSave={handleFieldSave} saving={saving} />
+            <EditableField fieldKey="tnb_meter_status" value={seda.tnb_meter_status} config={SEDA_FIELD_CONFIG.tnb_meter_status} onSave={handleFieldSave} saving={saving} />
+            <EditableField fieldKey="average_tnb" value={seda.average_tnb} config={SEDA_FIELD_CONFIG.average_tnb} onSave={handleFieldSave} saving={saving} />
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Bill Attachments</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Bill 1 */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <div className="text-xs font-medium text-slate-500 mb-2">TNB Bill 1</div>
+                {seda.tnb_bill_1 ? (
+                  <a
+                    href={seda.tnb_bill_1}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2 bg-white border border-slate-300 text-primary-600 text-sm font-medium rounded hover:bg-primary-50 transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    View Bill 1
+                  </a>
+                ) : (
+                  <div className="text-sm text-slate-400 italic text-center py-2">No file uploaded</div>
+                )}
+                <div className="mt-2 pt-2 border-t border-slate-100">
+                  <EditableField fieldKey="tnb_bill_1" value={seda.tnb_bill_1} config={{ ...SEDA_FIELD_CONFIG.tnb_bill_1, label: "Edit URL" }} onSave={handleFieldSave} saving={saving} />
+                </div>
+              </div>
+
+              {/* Bill 2 */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <div className="text-xs font-medium text-slate-500 mb-2">TNB Bill 2</div>
+                {seda.tnb_bill_2 ? (
+                  <a
+                    href={seda.tnb_bill_2}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2 bg-white border border-slate-300 text-primary-600 text-sm font-medium rounded hover:bg-primary-50 transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    View Bill 2
+                  </a>
+                ) : (
+                  <div className="text-sm text-slate-400 italic text-center py-2">No file uploaded</div>
+                )}
+                <div className="mt-2 pt-2 border-t border-slate-100">
+                  <EditableField fieldKey="tnb_bill_2" value={seda.tnb_bill_2} config={{ ...SEDA_FIELD_CONFIG.tnb_bill_2, label: "Edit URL" }} onSave={handleFieldSave} saving={saving} />
+                </div>
+              </div>
+
+              {/* Bill 3 */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <div className="text-xs font-medium text-slate-500 mb-2">TNB Bill 3</div>
+                {seda.tnb_bill_3 ? (
+                  <a
+                    href={seda.tnb_bill_3}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2 bg-white border border-slate-300 text-primary-600 text-sm font-medium rounded hover:bg-primary-50 transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    View Bill 3
+                  </a>
+                ) : (
+                  <div className="text-sm text-slate-400 italic text-center py-2">No file uploaded</div>
+                )}
+                <div className="mt-2 pt-2 border-t border-slate-100">
+                  <EditableField fieldKey="tnb_bill_3" value={seda.tnb_bill_3} config={{ ...SEDA_FIELD_CONFIG.tnb_bill_3, label: "Edit URL" }} onSave={handleFieldSave} saving={saving} />
+                </div>
+              </div>
+
+              {/* Meter Image */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <div className="text-xs font-medium text-slate-500 mb-2">TNB Meter Image</div>
+                {seda.tnb_meter ? (
+                  <a
+                    href={seda.tnb_meter}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2 bg-white border border-slate-300 text-primary-600 text-sm font-medium rounded hover:bg-primary-50 transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    View Meter
+                  </a>
+                ) : (
+                  <div className="text-sm text-slate-400 italic text-center py-2">No file uploaded</div>
+                )}
+                <div className="mt-2 pt-2 border-t border-slate-100">
+                  <EditableField fieldKey="tnb_meter" value={seda.tnb_meter} config={{ ...SEDA_FIELD_CONFIG.tnb_meter, label: "Edit URL" }} onSave={handleFieldSave} saving={saving} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </Section>
 
       {/* Financial Information */}

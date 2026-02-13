@@ -331,23 +331,70 @@ export async function diagnoseMissingInvoices() {
 
 import { generateWithGemini } from "@/lib/ai-router";
 
+/**
+ * Fetch attachment from URL and convert to base64
+ * Handles both S3 bucket (protocol-relative) and Railway storage URLs
+ *
+ * @param rawUrl - The attachment URL (can be protocol-relative, absolute, or empty)
+ * @returns Object with base64 data and mimeType, or throws error
+ */
+async function fetchAttachmentForAI(rawUrl: string): Promise<{ data: string; mimeType: string }> {
+  // 1. Validate URL
+  if (!rawUrl || typeof rawUrl !== 'string' || rawUrl.trim() === '') {
+    throw new Error("Empty or invalid attachment URL");
+  }
+
+  // 2. Normalize URL
+  let attachmentUrl = rawUrl.trim();
+
+  // Handle protocol-relative URLs (S3/Bubble: //s3.amazonaws.com/..., //cdn.bubble.io/...)
+  if (attachmentUrl.startsWith('//')) {
+    attachmentUrl = 'https:' + attachmentUrl;
+  }
+
+  // Handle relative paths (Railway storage: /api/files/payments/...)
+  // Convert to absolute URL using FILE_BASE_URL
+  if (attachmentUrl.startsWith('/api/files/') || attachmentUrl.startsWith('/storage/')) {
+    const FILE_BASE_URL = process.env.FILE_BASE_URL || 'https://admin.atap.solar';
+    attachmentUrl = FILE_BASE_URL + attachmentUrl;
+  }
+
+  console.log("Fetching attachment for AI:", attachmentUrl);
+
+  // 3. Fetch the attachment
+  const response = await fetch(attachmentUrl, {
+    // Add timeout to prevent hanging
+    signal: AbortSignal.timeout(30000), // 30 second timeout
+    // Follow redirects (important for S3 signed URLs)
+    redirect: 'follow',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch attachment: HTTP ${response.status} ${response.statusText}`);
+  }
+
+  // 4. Convert to base64
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const base64Data = buffer.toString('base64');
+
+  // 5. Detect mimeType
+  const contentType = response.headers.get('content-type');
+  const mimeType = contentType || 'image/jpeg'; // Default to jpeg if not detected
+
+  console.log("Attachment fetched successfully:", {
+    url: attachmentUrl.substring(0, 60) + '...',
+    size: buffer.length,
+    mimeType
+  });
+
+  return { data: base64Data, mimeType };
+}
+
 export async function analyzePaymentAttachment(rawUrl: string) {
   try {
-    // Fix protocol-relative URLs
-    let attachmentUrl = rawUrl;
-    if (attachmentUrl.startsWith('//')) {
-      attachmentUrl = 'https:' + attachmentUrl;
-    }
-    console.log("Analyzing attachment:", attachmentUrl);
-
-    // 1. Fetch the attachment and convert to base64
-    const response = await fetch(attachmentUrl);
-    if (!response.ok) throw new Error("Failed to fetch attachment");
-
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Data = buffer.toString('base64');
-    const mimeType = response.headers.get('content-type') || 'image/jpeg';
+    // 1. Fetch the attachment and convert to base64 (handles both S3 and Railway)
+    const { data: base64Data, mimeType } = await fetchAttachmentForAI(rawUrl);
 
     // 2. Prepare prompt for Gemini
     const prompt = `
@@ -815,25 +862,8 @@ export async function bulkAIUpdatePaymentMethod(paymentIds: number[]) {
         continue;
       }
 
-      // 2. Fetch attachment and convert to base64
-      let attachmentUrl = payment.attachment[0];
-      if (!attachmentUrl || attachmentUrl.trim() === '') {
-        results.push({ id, success: false, error: "Empty attachment URL" });
-        continue;
-      }
-      // Fix protocol-relative URLs (//s3.amazonaws.com/...)
-      if (attachmentUrl.startsWith('//')) {
-        attachmentUrl = 'https:' + attachmentUrl;
-      }
-      const response = await fetch(attachmentUrl);
-      if (!response.ok) {
-        results.push({ id, success: false, error: "Failed to fetch attachment" });
-        continue;
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const base64Data = buffer.toString("base64");
-      const mimeType = response.headers.get("content-type") || "image/jpeg";
+      // 2. Fetch attachment and convert to base64 (handles both S3 and Railway)
+      const { data: base64Data, mimeType } = await fetchAttachmentForAI(payment.attachment[0]);
 
       // 3. Call Gemini with enhanced payment method detection prompt
       const prompt = `

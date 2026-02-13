@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       const hasName = !!seda.customer_name;
       const hasAddress = !!seda.installation_address;
       const hasMykad = !!(seda.mykad_pdf || seda.ic_copy_front);
-      const hasBills = !!(seda.tnb_bill_1 && seda.tnb_bill_2 && seda.tnb_bill_3);
+      const hasBills = !!(seda.tnb_bill_1 || seda.tnb_bill_2 || seda.tnb_bill_3);
       const hasMeter = !!seda.tnb_meter;
       const hasEmergency = !!(seda.e_contact_name && seda.e_contact_no && seda.e_contact_relationship);
       const hasRequiredPayment = parseFloat(seda.percent_of_total_amount || "0") >= 4;

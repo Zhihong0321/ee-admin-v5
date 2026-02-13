@@ -98,7 +98,7 @@ function validateTnbBill(seda: any): boolean {
   const hasBill2 = bill2 !== null && bill2 !== undefined && bill2 !== "";
   const hasBill3 = bill3 !== null && bill3 !== undefined && bill3 !== "";
 
-  return hasBill1 && hasBill2 && hasBill3;
+  return hasBill1 || hasBill2 || hasBill3;
 }
 
 /**
@@ -156,7 +156,7 @@ export const CHECKPOINT_LABELS = {
   name: "Name",
   address: "Address",
   mykad: "MyKad",
-  tnb_bill: "TNB Bills (3 months)",
+  tnb_bill: "TNB Bill(s)",
   tnb_meter: "TNB Meter",
   emergency_contact: "Emergency Contact",
   payment_required: "Payment ≥4%",
