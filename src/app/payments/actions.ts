@@ -331,8 +331,13 @@ export async function diagnoseMissingInvoices() {
 
 import { generateWithGemini } from "@/lib/ai-router";
 
-export async function analyzePaymentAttachment(attachmentUrl: string) {
+export async function analyzePaymentAttachment(rawUrl: string) {
   try {
+    // Fix protocol-relative URLs
+    let attachmentUrl = rawUrl;
+    if (attachmentUrl.startsWith('//')) {
+      attachmentUrl = 'https:' + attachmentUrl;
+    }
     console.log("Analyzing attachment:", attachmentUrl);
 
     // 1. Fetch the attachment and convert to base64
@@ -811,7 +816,15 @@ export async function bulkAIUpdatePaymentMethod(paymentIds: number[]) {
       }
 
       // 2. Fetch attachment and convert to base64
-      const attachmentUrl = payment.attachment[0];
+      let attachmentUrl = payment.attachment[0];
+      if (!attachmentUrl || attachmentUrl.trim() === '') {
+        results.push({ id, success: false, error: "Empty attachment URL" });
+        continue;
+      }
+      // Fix protocol-relative URLs (//s3.amazonaws.com/...)
+      if (attachmentUrl.startsWith('//')) {
+        attachmentUrl = 'https:' + attachmentUrl;
+      }
       const response = await fetch(attachmentUrl);
       if (!response.ok) {
         results.push({ id, success: false, error: "Failed to fetch attachment" });
