@@ -202,6 +202,8 @@ export async function getFullyPaidInvoicesByAgent(month: number, year: number, s
         full_payment_date: invoices.full_payment_date,
         agent_name: agents.name,
         customer_name: customers.name,
+        eligible_amount_description: invoices.eligible_amount_description,
+        amount_eligible_for_comm: invoices.amount_eligible_for_comm,
       })
       .from(invoices)
       .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))

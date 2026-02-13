@@ -27,7 +27,8 @@ import {
   XCircle,
   History,
   Terminal,
-  Calculator
+  Calculator,
+  Download
 } from "lucide-react";
 import {
   getSubmittedPayments,
@@ -123,7 +124,7 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     fetchData();
-  }, [activeTab]); // Note: sort and filter are applied client-side after fetch
+  }, [activeTab, viewMode, selectedMonth, selectedYear]); // Note: sort and filter are applied client-side after fetch
 
   // Apply client-side sorting and filtering
   const filteredAndSortedPayments = payments
@@ -487,6 +488,49 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
     setMagnifierPos({ x, y });
   };
 
+  // Export CSV
+  const handleExportCSV = () => {
+    if (viewMode === "by-agent" && groupedInvoices.length > 0) {
+      // Build CSV content
+      // Header
+      let csvContent = "Agent Name,Invoice Number,Customer Name,Payment Date,Total Amount (RM),Amount Eligible for Comm (RM),Commission Description\n";
+
+      groupedInvoices.forEach((group: any) => {
+        // Agent Header Rows (optional, or just repeat name)
+
+        group.invoices.forEach((inv: any) => {
+          const datePaid = inv.full_payment_date ? formatDate(inv.full_payment_date) : "N/A";
+          const amount = inv.total_amount ? parseFloat(inv.total_amount).toFixed(2) : "0.00";
+          const commAmount = inv.amount_eligible_for_comm ? parseFloat(inv.amount_eligible_for_comm).toFixed(2) : "0.00";
+
+          // Escape commas and quotes for CSV format
+          const customer = inv.customer_name ? `"${inv.customer_name.replace(/"/g, '""')}"` : "";
+          const agent = group.agent_name ? `"${group.agent_name.replace(/"/g, '""')}"` : "";
+          const description = inv.eligible_amount_description ? `"${inv.eligible_amount_description.replace(/"/g, '""')}"` : "";
+
+          csvContent += `${agent},${inv.invoice_number},${customer},${datePaid},${amount},${commAmount},${description}\n`;
+        });
+
+        // Add a total row for the agent
+        csvContent += `"${group.agent_name} Total",,,,${group.total_amount.toFixed(2)},,\n`;
+        csvContent += ",,,,,,\n"; // Empty row spacing
+      });
+
+      // Create download link
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Fully_Paid_Invoices_${selectedYear}_${selectedMonth}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      alert("No data to export or not in 'By Agent' view.");
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Invoice Viewer Modal (only for standalone view if ever needed, but now we have inline) */}
@@ -662,7 +706,6 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         type="button"
                         onClick={() => {
                           setViewMode("list");
-                          fetchData();
                         }}
                         className={`px-3 py-1.5 text-sm rounded-md transition-all ${viewMode === "list" ? "bg-white text-primary-600 shadow-sm" : "text-secondary-600 hover:text-secondary-900"}`}
                       >
@@ -672,7 +715,6 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         type="button"
                         onClick={() => {
                           setViewMode("by-agent");
-                          fetchData();
                         }}
                         className={`px-3 py-1.5 text-sm rounded-md transition-all ${viewMode === "by-agent" ? "bg-white text-primary-600 shadow-sm" : "text-secondary-600 hover:text-secondary-900"}`}
                       >
@@ -689,7 +731,6 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         value={selectedMonth}
                         onChange={(e) => {
                           setSelectedMonth(parseInt(e.target.value));
-                          fetchData();
                         }}
                         className="input py-1.5 text-sm w-28"
                       >
@@ -710,7 +751,6 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         value={selectedYear}
                         onChange={(e) => {
                           setSelectedYear(parseInt(e.target.value));
-                          fetchData();
                         }}
                         className="input py-1.5 text-sm w-24"
                       >
@@ -732,6 +772,16 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   >
                     <Calculator className={`h-4 w-4 ${calculatingCommission ? 'animate-spin' : ''}`} />
                     {calculatingCommission ? 'Calculating...' : 'Calc Commission'}
+                  </button>
+
+                  {/* Export CSV Button */}
+                  <button
+                    type="button"
+                    onClick={handleExportCSV}
+                    className="btn-secondary flex items-center gap-2 bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                  >
+                    <Download className="h-4 w-4" />
+                    Export CSV
                   </button>
                 </div>
               )}
