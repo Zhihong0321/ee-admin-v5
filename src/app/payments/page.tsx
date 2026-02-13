@@ -855,7 +855,137 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
             </div>
           ) : activeTab === "update-method" ? (
             // Update Method Tab View
-          ) : activeTab === "epp-costs" ? (
+          ) : activeTab === "epp-costs" && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-bold text-secondary-900 mb-4">
+                  EPP Payments ({payments.length})
+                </h3>
+                <p className="text-sm text-secondary-600 mb-4">
+                  Showing all EPP payments with their calculated costs
+                </p>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Bank</th>
+                      <th>Tenure</th>
+                      <th>Amount</th>
+                      <th>EPP Cost</th>
+                      <th>Customer</th>
+                      <th>Attachment</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <tr key={i} className="animate-pulse">
+                          <td colSpan={6} className="px-6 py-6">
+                            <div className="h-4 bg-secondary-200 rounded w-3/4"></div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : payments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-16 text-center">
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="p-4 bg-secondary-100 rounded-full">
+                              <Calculator className="h-8 w-8 text-secondary-400" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-secondary-900 mb-1">No EPP payments found</p>
+                              <p className="text-sm text-secondary-600">Payments with EPP type will appear here</p>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      payments.map((payment: any) => {
+                        const eppRate = payment.issuer_bank && payment.epp_month
+                          ? getEppRate(payment.issuer_bank, parseInt(payment.epp_month))
+                          : null;
+
+                        return (
+                          <tr key={payment.id} className="hover:bg-secondary-50/50">
+                            <td>
+                              <div className="flex flex-col">
+                                <span className="font-medium text-secondary-900 text-sm">
+                                  {formatDate(payment.payment_date)}
+                                </span>
+                                <span className="text-xs text-secondary-500">
+                                  {formatTime(payment.payment_date)}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1.5 text-sm font-semibold text-secondary-900">
+                                  <CreditCard className="h-3.5 w-3.5 text-primary-500" />
+                                  {payment.issuer_bank || "N/A"}
+                                </div>
+                                {payment.epp_month && (
+                                  <div className="text-xs text-secondary-500 pl-5">
+                                    Tenure: {payment.epp_month} months
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="text-sm font-bold text-secondary-900">
+                                  RM {parseFloat(payment.amount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </div>
+                              </td>
+                            <td>
+                              <div className="text-sm font-bold text-green-600">
+                                  RM {payment.epp_cost ? parseFloat(payment.epp_cost).toFixed(2) : "0.00"}
+                                </div>
+                                {!payment.epp_cost && (
+                                  <span className="text-xs text-amber-500">(Not calculated)</span>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="text-sm font-semibold text-secondary-900">
+                                  {payment.customer_name || "N/A"}
+                                </div>
+                            </td>
+                            <td>
+                              {payment.attachment && payment.attachment.length > 0 ? (
+                                <a
+                                  href={payment.attachment[0]}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 hover:underline"
+                                >
+                                  <FileText className="h-3.5 w-3.5" />
+                                  View Receipt
+                                </a>
+                            ) : (
+                                <span className="text-xs text-amber-600 flex items-center gap-1">
+                                  <AlertTriangle className="h-3.5 w-3.5" />
+                                  No Attachment
+                                </span>
+                            )}
+                              </div>
+                            </td>
+                            <td className="text-right">
+                              <button
+                                onClick={() => handleViewClick(payment)}
+                                className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
+                              >
+                                <Eye className="h-4 w-4" />
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </Fragment>
+        </div>
             // EPP Costs Tab View
             <div>
               <h3 className="text-lg font-bold text-secondary-900 mb-4">
