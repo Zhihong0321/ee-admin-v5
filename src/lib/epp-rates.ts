@@ -1,5 +1,5 @@
 // EPP Rate Configuration
-// Based on the provided rate table
+// Based on Eternal Energy rate table (2026)
 
 export interface EppRate {
   tenure: number;
@@ -41,7 +41,7 @@ export const EPP_RATES: EppRate[] = [
     rates: {
       MBB: null,
       PBB: 4.00,
-      HLB: null,
+      HLB: 4.00,
       CIMB: null,
       "AM Bank": null,
       UOB: null,
@@ -54,7 +54,7 @@ export const EPP_RATES: EppRate[] = [
       MBB: 5.50,
       PBB: 5.50,
       HLB: 5.50,
-      CIMB: null,
+      CIMB: 5.50,
       "AM Bank": 7.00,
       UOB: 5.50,
       OCBC: 7.00,
@@ -68,7 +68,7 @@ export const EPP_RATES: EppRate[] = [
       HLB: 6.00,
       CIMB: null,
       "AM Bank": 9.00,
-      UOB: null,
+      UOB: 9.00,
       OCBC: 8.00,
     },
   },
@@ -96,22 +96,11 @@ export const EPP_RATES: EppRate[] = [
       OCBC: null,
     },
   },
-  {
-    tenure: 68,
-    rates: {
-      MBB: null,
-      PBB: null,
-      HLB: null,
-      CIMB: null,
-      "AM Bank": null,
-      UOB: 11.50,
-      OCBC: null,
-    },
-  },
 ];
 
 // Special Rates
 export const FOREIGN_CARD_RATES: { [bank: string]: number } = {
+  PBB: 2.00,
   HLB: 2.00,
   UOB: 2.30,
   OCBC: 2.80,
@@ -122,7 +111,24 @@ export const AMEX_RATE = 0.30; // Standard MDR, No EPP
 export function getEppRate(bank: string, tenure: number): number | null {
   const rateConfig = EPP_RATES.find((r) => r.tenure === tenure);
   if (!rateConfig) return null;
-  
+
   // @ts-ignore
   return rateConfig.rates[bank] ?? null;
+}
+
+/**
+ * Calculate EPP Cost (interest amount charged)
+ * Formula: epp_cost = (amount * rate) / (100 + rate)
+ *
+ * Example: RM20,000 at 10% interest
+ * epp_cost = (20000 * 10) / (100 + 10)
+ * epp_cost = 200000 / 110
+ * epp_cost = RM1,818.18
+ *
+ * @param amount - Transaction amount
+ * @param rate - Interest rate percentage (e.g., 10 for 10%)
+ * @returns EPP cost in RM
+ */
+export function calculateEppCost(amount: number, rate: number): number {
+  return (amount * rate) / (100 + rate);
 }
