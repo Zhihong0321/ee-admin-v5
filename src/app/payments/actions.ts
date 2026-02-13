@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { payments, submitted_payments, agents, customers, invoices, invoice_templates, users, invoice_items } from "@/db/schema";
+import { payments, submitted_payments, agents, customers, invoices, invoice_templates, users, invoice_items, vouchers } from "@/db/schema";
 import { ilike, or, desc, eq, and, sql, inArray, isNull, isNotNull, gte, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncPaymentsFromBubble } from "@/lib/bubble";
@@ -798,6 +798,7 @@ export async function getEppPayments(search?: string) {
   try {
     // Get only EPP payments (filtered by epp_type = 'EPP')
     const eppFilter = eq(payments.epp_type, 'EPP');
+
     const searchFilter = search
       ? or(
         ilike(payments.remark, `%${search}%`),
@@ -1113,5 +1114,179 @@ export async function rescanFullPaymentDates() {
   } catch (error) {
     console.error("Scan error:", error);
     throw error;
+  }
+}
+
+/**
+ * Run Commission Calculation for Fully Paid Invoices
+ * Processes in batches of 50 to avoid timeout.
+ */
+export async function runCommissionCalculation() {
+  try {
+    // 1. Fetch random 50 fully paid invoices that might need processing
+    // Prioritize those with empty description, but also include some others to ensure updates
+    // For simplicity in this action, we'll just grab 50 fully paid invoices where description is null OR order by updated_at ASC
+
+    // Actually, user wants to RUN it. Let's prioritize NULLs first.
+    let invoicesToProcess = await db.select({
+      id: invoices.id,
+      bubble_id: invoices.bubble_id,
+      invoice_number: invoices.invoice_number,
+      total_amount: invoices.total_amount,
+      amount: invoices.amount,
+      linked_payment: invoices.linked_payment,
+      linked_invoice_item: invoices.linked_invoice_item
+    })
+      .from(invoices)
+      .where(
+        and(
+          or(
+            eq(invoices.status, 'FULLY PAID'),
+            sql`CAST(${invoices.percent_of_total_amount} AS NUMERIC) >= 99.9`
+          ),
+          or(
+            isNull(invoices.eligible_amount_description),
+            eq(invoices.eligible_amount_description, '')
+          )
+        )
+      )
+      .limit(50);
+
+    // If no NULLs found, just pick 50 oldest updated fully paid invoices to refresh them
+    if (invoicesToProcess.length === 0) {
+      invoicesToProcess = await db.select({
+        id: invoices.id,
+        bubble_id: invoices.bubble_id,
+        invoice_number: invoices.invoice_number,
+        total_amount: invoices.total_amount,
+        amount: invoices.amount,
+        linked_payment: invoices.linked_payment,
+        linked_invoice_item: invoices.linked_invoice_item
+      })
+        .from(invoices)
+        .where(
+          or(
+            eq(invoices.status, 'FULLY PAID'),
+            sql`CAST(${invoices.percent_of_total_amount} AS NUMERIC) >= 99.9`
+          )
+        )
+        .orderBy(invoices.updated_at)
+        .limit(50);
+    }
+
+    if (invoicesToProcess.length === 0) {
+      return { success: true, count: 0, message: "No fully paid invoices found." };
+    }
+
+    let processedCount = 0;
+
+    for (const inv of invoicesToProcess) {
+      if (!inv.bubble_id) continue;
+
+      // 1. Get Payments
+      let totalReceived = 0;
+      let totalEppCost = 0;
+      const paymentListLines: string[] = [];
+
+      if (inv.linked_payment && inv.linked_payment.length > 0) {
+        // Filter out nulls
+        const validPaymentIds = inv.linked_payment.filter(id => id !== null) as string[];
+
+        if (validPaymentIds.length > 0) {
+          const linkedPayments = await db.select().from(payments)
+            .where(inArray(payments.bubble_id, validPaymentIds));
+
+          for (const pay of linkedPayments) {
+            const amount = parseFloat(pay.amount || '0');
+            totalReceived += amount;
+
+            const eppCost = parseFloat(pay.epp_cost || '0');
+            totalEppCost += eppCost;
+
+            const dateStr = pay.payment_date ? new Date(pay.payment_date).toISOString().split('T')[0] : '-';
+            const bank = pay.issuer_bank || 'Unknown Bank';
+            const tenure = pay.epp_month ? `${pay.epp_month}mos` : '';
+            const bankInfo = `${bank} ${tenure}`.trim();
+
+            paymentListLines.push(
+              `RM ${amount.toFixed(2)} | ${dateStr} | ${pay.payment_method || '-'} | ${bankInfo.replace('Unknown Bank', '')} | RM ${eppCost.toFixed(2)}`
+            );
+          }
+        }
+      }
+
+      // 2. Get Vouchers
+      let totalVoucherCost = 0;
+      const voucherListLines: string[] = [];
+
+      if (inv.linked_invoice_item && inv.linked_invoice_item.length > 0) {
+        const validItemIds = inv.linked_invoice_item.filter(id => id !== null) as string[];
+
+        if (validItemIds.length > 0) {
+          const linkedItems = await db.select().from(invoice_items)
+            .where(inArray(invoice_items.bubble_id, validItemIds));
+
+          for (const item of linkedItems) {
+            if (item.linked_voucher) {
+              const voucher = await db.select().from(vouchers)
+                .where(eq(vouchers.bubble_id, item.linked_voucher))
+                .limit(1);
+
+              if (voucher.length > 0) {
+                const v = voucher[0];
+                const deductable = v.deductable_from_commission || 0;
+                totalVoucherCost += deductable;
+
+                voucherListLines.push(`${v.title} (Comm. Deduct: RM ${deductable})`);
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Calculations
+      const invoiceTotal = parseFloat(inv.total_amount || inv.amount || '0');
+      let percentStr = "0.00%";
+      if (invoiceTotal > 0) {
+        const percent = (totalReceived / invoiceTotal) * 100;
+        percentStr = percent.toFixed(2) + "%";
+      }
+
+      const amountEligible = invoiceTotal - (totalEppCost + totalVoucherCost);
+
+      // 4. Construct Description
+      const description = `List Of Payment
+${paymentListLines.length > 0 ? paymentListLines.map((l, i) => `${i + 1}. ${l}`).join('\n') : 'No payments found'}
+
+List Of Voucher in this Invoice :
+${voucherListLines.length > 0 ? voucherListLines.map((l, i) => `${i + 1}. ${l}`).join('\n') : 'No vouchers found'}
+
+Invoice Final Amount : RM ${invoiceTotal.toFixed(2)}
+Total Received : RM ${totalReceived.toFixed(2)}
+Percent of Total Payment : ${percentStr}
+
+EPP INTEREST TOTAL : RM ${totalEppCost.toFixed(2)}
+VOUCHER COST TOTAL : RM ${totalVoucherCost.toFixed(2)}
+
+Invoice.amount_eligible_for_comm = RM ${amountEligible.toFixed(2)}`;
+
+      // 5. Update Invoice
+      await db.update(invoices)
+        .set({
+          eligible_amount_description: description,
+          amount_eligible_for_comm: amountEligible.toFixed(2),
+          updated_at: new Date()
+        })
+        .where(eq(invoices.id, inv.id));
+
+      processedCount++;
+    }
+
+    revalidatePath("/payments");
+    return { success: true, count: processedCount, message: `Processed ${processedCount} invoices` };
+
+  } catch (error) {
+    console.error("Commission Calculation Action Error:", error);
+    return { success: false, error: String(error) };
   }
 }

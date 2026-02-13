@@ -46,7 +46,8 @@ import {
   analyzePaymentAttachment,
   rescanFullPaymentDates,
   getPaymentsWithoutMethod,
-  bulkAIUpdatePaymentMethod
+  bulkAIUpdatePaymentMethod,
+  runCommissionCalculation
 } from "./actions";
 import { cn } from "@/lib/utils";
 import { EPP_BANKS, EPP_RATES, getEppRate, calculateEppCost } from "@/lib/epp-rates";
@@ -90,6 +91,7 @@ export default function PaymentsPage() {
   const [bulkProgress, setBulkProgress] = useState(0);
   const [bulkResults, setBulkResults] = useState<{ id: number; success: boolean; payment_method?: string; is_epp?: boolean; bank?: string | null; tenure?: string | null; error?: string }[]>([]);
   const [calculatingEpp, setCalculatingEpp] = useState(false);
+  const [calculatingCommission, setCalculatingCommission] = useState(false);
 
   // AI Analysis State
   const [analyzing, setAnalyzing] = useState(false);
@@ -322,6 +324,26 @@ export default function PaymentsPage() {
       alert("Failed to calculate EPP costs.");
     } finally {
       setCalculatingEpp(false);
+    }
+  }
+
+  async function handleCalculateCommission() {
+    if (!confirm("This will calculate commission amounts for fully paid invoices.\nIt processes in batches of 50, prioritizing unprocessed invoices.\n\nContinue?")) return;
+
+    setCalculatingCommission(true);
+    try {
+      const result = await runCommissionCalculation();
+      if (result.success) {
+        alert(`Calculation complete!\n${result.message}`);
+        fetchData();
+      } else {
+        alert(`Calculation failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error("Commission calculation error:", error);
+      alert("Failed to calculate commission.");
+    } finally {
+      setCalculatingCommission(false);
     }
   }
 
@@ -697,6 +719,18 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       </select>
                     </div>
                   )}
+
+
+                  {/* Commission Calculation Button */}
+                  <button
+                    type="button"
+                    onClick={handleCalculateCommission}
+                    disabled={calculatingCommission}
+                    className="btn-secondary flex items-center gap-2 bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                  >
+                    <Calculator className={`h-4 w-4 ${calculatingCommission ? 'animate-spin' : ''}`} />
+                    {calculatingCommission ? 'Calculating...' : 'Calc Commission'}
+                  </button>
                 </div>
               )}
             </div>
