@@ -17,6 +17,158 @@ import { revalidatePath } from "next/cache";
 import { logSyncActivity } from "@/lib/logger";
 import { syncJsonWithValidation, type EntityType, type JsonUploadSyncResult } from "@/lib/bubble/sync-json-upload";
 
+import { db } from "@/lib/db";
+import { payments, submitted_payments } from "@/db/schema";
+import { eq, or, isNull } from "drizzle-orm";
+
+/**
+ * ============================================================================
+ * FUNCTION: patchPaymentMethodsFromJson
+ * ============================================================================
+ *
+ * Specific patch function that takes a JSON upload of payments and ONLY 
+ * updates the payment_method if it is currently empty in our database.
+ * Matches by bubble_id (unique id).
+ */
+export async function patchPaymentMethodsFromJson(jsonData: any[]) {
+  logSyncActivity(`JSON Payment Method Patch: Starting with ${jsonData.length} records`, 'INFO');
+
+  try {
+    if (!Array.isArray(jsonData)) {
+      return { success: false, error: "Invalid JSON: Expected an array" };
+    }
+
+    let patchedCount = 0;
+    let skippedCount = 0;
+    let notFoundCount = 0;
+
+    for (const item of jsonData) {
+      const bubbleId = item["unique id"] || item._id;
+      if (!bubbleId) continue;
+
+      // Determine the source method (V1 or V2)
+      const sourceMethod = item["Payment Method"] || item["Payment Method V2"] || item["Payment Method v2"];
+      if (!sourceMethod) {
+        skippedCount++;
+        continue;
+      }
+
+      // 1. Check verified payments table
+      const existingPayment = await db.query.payments.findFirst({
+        where: eq(payments.bubble_id, bubbleId)
+      });
+
+      if (existingPayment) {
+        // Build update object for missing fields
+        const updates: any = { updated_at: new Date() };
+        let hasChanges = false;
+
+        // 1. Payment Method Patch
+        if (!existingPayment.payment_method || existingPayment.payment_method === '') {
+          updates.payment_method = sourceMethod;
+          updates.payment_method_v2 = item["Payment Method V2"] || item["Payment Method v2"] || existingPayment.payment_method_v2;
+          hasChanges = true;
+        }
+
+        // 2. EPP Fields Patch (if currently empty)
+        if (!existingPayment.issuer_bank || existingPayment.issuer_bank === '') {
+          if (item["Issuer Bank"]) {
+            updates.issuer_bank = item["Issuer Bank"];
+            hasChanges = true;
+          }
+        }
+        if (!existingPayment.epp_month || existingPayment.epp_month === null) {
+          if (item["EPP Month"]) {
+            updates.epp_month = String(item["EPP Month"]);
+            hasChanges = true;
+          }
+        }
+        if (!existingPayment.epp_type || existingPayment.epp_type === '') {
+          if (item["EPP Type"]) {
+            updates.epp_type = String(item["EPP Type"]);
+            hasChanges = true;
+          }
+        }
+
+        if (hasChanges) {
+          await db.update(payments)
+            .set(updates)
+            .where(eq(payments.id, existingPayment.id));
+          patchedCount++;
+        } else {
+          skippedCount++;
+        }
+        continue;
+      }
+
+      // 2. Check submitted payments table
+      const existingSubmitted = await db.query.submitted_payments.findFirst({
+        where: eq(submitted_payments.bubble_id, bubbleId)
+      });
+
+      if (existingSubmitted) {
+        const updates: any = { updated_at: new Date() };
+        let hasChanges = false;
+
+        if (!existingSubmitted.payment_method || existingSubmitted.payment_method === '') {
+          updates.payment_method = sourceMethod;
+          updates.payment_method_v2 = item["Payment Method V2"] || item["Payment Method v2"] || existingSubmitted.payment_method_v2;
+          hasChanges = true;
+        }
+
+        if (!existingSubmitted.issuer_bank || existingSubmitted.issuer_bank === '') {
+          if (item["Issuer Bank"]) {
+            updates.issuer_bank = item["Issuer Bank"];
+            hasChanges = true;
+          }
+        }
+        if (!existingSubmitted.epp_month || existingSubmitted.epp_month === null) {
+          if (item["EPP Month"]) {
+            updates.epp_month = String(item["EPP Month"]);
+            hasChanges = true;
+          }
+        }
+        if (!existingSubmitted.epp_type || existingSubmitted.epp_type === '') {
+          if (item["EPP Type"]) {
+            updates.epp_type = String(item["EPP Type"]);
+            hasChanges = true;
+          }
+        }
+
+        if (hasChanges) {
+          await db.update(submitted_payments)
+            .set(updates)
+            .where(eq(submitted_payments.id, existingSubmitted.id));
+          patchedCount++;
+        } else {
+          skippedCount++;
+        }
+        continue;
+      }
+
+      notFoundCount++;
+    }
+
+    logSyncActivity(`JSON Payment Method Patch SUCCESS: Patched ${patchedCount}, Skipped ${skippedCount}, Not found ${notFoundCount}`, 'INFO');
+    
+    revalidatePath("/payments");
+    revalidatePath("/sync");
+
+    return { 
+      success: true, 
+      patchedCount, 
+      skippedCount, 
+      notFoundCount,
+      message: `Successfully patched ${patchedCount} payment methods. ${skippedCount} records were skipped (already had data or no source), and ${notFoundCount} records were not found in our database.`
+    };
+
+  } catch (error) {
+    const errorMsg = `Payment Method Patch FAILED: ${String(error)}`;
+    logSyncActivity(errorMsg, 'ERROR');
+    return { success: false, error: errorMsg };
+  }
+}
+
 /**
  * ============================================================================
  * FUNCTION: uploadAndSyncJson

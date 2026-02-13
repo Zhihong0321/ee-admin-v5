@@ -21,6 +21,7 @@ export async function getSubmittedPayments(search?: string, status: string = 'pe
       ? or(
         ilike(submitted_payments.remark, `%${search}%`),
         ilike(submitted_payments.payment_method, `%${search}%`),
+        ilike(submitted_payments.payment_method_v2, `%${search}%`),
         ilike(agents.name, `%${search}%`),
         ilike(customers.name, `%${search}%`)
       )
@@ -37,6 +38,7 @@ export async function getSubmittedPayments(search?: string, status: string = 'pe
         amount: submitted_payments.amount,
         payment_date: submitted_payments.payment_date,
         payment_method: submitted_payments.payment_method,
+        payment_method_v2: submitted_payments.payment_method_v2,
         status: submitted_payments.status,
         attachment: submitted_payments.attachment,
         remark: submitted_payments.remark,
@@ -72,6 +74,7 @@ export async function getVerifiedPayments(search?: string) {
       ? or(
         ilike(payments.remark, `%${search}%`),
         ilike(payments.payment_method, `%${search}%`),
+        ilike(payments.payment_method_v2, `%${search}%`),
         ilike(agents.name, `%${search}%`),
         ilike(customers.name, `%${search}%`)
       )
@@ -877,10 +880,16 @@ export async function getPaymentsWithoutMethod(search?: string) {
 
     const whereClause = searchFilters
       ? and(
-        or(isNull(payments.payment_method), eq(payments.payment_method, '')),
+        and(
+          or(isNull(payments.payment_method), eq(payments.payment_method, '')),
+          or(isNull(payments.payment_method_v2), eq(payments.payment_method_v2, ''))
+        ),
         searchFilters
       )
-      : or(isNull(payments.payment_method), eq(payments.payment_method, ''));
+      : and(
+        or(isNull(payments.payment_method), eq(payments.payment_method, '')),
+        or(isNull(payments.payment_method_v2), eq(payments.payment_method_v2, ''))
+      );
 
     const data = await db
       .select({
@@ -895,6 +904,8 @@ export async function getPaymentsWithoutMethod(search?: string) {
         epp_type: payments.epp_type,
         epp_month: payments.epp_month,
         remark: payments.remark,
+        payment_method: payments.payment_method,
+        payment_method_v2: payments.payment_method_v2,
         log: payments.log,
       })
       .from(payments)

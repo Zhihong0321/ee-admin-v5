@@ -15,6 +15,7 @@ import { useState, useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 import {
   JsonUploadSyncForm,
+  JsonMethodPatchForm,
   RelationshipValidatorForm,
 } from "./components/forms";
 import { LogViewer } from "./components/logs";
@@ -25,6 +26,7 @@ import {
   updateInvoicePaymentPercentages 
 } from "./actions";
 import { migrateBubbleFilesToLocal, randomTestMigration } from "./actions/bubble-file-migration";
+import { patchPaymentMethodsFromJson } from "./actions/json-upload-sync";
 
 export default function SyncPage() {
   // ============================================================================
@@ -340,6 +342,11 @@ Continue?`
         isSyncing={isJsonUploadSyncing}
         results={jsonUploadResults}
         onSync={handleJsonUploadSync}
+      />
+
+      {/* JSON Method Patch */}
+      <JsonMethodPatchForm
+        onPatch={patchPaymentMethodsFromJson}
       />
 
       {/* Relationship Validator */}

@@ -125,7 +125,8 @@ export default function PaymentsPage() {
   const filteredAndSortedPayments = payments
     .filter(payment => {
       if (paymentMethodFilter === "all") return true;
-      return (payment.payment_method || "").toLowerCase() === paymentMethodFilter.toLowerCase();
+      const method = payment.payment_method || payment.payment_method_v2 || "";
+      return method.toLowerCase() === paymentMethodFilter.toLowerCase();
     })
     .sort((a, b) => {
       const dateA = a.payment_date || a.created_at;
@@ -745,7 +746,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           <span>All Methods</span>
                           {paymentMethodFilter === "all" && <CheckCircle className="h-4 w-4 text-primary-600" />}
                         </button>
-                        {Array.from(new Set(payments.map(p => p.payment_method).filter(Boolean)))
+                        {Array.from(new Set(payments.flatMap(p => [p.payment_method, p.payment_method_v2]).filter(Boolean)))
                           .sort()
                           .map(method => (
                             <button
@@ -1384,7 +1385,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       <td>
                         <div className="flex flex-col gap-1">
                           <span className="px-2.5 py-1 bg-secondary-100 text-secondary-700 rounded-full text-xs font-medium w-fit">
-                            {payment.payment_method || "N/A"}
+                            {payment.payment_method || payment.payment_method_v2 || "N/A"}
                           </span>
                           {payment.issuer_bank && (
                             <span className="text-xs text-secondary-500">
@@ -1653,7 +1654,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           <CreditCard className="h-4 w-4 text-secondary-400 mt-0.5" />
                           <div>
                             <p className="text-xs text-secondary-500">Method</p>
-                            <p className="text-sm font-medium text-secondary-900">{viewingPayment.payment_method}</p>
+                            <p className="text-sm font-medium text-secondary-900">{viewingPayment.payment_method || viewingPayment.payment_method_v2 || "N/A"}</p>
                             {viewingPayment.issuer_bank && (
                               <p className="text-xs text-secondary-500">{viewingPayment.issuer_bank}</p>
                             )}
