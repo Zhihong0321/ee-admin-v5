@@ -125,19 +125,35 @@ export async function updatePaymentCalculations() {
     let fullyPaidCount = 0;
 
     // 2. Fetch all verified payments into a Map for O(1) lookup
+    // 2. Fetch all verified payments
     const allPayments = await db.select({
       bubble_id: payments.bubble_id,
       amount: payments.amount,
-      payment_date: payments.payment_date
+      payment_date: payments.payment_date,
+      linked_invoice: payments.linked_invoice
     }).from(payments);
 
-    const paymentMap = new Map<string, { amount: number, date: Date | null }>();
+    // Map 1: Look up by Payment Bubble ID (for linked_payment array)
+    const paymentById = new Map<string, { amount: number, date: Date | null, linked_invoice: string | null }>();
+
+    // Map 2: Group by Invoice Bubble ID (for linked_invoice column)
+    const paymentsByInvoice = new Map<string, string[]>();
+
     allPayments.forEach(p => {
       if (p.bubble_id) {
-        paymentMap.set(p.bubble_id, {
+        // Store full payment data
+        paymentById.set(p.bubble_id, {
           amount: parseFloat(p.amount || '0'),
-          date: p.payment_date ? new Date(p.payment_date) : null
+          date: p.payment_date ? new Date(p.payment_date) : null,
+          linked_invoice: p.linked_invoice
         });
+
+        // Add to invoice group if linked
+        if (p.linked_invoice) {
+          const list = paymentsByInvoice.get(p.linked_invoice) || [];
+          list.push(p.bubble_id);
+          paymentsByInvoice.set(p.linked_invoice, list);
+        }
       }
     });
 
@@ -151,24 +167,37 @@ export async function updatePaymentCalculations() {
       let totalPaid = 0;
       let lastPaymentDate: Date | null = null;
 
-      // Use linked_payment array from invoice as source of truth
+      // Collection of Unique Payment IDs for this invoice
+      const uniquePaymentIds = new Set<string>();
+
+      // Source A: invoices.linked_payment Array (Old Bubble Data)
       if (inv.linked_payment && inv.linked_payment.length > 0) {
-        for (const pid of inv.linked_payment) {
-          if (!pid) continue;
+        inv.linked_payment.forEach(pid => {
+          if (pid) uniquePaymentIds.add(pid);
+        });
+      }
 
-          const pData = paymentMap.get(pid);
-          if (pData) {
-            totalPaid += pData.amount;
+      // Source B: payments.linked_invoice Column (New System Data)
+      if (inv.bubble_id) {
+        const directLinks = paymentsByInvoice.get(inv.bubble_id);
+        if (directLinks) {
+          directLinks.forEach(pid => uniquePaymentIds.add(pid));
+        }
+      }
 
-            // Track latest payment date
-            if (pData.date) {
-              if (!lastPaymentDate || pData.date > lastPaymentDate) {
-                lastPaymentDate = pData.date;
-              }
+
+
+      uniquePaymentIds.forEach(pid => {
+        const pData = paymentById.get(pid);
+        if (pData) {
+          totalPaid += pData.amount;
+          if (pData.date) {
+            if (!lastPaymentDate || pData.date > lastPaymentDate) {
+              lastPaymentDate = pData.date;
             }
           }
         }
-      }
+      });
 
       // Calculate Percentage
       let percent = (totalPaid / totalAmount) * 100;
