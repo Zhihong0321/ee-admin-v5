@@ -756,6 +756,77 @@ export async function recalculateInvoicePaymentStatus() {
 
 /**
  * ============================================================================
+ * FUNCTION: patchAllInvoicePercentages
+ * ============================================================================
+ *
+ * INTENT (What & Why):
+ * Force-recalculate all invoice percentages by summing actual linked payments.
+ * This fixes data inconsistencies where percentages were stored as ratios (0-1).
+ */
+export async function patchAllInvoicePercentages() {
+  logSyncActivity(`Starting Global Invoice Payment Percentage Patch...`, 'INFO');
+
+  try {
+    const allInvoices = await db.select({
+      id: invoices.id,
+      bubble_id: invoices.bubble_id,
+      invoice_id: invoices.invoice_id,
+      total_amount: invoices.total_amount,
+      linked_payment: invoices.linked_payment,
+      percent_of_total_amount: invoices.percent_of_total_amount
+    })
+    .from(invoices)
+    .where(sql`${invoices.linked_payment} IS NOT NULL AND array_length(${invoices.linked_payment}, 1) > 0`);
+
+    let updatedCount = 0;
+
+    for (const invoice of allInvoices) {
+      const totalAmount = parseFloat(invoice.total_amount || '0');
+      if (totalAmount <= 0) continue;
+
+      const linkedPayments = invoice.linked_payment || [];
+      let totalPaid = 0;
+
+      const paymentRecords = await db.select({ amount: payments.amount })
+        .from(payments)
+        .where(sql`${payments.bubble_id} = ANY(${linkedPayments})`);
+
+      for (const p of paymentRecords) {
+        if (p.amount) totalPaid += parseFloat(p.amount);
+      }
+
+      const newPercentage = (totalPaid / totalAmount) * 100;
+      const oldPercentage = parseFloat(invoice.percent_of_total_amount || '0');
+
+      if (Math.abs(newPercentage - oldPercentage) > 0.001) {
+        await db.update(invoices)
+          .set({
+            percent_of_total_amount: newPercentage.toString(),
+            updated_at: new Date()
+          })
+          .where(eq(invoices.id, invoice.id));
+        updatedCount++;
+      }
+    }
+
+    logSyncActivity(`✅ Patch Complete: ${updatedCount} invoices updated.`, 'INFO');
+    
+    revalidatePath("/sync");
+    revalidatePath("/seda");
+
+    return {
+      success: true,
+      updatedCount,
+      message: `Successfully patched ${updatedCount} invoices with correct percentages.`
+    };
+  } catch (error) {
+    logSyncActivity(`Patch Failed: ${String(error)}`, 'ERROR');
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * ============================================================================
  * FUNCTION: getProblemSyncList
  * ============================================================================
  *

@@ -242,6 +242,12 @@ export const sedaRegistration = pgTable('seda_registration', {
   seda_profile_status: text('seda_profile_status'), // 'not_checked', 'not_found', 'profile_created', 'error'
   seda_profile_id: text('seda_profile_id'), // Profile ID from SEDA Manager
   seda_profile_checked_at: timestamp('seda_profile_checked_at', { withTimezone: true }), // Last check timestamp
+
+  // Installation Address Components
+  installation_address_1: text('installation_address_1'),
+  installation_address_2: text('installation_address_2'),
+  latitude: numeric('latitude'),
+  longitude: numeric('longitude'),
 });
 
 // Invoice Template Table

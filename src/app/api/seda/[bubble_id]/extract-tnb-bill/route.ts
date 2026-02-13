@@ -76,9 +76,21 @@ export async function POST(
 1. The full installation/premise address on the bill
 2. The TNB account number (Nombor Akaun)
 
+Break down the address into components:
+- Address Line 1 (Street, Lot No, etc.)
+- Address Line 2 (Taman, Seksyen, etc.)
+- Postcode
+- City/Town
+- State
+
 Respond ONLY with a JSON object like this:
 {
   "address": "the full address here",
+  "address_1": "line 1 here",
+  "address_2": "line 2 here (or empty string if none)",
+  "postcode": "postcode here",
+  "city": "city here",
+  "state": "state here",
   "tnb_account_no": "the account number here"
 }
 If you cannot find the information, return null for that field.`;
@@ -106,7 +118,13 @@ If you cannot find the information, return null for that field.`;
     return NextResponse.json({
       success: true,
       data: {
-        address: extractedData.address || null,
+        address: extractedData.address || null, // Keeping for backward compatibility
+        installation_address: extractedData.address || null,
+        installation_address_1: extractedData.address_1 || null,
+        installation_address_2: extractedData.address_2 || null,
+        postcode: extractedData.postcode || null,
+        city: extractedData.city || null,
+        state: extractedData.state || null,
         tnb_account_no: extractedData.tnb_account_no || null,
       },
     });

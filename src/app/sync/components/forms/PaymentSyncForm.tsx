@@ -40,6 +40,10 @@ export function PaymentSyncForm({ onActionComplete }: PaymentSyncFormProps) {
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [recalculateResult, setRecalculateResult] = useState<any>(null);
 
+  // Patch Payment Percentages state
+  const [isPatching, setIsPatching] = useState(false);
+  const [patchResult, setPatchResult] = useState<any>(null);
+
   // Problem syncs state
   const [problemCount, setProblemCount] = useState<number>(0);
 
@@ -188,6 +192,33 @@ export function PaymentSyncForm({ onActionComplete }: PaymentSyncFormProps) {
       setRecalculateResult({ success: false, error: String(error) });
     } finally {
       setIsRecalculating(false);
+    }
+  };
+
+  // Handler: Patch Payment Percentages (Force Fix)
+  const handlePatchPercentages = async () => {
+    if (!confirm("This will force-recalculate all invoice percentages based on ACTUAL payments. Use this to fix 0.05/0.7 scale issues. Continue?")) {
+      return;
+    }
+
+    setIsPatching(true);
+    setPatchResult(null);
+
+    try {
+      const response = await fetch("/api/sync/patch-payment-percentages", {
+        method: "POST"
+      });
+
+      const result = await response.json();
+      setPatchResult(result);
+
+      if (result.success) {
+        onActionComplete?.();
+      }
+    } catch (error: any) {
+      setPatchResult({ success: false, error: String(error) });
+    } finally {
+      setIsPatching(false);
     }
   };
 
@@ -456,6 +487,56 @@ export function PaymentSyncForm({ onActionComplete }: PaymentSyncFormProps) {
               ) : (
                 <>
                   <strong>Error:</strong> {recalculateResult.error}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ================================================================== */}
+      {/* SECTION: FORCE PATCH PAYMENT CALCULATION */}
+      {/* ================================================================== */}
+      <div className="border border-amber-300 bg-amber-50 rounded-lg p-4">
+        <h3 className="text-lg font-semibold text-amber-800 flex items-center gap-2">
+          <Save className="w-5 h-5" />
+          Patch Payment Calculation (Force Fix)
+        </h3>
+        <p className="text-sm text-amber-700 mt-2">
+          Force-recalculate all invoice percentages by summing actual linked payments. 
+          Use this if invoices are hidden from SEDA due to scale issues (0.05 instead of 5%).
+        </p>
+
+        <div className="mt-4 space-y-3">
+          <button
+            onClick={handlePatchPercentages}
+            disabled={isPatching}
+            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {isPatching ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Patching...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Patch All Percentages
+              </>
+            )}
+          </button>
+
+          {patchResult && (
+            <div className={`p-3 rounded text-sm ${
+              patchResult.success ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+            }`}>
+              {patchResult.success ? (
+                <>
+                  <strong>Success!</strong> {patchResult.message}
+                </>
+              ) : (
+                <>
+                  <strong>Error:</strong> {patchResult.error}
                 </>
               )}
             </div>
