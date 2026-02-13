@@ -28,7 +28,8 @@ import {
   History,
   Terminal,
   Calculator,
-  Download
+  Download,
+  Copy
 } from "lucide-react";
 import {
   getSubmittedPayments,
@@ -531,6 +532,47 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
     }
   };
 
+  // Copy for Sheets (TSV)
+  const handleCopyForSheets = () => {
+    if (viewMode === "by-agent" && groupedInvoices.length > 0) {
+      // Build TSV content (Tab Separated Values) - pastes perfectly into Google Sheets
+      let tsvContent = "Agent Name\tInvoice Number\tCustomer Name\tPayment Date\tTotal Amount (RM)\tAmount Eligible for Comm (RM)\tCommission Description\n";
+
+      // Helper to clean strings for TSV
+      const clean = (str: any) => (str ? String(str).replace(/[\t\n\r]/g, " ").trim() : "");
+
+      groupedInvoices.forEach((group: any) => {
+        // We iterate through each invoice in the group
+        group.invoices.forEach((inv: any) => {
+          const datePaid = inv.full_payment_date ? formatDate(inv.full_payment_date) : "N/A";
+          // Remove currency symbols and commas for raw numbers in Sheets
+          const amount = inv.total_amount ? parseFloat(inv.total_amount).toFixed(2) : "0.00";
+          const commAmount = inv.amount_eligible_for_comm ? parseFloat(inv.amount_eligible_for_comm).toFixed(2) : "0.00";
+
+          const customer = clean(inv.customer_name);
+          const agent = clean(group.agent_name);
+          const description = clean(inv.eligible_amount_description);
+          const invoiceNum = clean(inv.invoice_number);
+
+          tsvContent += `${agent}\t${invoiceNum}\t${customer}\t${datePaid}\t${amount}\t${commAmount}\t${description}\n`;
+        });
+
+        // Add a total row
+        tsvContent += `${clean(group.agent_name)} Total\t\t\t\t${group.total_amount.toFixed(2)}\t\t\n`;
+        tsvContent += "\t\t\t\t\t\t\n"; // Empty row
+      });
+
+      navigator.clipboard.writeText(tsvContent).then(() => {
+        alert("Copied to clipboard! \n\nYou can now go to Google Sheets and PASTE (Ctrl+V) directly.");
+      }).catch(err => {
+        console.error('Failed to copy: ', err);
+        alert("Failed to copy to clipboard.");
+      });
+    } else {
+      alert("No data to copy or not in 'By Agent' view.");
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Invoice Viewer Modal (only for standalone view if ever needed, but now we have inline) */}
@@ -772,6 +814,16 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   >
                     <Calculator className={`h-4 w-4 ${calculatingCommission ? 'animate-spin' : ''}`} />
                     {calculatingCommission ? 'Calculating...' : 'Calc Commission'}
+                  </button>
+
+                  {/* Copy for Sheets Button */}
+                  <button
+                    type="button"
+                    onClick={handleCopyForSheets}
+                    className="btn-secondary flex items-center gap-2 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                  >
+                    <Copy className="h-4 w-4" />
+                    Copy for Sheets
                   </button>
 
                   {/* Export CSV Button */}
