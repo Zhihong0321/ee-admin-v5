@@ -11,18 +11,18 @@ export async function POST() {
     // Find all EPP payments with empty/null epp_cost
     const eppPayments = await db
       .select({
-        id: true,
-        amount: true,
-        issuer_bank: true,
-        epp_month: true,
-        epp_type: true,
-        epp_cost: true,
+        id: payments.id,
+        amount: payments.amount,
+        issuer_bank: payments.issuer_bank,
+        epp_month: payments.epp_month,
+        epp_type: payments.epp_type,
+        epp_cost: payments.epp_cost,
       })
       .from(payments)
       .where(
         and(
           eq(payments.epp_type, 'EPP'),
-          or(isNull(payments.epp_cost), eq(payments.epp_cost, 0))
+          or(isNull(payments.epp_cost), eq(payments.epp_cost, '0'))
         )
       );
 

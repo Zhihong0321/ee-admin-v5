@@ -5,7 +5,7 @@ import { payments, submitted_payments, agents, customers, invoices, invoice_temp
 import { ilike, or, desc, eq, and, sql, inArray, isNull, isNotNull, gte, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { syncPaymentsFromBubble } from "@/lib/bubble";
-import { calculateEppCost } from "@/lib/epp-rates";
+import { calculateEppCost, getEppRate } from "@/lib/epp-rates";
 
 export async function triggerPaymentSync() {
   const result = await syncPaymentsFromBubble();
@@ -170,12 +170,12 @@ export async function getFullyPaidInvoicesByAgent(month: number, year: number, s
     // Create date range for the selected month/year
     const startDate = new Date(year, month - 1, 1); // First day of month
     const endDate = new Date(year, month, 0, 23, 59, 59, 999); // Last day of month
-    
+
     const filters = search
       ? or(
-          ilike(agents.name, `%${search}%`),
-          ilike(customers.name, `%${search}%`)
-        )
+        ilike(agents.name, `%${search}%`),
+        ilike(customers.name, `%${search}%`)
+      )
       : undefined;
 
     // Get all fully paid invoices in the date range
@@ -202,10 +202,10 @@ export async function getFullyPaidInvoicesByAgent(month: number, year: number, s
 
     // Group by agent and count invoices
     const agentGroups: Record<string, any> = {};
-    
+
     for (const invoice of invoiceData) {
       const agentName = invoice.agent_name || 'Unknown Agent';
-      
+
       if (!agentGroups[agentName]) {
         agentGroups[agentName] = {
           agent_name: agentName,
@@ -214,7 +214,7 @@ export async function getFullyPaidInvoicesByAgent(month: number, year: number, s
           total_amount: 0
         };
       }
-      
+
       agentGroups[agentName].invoice_count++;
       agentGroups[agentName].invoices.push(invoice);
       agentGroups[agentName].total_amount += parseFloat(invoice.total_amount || '0');
@@ -796,11 +796,11 @@ export async function getEppPayments(search?: string) {
     // Get all EPP payments with epp_cost (including calculated ones)
     const whereClause = search
       ? or(
-          ilike(payments.remark, `%${search}%`),
-          ilike(payments.payment_method, `%${search}%`),
-          ilike(agents.name, `%${search}%`),
-          ilike(customers.name, `%${search}%`)
-        )
+        ilike(payments.remark, `%${search}%`),
+        ilike(payments.payment_method, `%${search}%`),
+        ilike(agents.name, `%${search}%`),
+        ilike(customers.name, `%${search}%`)
+      )
       : undefined;
 
     const data = await db
@@ -828,7 +828,7 @@ export async function getEppPayments(search?: string) {
 
     // Calculate EPP cost for any that are missing it
     const updatedData = await Promise.all(data.map(async (payment) => {
-      if (payment.epp_type === 'EPP' && (!payment.epp_cost || payment.epp_cost === 0)) {
+      if (payment.epp_type === 'EPP' && (!payment.epp_cost || Number(payment.epp_cost) === 0)) {
         const tenure = payment.epp_month ? parseInt(payment.epp_month) : null;
         const amount = payment.amount ? parseFloat(payment.amount) : null;
         const bank = payment.issuer_bank;
@@ -856,7 +856,7 @@ export async function getEppPayments(search?: string) {
 /**
  * Get EPP rate from database (fallback to config if needed)
  */
-async function getEppRateFromDb(bank: string, tenure: number): Promise<number> {
+async function getEppRateFromDb(bank: string, tenure: number): Promise<number | null> {
   // First try to get from database
   // For now, use the config function
   return getEppRate(bank, tenure);
