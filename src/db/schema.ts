@@ -67,6 +67,10 @@ export const invoices = pgTable('invoice', {
   linked_payment: text('linked_payment').array(), // ARRAY of payment bubble_ids
   linked_seda_registration: text('linked_seda_registration'), // SEDA registration bubble_id
 
+  // Commission Eligibility Fields
+  amount_eligible_for_comm: numeric('amount_eligible_for_comm'),
+  eligible_amount_description: text('eligible_amount_description'),
+
   // Calculated Fields (synced from Bubble)
   percent_of_total_amount: numeric('percent_of_total_amount'), // Payment percentage (0-100)
   paid: boolean('paid').default(false), // Whether invoice is fully paid
@@ -412,3 +416,19 @@ export const invoiceEditHistoryRelations = relations(invoice_edit_history, ({ on
     references: [invoices.id],
   }),
 }));
+
+// Voucher Table
+export const vouchers = pgTable('voucher', {
+  id: serial('id').primaryKey(),
+  bubble_id: text('bubble_id'),
+  title: text('title'),
+  voucher_code: text('voucher_code'),
+  voucher_type: text('voucher_type'),
+  deductable_from_commission: integer('deductable_from_commission'),
+  description: text('invoice_description'), // Mapped from invoice_description
+  terms_conditions: text('terms_conditions'),
+  created_by: text('created_by'),
+  created_at: timestamp('created_at', { withTimezone: true }),
+  updated_at: timestamp('updated_at', { withTimezone: true }),
+  last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
+});

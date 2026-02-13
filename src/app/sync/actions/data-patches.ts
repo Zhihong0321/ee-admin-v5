@@ -1,4 +1,5 @@
 "use server";
+import { desc } from "drizzle-orm";
 
 /**
  * ============================================================================
@@ -10,7 +11,8 @@
  * data consistency.
  *
  * Functions:
- * - updateInvoicePaymentPercentages: Calculate percent_of_total_amount from payments
+ * - updateInvoicePaymentPercentages: DEPRECATED
+ * - updatePaymentCalculations: Recalculate percent_of_total_amount, paid status, and full_payment_date
  * - patchInvoiceCreators: Fill in missing created_by from agent relationships
  * - updateInvoiceStatuses: Update status based on payment/SEDA state
  *
@@ -21,7 +23,7 @@ import { db } from "@/lib/db";
 import { invoices, payments, submitted_payments, users, agents, sedaRegistration } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { logSyncActivity } from "@/lib/logger";
-import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
+import { eq, sql, and, isNull, isNotNull, or } from "drizzle-orm";
 
 /**
  * ============================================================================
@@ -72,113 +74,142 @@ import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
  * - Used by: src/app/sync/page.tsx (Update Payment Percentages button)
  */
 export async function updateInvoicePaymentPercentages() {
-  logSyncActivity(`Starting optimized update of invoice payment percentages...`, 'INFO');
+  logSyncActivity(`DEPRECATED: updateInvoicePaymentPercentages called but disabled.`, 'WARN');
+  return {
+    success: false,
+    error: "This function is deprecated and disabled. Please do not use."
+  };
+}
+
+/**
+ * ============================================================================
+ * FUNCTION: updatePaymentCalculations
+ * ============================================================================
+ * 
+ * INTENT:
+ * Recalculate payment percentages and update payment status/dates.
+ * 
+ * LOGIC:
+ * 1. Calculate percent_of_total_amount = (sum of verified payments / total amount) * 100
+ * 2. If percent >= 100, set paid = true
+ * 3. Update full_payment_date = date of the last payment (if fully paid)
+ * 
+ * INPUTS:
+ * None (scans all invoices)
+ */
+export async function updatePaymentCalculations() {
+  logSyncActivity("Starting 'Update Payment Calculations' job...", 'INFO');
 
   try {
-    // 1. Fetch all payments and submitted_payments into a combined map for O(1) lookup
-    // We use a Map to handle thousands of payments efficiently
-    const [allVerifiedPayments, allSubmittedPayments] = await Promise.all([
-      db.select({ bubble_id: payments.bubble_id, amount: payments.amount }).from(payments),
-      db.select({ bubble_id: submitted_payments.bubble_id, amount: submitted_payments.amount }).from(submitted_payments)
-    ]);
-
-    const paymentAmountMap = new Map<string, number>();
-    
-    // Add submitted payments first
-    allSubmittedPayments.forEach(p => {
-      if (p.bubble_id && p.amount) {
-        paymentAmountMap.set(p.bubble_id, parseFloat(p.amount));
-      }
-    });
-
-    // Add/Overwrite with verified payments (verified should take precedence if IDs overlap)
-    allVerifiedPayments.forEach(p => {
-      if (p.bubble_id && p.amount) {
-        paymentAmountMap.set(p.bubble_id, parseFloat(p.amount));
-      }
-    });
-
-    // 2. Fetch all invoices that have a total amount and are not deleted
+    // 1. Fetch all invoices
     const allInvoices = await db.select({
       id: invoices.id,
       bubble_id: invoices.bubble_id,
       invoice_number: invoices.invoice_number,
       total_amount: invoices.total_amount,
-      amount: invoices.amount, // Legacy fallback
+      amount: invoices.amount,
       linked_payment: invoices.linked_payment,
     })
-    .from(invoices)
-    .where(and(
-      sql`${invoices.status} != 'deleted'`,
-      sql`(${invoices.total_amount} IS NOT NULL AND ${invoices.total_amount} > 0) OR (${invoices.amount} IS NOT NULL AND ${invoices.amount} > 0)`
-    ));
+      .from(invoices)
+      .where(and(
+        sql`${invoices.status} != 'deleted'`,
+        or(
+          isNotNull(invoices.total_amount),
+          isNotNull(invoices.amount)
+        )
+      ));
 
-    logSyncActivity(`Processing ${allInvoices.length} invoices for percentage recalculation...`, 'INFO');
+    logSyncActivity(`Processing ${allInvoices.length} invoices...`, 'INFO');
 
     let updatedCount = 0;
-    let skippedCount = 0;
-    let overpaidCount = 0;
+    let fullyPaidCount = 0;
 
-    // 3. Process each invoice
-    for (const invoice of allInvoices) {
-      const targetAmount = parseFloat(invoice.total_amount || invoice.amount || '0');
-      
-      if (targetAmount <= 0) {
-        skippedCount++;
-        continue;
+    // Pre-fetch all payments for performance
+    // Using a map for O(1) access: bubble_id -> { amount, date }
+    const allPayments = await db.select({
+      bubble_id: payments.bubble_id,
+      amount: payments.amount,
+      payment_date: payments.payment_date
+    }).from(payments);
+
+    const paymentMap = new Map<string, { amount: number, date: Date | null }>();
+    allPayments.forEach(p => {
+      if (p.bubble_id) {
+        paymentMap.set(p.bubble_id, {
+          amount: parseFloat(p.amount || '0'),
+          date: p.payment_date ? new Date(p.payment_date) : null
+        });
       }
+    });
+
+    for (const inv of allInvoices) {
+      const totalAmount = parseFloat(inv.total_amount || inv.amount || '0');
+
+      if (totalAmount <= 0) continue;
 
       let totalPaid = 0;
-      if (invoice.linked_payment && Array.isArray(invoice.linked_payment)) {
-        for (const paymentId of invoice.linked_payment) {
-          totalPaid += paymentAmountMap.get(paymentId) || 0;
+      let lastPaymentDate: Date | null = null;
+
+      if (inv.linked_payment && inv.linked_payment.length > 0) {
+        // Iterate through linked payments
+        for (const pid of inv.linked_payment) {
+          if (!pid) continue;
+          const pData = paymentMap.get(pid);
+          if (pData) {
+            totalPaid += pData.amount;
+
+            // Track latest payment date
+            if (pData.date) {
+              if (!lastPaymentDate || pData.date > lastPaymentDate) {
+                lastPaymentDate = pData.date;
+              }
+            }
+          }
         }
       }
 
-      // Calculate percentage and clamp it between 0 and 100
-      // Senior Architect Note: We clamp to 100 to avoid UI overflow, 
-      // but we log if it's overpaid for auditing.
-      let percentage = (totalPaid / targetAmount) * 100;
-      
-      if (percentage > 100) {
-        overpaidCount++;
-        percentage = 100;
-      } else if (percentage < 0) {
-        percentage = 0;
-      }
+      // 1. Calculate Percentage
+      // Clamp between 0.00 and 100.00? User said "0.00 ~ 100.00"
+      let percent = (totalPaid / totalAmount) * 100;
+      if (percent < 0) percent = 0;
+      // Allow > 100 technically but usually capped. User request implied 0~100.
+      // Let's cap at 100 for the field, but logic for "paid" is >= 100.
+      // Actually, let's store exact first, but formatted.
 
-      // Only update if it actually changes something (or force update timestamps)
+      // Update Logic
+      const isPaid = percent >= 99.9; // Handling float rounding errors, slightly tolerant
+      if (isPaid) fullyPaidCount++;
+
+      // If paid, use last payment date. Else null? Or keep existing?
+      // Request: "update invoice.full_payment_date = last payment.payment_date"
+      // Implies only if fully paid.
+      const fullPaymentDate = isPaid ? lastPaymentDate : null;
+
+      // Update DB
       await db.update(invoices)
-        .set({ 
-          percent_of_total_amount: percentage.toFixed(2),
+        .set({
+          percent_of_total_amount: percent.toFixed(2),
+          paid: isPaid,
+          full_payment_date: fullPaymentDate,
           updated_at: new Date()
         })
-        .where(eq(invoices.id, invoice.id));
+        .where(eq(invoices.id, inv.id));
 
       updatedCount++;
-      
-      if (updatedCount % 100 === 0) {
-        logSyncActivity(`Progress: Updated ${updatedCount} invoices...`, 'INFO');
-      }
     }
 
-    logSyncActivity(`Payment percentage update complete.`, 'INFO');
-    logSyncActivity(`- Total Updated: ${updatedCount}`, 'INFO');
-    logSyncActivity(`- Total Skipped: ${skippedCount}`, 'INFO');
-    logSyncActivity(`- Overpaid Invoices Detected: ${overpaidCount}`, 'INFO');
-
+    logSyncActivity(`Payment calculations complete. Updated ${updatedCount} invoices. Fully Paid: ${fullyPaidCount}`, 'INFO');
     revalidatePath("/invoices");
-    revalidatePath("/sync");
 
     return {
       success: true,
       updated: updatedCount,
-      skipped: skippedCount,
-      overpaid: overpaidCount,
-      message: `Successfully recalculated percentages for ${updatedCount} invoices. ${overpaidCount} were found to be fully paid (capped at 100%).`
+      fully_paid: fullyPaidCount,
+      message: `Updated ${updatedCount} invoices. identified ${fullyPaidCount} as fully paid.`
     };
+
   } catch (error) {
-    logSyncActivity(`Payment percentage update CRASHED: ${String(error)}`, 'ERROR');
+    logSyncActivity(`Update Payment Calculations CRASHED: ${String(error)}`, 'ERROR');
     return { success: false, error: String(error) };
   }
 }
@@ -264,8 +295,8 @@ export async function patchInvoiceCreators() {
       bubble_id: invoices.bubble_id,
       linked_agent: invoices.linked_agent,
     })
-    .from(invoices)
-    .where(and(isNull(invoices.created_by), isNotNull(invoices.linked_agent)));
+      .from(invoices)
+      .where(and(isNull(invoices.created_by), isNotNull(invoices.linked_agent)));
 
     // 3. Process fixable invoices
     for (const inv of fixableInvoices) {
@@ -297,8 +328,8 @@ export async function patchInvoiceCreators() {
         }
       } else {
         // Agent ID exists in invoice but not in Agent table?!
-         logSyncActivity(`WARNING: Skipped Invoice ${inv.bubble_id}: Linked Agent ID ${inv.linked_agent} not found in DB.`, 'ERROR');
-         agentNoUserCount++;
+        logSyncActivity(`WARNING: Skipped Invoice ${inv.bubble_id}: Linked Agent ID ${inv.linked_agent} not found in DB.`, 'ERROR');
+        agentNoUserCount++;
       }
     }
 
@@ -404,8 +435,8 @@ export async function updateInvoiceStatuses() {
       linked_seda_registration: invoices.linked_seda_registration,
       current_status: invoices.status,
     })
-    .from(invoices)
-    .where(sql`${invoices.status} != 'deleted'`);
+      .from(invoices)
+      .where(sql`${invoices.status} != 'deleted'`);
 
     logSyncActivity(`Processing ${allInvoices.length} invoices...`, 'INFO');
 

@@ -20,10 +20,10 @@ import {
 } from "./components/forms";
 import { LogViewer } from "./components/logs";
 import { fetchSyncLogs, clearSyncLogs } from "./actions";
-import { 
-  patchFileUrlsToAbsolute, 
-  patchChineseFilenames, 
-  updateInvoicePaymentPercentages 
+import {
+  patchFileUrlsToAbsolute,
+  patchChineseFilenames,
+  updatePaymentCalculations,
 } from "./actions";
 import { migrateBubbleFilesToLocal, randomTestMigration } from "./actions/bubble-file-migration";
 import { patchPaymentMethodsFromJson } from "./actions/json-upload-sync";
@@ -46,11 +46,11 @@ export default function SyncPage() {
   const [isPatchingChinese, setIsPatchingChinese] = useState(false);
   const [isMigratingBubbleFiles, setIsMigratingBubbleFiles] = useState(false);
   const [isRandomTesting, setIsRandomTesting] = useState(false);
-  const [isRecalculatingPercentages, setIsRecalculatingPercentages] = useState(false);
   const [patchResults, setPatchResults] = useState<any>(null);
   const [migrationResults, setMigrationResults] = useState<any>(null);
   const [randomTestResults, setRandomTestResults] = useState<any>(null);
   const [recalculateResults, setRecalculateResults] = useState<any>(null);
+  const [isRecalculating, setIsRecalculating] = useState(false);
 
   // Logs state
   const [logs, setLogs] = useState<string[]>([]);
@@ -141,7 +141,7 @@ Continue?`)) {
     const action = options.fixBrokenLinks ? 'validate and fix' : 'validate';
     const tableCount = options.tables?.length || 0;
     const tableText = tableCount > 0 ? `${tableCount} tables` : 'all tables';
-    
+
     if (!confirm(`${action === 'validate' ? 'Validate' : 'Validate and fix'} relationships in ${tableText}?
 
 This will check all linked_* fields and ${options.fixBrokenLinks ? 'remove invalid references' : 'report errors'}.
@@ -208,7 +208,7 @@ Continue?`)) {
     alert('🟢 START MIGRATION HANDLER CALLED!');
     console.log('🚀 handleMigrateBubbleFiles called, dryRun:', dryRun);
     const action = dryRun ? 'preview' : 'migrate';
-    
+
     const confirmed = confirm(
       `This will ${action} files from Bubble storage to local storage.
       
@@ -217,7 +217,7 @@ The UI will loop until all 21,825+ files are processed.
 
 Continue?`
     );
-    
+
     if (!confirmed) return;
 
     setIsMigratingBubbleFiles(true);
@@ -237,11 +237,11 @@ Continue?`
         while (!isDone) {
           console.log(`📥 Processing batch... Total so far: ${totalProcessed}`);
           const res = await migrateBubbleFilesToLocal({ limit: 50 });
-          
+
           if (!res.success) {
             throw new Error(res.error || 'Batch failed');
           }
-          
+
           if (res.completed) {
             isDone = true;
             console.log('✅ All batches completed');
@@ -257,7 +257,7 @@ Continue?`
             await loadLogs();
           }
         }
-        
+
         setMigrationResults({
           success: true,
           message: `Success! Total ${totalProcessed} files migrated.`,
@@ -294,24 +294,26 @@ Continue?`
     }
   };
 
-  const handleRecalculatePercentages = async () => {
+  const handleUpdatePaymentCalculations = async () => {
     if (!confirm(
-      "This will recalculate the 'percent_of_total_amount' for all invoices based on linked payments.\n\nContinue?"
+      "This will recalculate payment percentages, update 'paid' status, and set 'full_payment_date' for all invoices.\n\nContinue?"
     )) return;
 
-    setIsRecalculatingPercentages(true);
+    setIsRecalculating(true);
     setRecalculateResults(null);
 
     try {
-      const res = await updateInvoicePaymentPercentages();
+      const res = await updatePaymentCalculations();
       setRecalculateResults(res);
       await loadLogs();
     } catch (error) {
       setRecalculateResults({ success: false, error: String(error) });
     } finally {
-      setIsRecalculatingPercentages(false);
+      setIsRecalculating(false);
     }
   };
+
+
 
   // Get current patch operation name for tracking
   const getCurrentOperation = () => {
@@ -350,7 +352,7 @@ Continue?`
       />
 
       {/* Relationship Validator */}
-      <RelationshipValidatorForm 
+      <RelationshipValidatorForm
         onValidate={handleRelationshipValidation}
         isValidating={isValidatingRelationships}
         results={relationshipResults}
@@ -401,7 +403,7 @@ Continue?`
                 🔄 Force Reset
               </button>
             </div>
-            
+
             <button
               onClick={() => {
                 console.log('🔵 Preview button clicked');
@@ -445,11 +447,10 @@ Continue?`
 
           {/* Results Display */}
           {migrationResults && (
-            <div className={`p-4 rounded-lg border ${
-              migrationResults.success
-                ? 'bg-green-50 border-green-200 text-green-800'
-                : 'bg-red-50 border-red-200 text-red-800'
-            }`}>
+            <div className={`p-4 rounded-lg border ${migrationResults.success
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-red-50 border-red-200 text-red-800'
+              }`}>
               {migrationResults.success ? (
                 <>
                   <p className="font-medium mb-3">✓ {migrationResults.message?.split('\n')[0] || 'Migration completed!'}</p>
@@ -483,22 +484,21 @@ Continue?`
 
           {/* Random Test Results */}
           {randomTestResults && (
-            <div className={`p-4 rounded-lg border ${
-              randomTestResults.success
-                ? 'bg-purple-50 border-purple-200 text-purple-900'
-                : 'bg-red-50 border-red-200 text-red-800'
-            }`}>
+            <div className={`p-4 rounded-lg border ${randomTestResults.success
+              ? 'bg-purple-50 border-purple-200 text-purple-900'
+              : 'bg-red-50 border-red-200 text-red-800'
+              }`}>
               {randomTestResults.success ? (
                 <>
                   <p className="font-bold text-lg mb-3">🎯 Random Test Result</p>
-                  
+
                   {/* File Preview */}
                   {randomTestResults.isImage ? (
                     <div className="mb-4 bg-white rounded-lg p-4 border border-purple-300">
                       <p className="text-sm font-medium mb-2">📸 Downloaded Image Preview:</p>
-                      <img 
-                        src={randomTestResults.imageUrl} 
-                        alt="Random test file" 
+                      <img
+                        src={randomTestResults.imageUrl}
+                        alt="Random test file"
                         className="max-w-full h-auto rounded border border-secondary-200 shadow-sm"
                         style={{ maxHeight: '400px' }}
                       />
@@ -634,11 +634,10 @@ Continue?`
 
           {/* Results Display */}
           {patchResults && (
-            <div className={`p-4 rounded-lg border ${
-              patchResults.success
-                ? 'bg-green-50 border-green-200 text-green-800'
-                : 'bg-red-50 border-red-200 text-red-800'
-            }`}>
+            <div className={`p-4 rounded-lg border ${patchResults.success
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-red-50 border-red-200 text-red-800'
+              }`}>
               {patchResults.success ? (
                 <>
                   <p className="font-medium mb-2">✓ Patch completed successfully!</p>
@@ -673,33 +672,32 @@ Continue?`
         <div className="space-y-4">
           <div className="flex items-start gap-4 p-4 bg-secondary-50 rounded-lg border border-secondary-200">
             <div className="flex-1">
-              <h3 className="font-medium text-secondary-900 mb-1">Recalculate Payment Percentages</h3>
+              <h3 className="font-medium text-secondary-900 mb-1">Update Payment Calculations</h3>
               <p className="text-sm text-secondary-600 mb-3">
-                Re-scan all invoices and payments to update the <code>percent_of_total_amount</code> column.
+                Recalculate <code>percent_of_total_amount</code>, update <code>paid</code> status, and set <code>full_payment_date</code>.
               </p>
               <div className="text-xs text-secondary-500">
-                Formula: (Total Verified + Submitted Payments / Invoice Total Amount) * 100
+                Logic: Percent = (Sum Payments / Total) * 100. If &gt;= 100%, Paid = true.
               </div>
             </div>
             <button
-              onClick={handleRecalculatePercentages}
-              disabled={isRecalculatingPercentages}
+              onClick={handleUpdatePaymentCalculations}
+              disabled={isRecalculating}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-secondary-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
             >
-              {isRecalculatingPercentages ? 'Processing...' : 'Recalculate Now'}
+              {isRecalculating ? 'Processing...' : 'Run Update'}
             </button>
           </div>
 
           {/* Results Display */}
           {recalculateResults && (
-            <div className={`p-4 rounded-lg border ${
-              recalculateResults.success
-                ? 'bg-green-50 border-green-200 text-green-800'
-                : 'bg-red-50 border-red-200 text-red-800'
-            }`}>
+            <div className={`p-4 rounded-lg border ${recalculateResults.success
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-red-50 border-red-200 text-red-800'
+              }`}>
               {recalculateResults.success ? (
                 <>
-                  <p className="font-medium mb-2">✓ Calculation complete!</p>
+                  <p className="font-medium mb-2">✓ Update complete!</p>
                   <p className="text-sm">{recalculateResults.message}</p>
                 </>
               ) : (
@@ -709,6 +707,7 @@ Continue?`
           )}
         </div>
       </section>
+
 
       {/* Logs */}
       <LogViewer

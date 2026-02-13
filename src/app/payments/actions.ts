@@ -59,7 +59,7 @@ export async function getSubmittedPayments(search?: string, status: string = 'pe
       .leftJoin(invoices, sql`${submitted_payments.linked_invoice} = ${invoices.bubble_id} OR ${submitted_payments.linked_invoice} = CAST(${invoices.invoice_id} AS TEXT)`)
       .where(whereClause)
       .orderBy(desc(submitted_payments.created_at))
-      .limit(50);
+      .limit(5000);
 
     return data;
   } catch (error) {
@@ -110,7 +110,7 @@ export async function getVerifiedPayments(search?: string) {
       .leftJoin(invoices, sql`${payments.linked_invoice} = ${invoices.bubble_id} OR ${payments.linked_invoice} = CAST(${invoices.invoice_id} AS TEXT)`)
       .where(filters)
       .orderBy(desc(payments.payment_date), desc(payments.created_at))
-      .limit(50);
+      .limit(5000);
 
     return data;
   } catch (error) {
@@ -156,7 +156,7 @@ export async function getFullyPaidInvoices(search?: string) {
       .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
       .where(whereClause)
       .orderBy(desc(invoices.full_payment_date), desc(invoices.updated_at))
-      .limit(50);
+      .limit(5000);
 
     return data;
   } catch (error) {
@@ -830,7 +830,7 @@ export async function getEppPayments(search?: string) {
       .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
       .where(whereClause)
       .orderBy(desc(payments.payment_date))
-      .limit(500);
+      .limit(5000);
 
     // Calculate EPP cost for any that are missing it
     const updatedData = await Promise.all(data.map(async (payment) => {
@@ -913,7 +913,7 @@ export async function getPaymentsWithoutMethod(search?: string) {
       .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
       .where(whereClause)
       .orderBy(desc(payments.payment_date))
-      .limit(100);
+      .limit(5000);
 
     return data;
   } catch (error) {

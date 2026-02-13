@@ -49,6 +49,7 @@ export {
 // Data Patch Operations
 export {
   updateInvoicePaymentPercentages,
+  updatePaymentCalculations,
   patchInvoiceCreators,
   updateInvoiceStatuses
 } from './data-patches';
