@@ -502,8 +502,12 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
       .set({ status: 'verified', updated_at: new Date(), verified_by: adminId })
       .where(eq(submitted_payments.id, submittedPaymentId));
 
-    // 4. If this payment is linked to an invoice, recalculate payment status
+    // 4. If this payment is linked to an invoice, link it and recalculate
     if (p.linked_invoice) {
+      // 4a. Add to invoice's linked_payment array
+      await linkPaymentToInvoice(p.linked_invoice, p.bubble_id);
+
+      // 4b. Recalculate status
       await recalculateInvoicePaymentStatus(p.linked_invoice, adminId);
     }
 
@@ -586,6 +590,34 @@ async function recalculateInvoicePaymentStatus(invoiceBubbleId: string, triggere
   } catch (error) {
     console.error(`Error recalculating payment status for invoice ${invoiceBubbleId}:`, error);
     throw error;
+  }
+}
+
+/**
+ * Link a payment to an invoice's linked_payment array
+ */
+async function linkPaymentToInvoice(invoiceBubbleId: string, paymentBubbleId: string) {
+  try {
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.bubble_id, invoiceBubbleId)
+    });
+
+    if (!invoice) return;
+
+    const currentLinks = invoice.linked_payment || [];
+
+    // Check if already linked
+    if (!currentLinks.includes(paymentBubbleId)) {
+      const newLinks = [...currentLinks, paymentBubbleId];
+
+      await db.update(invoices)
+        .set({ linked_payment: newLinks, updated_at: new Date() })
+        .where(eq(invoices.bubble_id, invoiceBubbleId));
+
+      console.log(`Linked payment ${paymentBubbleId} to invoice ${invoiceBubbleId}`);
+    }
+  } catch (error) {
+    console.error(`Error linking payment ${paymentBubbleId} to invoice ${invoiceBubbleId}:`, error);
   }
 }
 

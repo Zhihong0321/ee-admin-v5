@@ -24,6 +24,7 @@ import {
   patchFileUrlsToAbsolute,
   patchChineseFilenames,
   updatePaymentCalculations,
+  syncMissingPaymentLinks
 } from "./actions";
 import { migrateBubbleFilesToLocal, randomTestMigration } from "./actions/bubble-file-migration";
 import { patchPaymentMethodsFromJson } from "./actions/json-upload-sync";
@@ -51,6 +52,7 @@ export default function SyncPage() {
   const [randomTestResults, setRandomTestResults] = useState<any>(null);
   const [recalculateResults, setRecalculateResults] = useState<any>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
+  const [isSyncingPaymentLinks, setIsSyncingPaymentLinks] = useState(false);
 
   // Logs state
   const [logs, setLogs] = useState<string[]>([]);
@@ -310,6 +312,25 @@ Continue?`
       setRecalculateResults({ success: false, error: String(error) });
     } finally {
       setIsRecalculating(false);
+    }
+  };
+
+  const handleSyncMissingPaymentLinks = async () => {
+    if (!confirm(
+      "This will scan all verified payments and ensure they are properly linked to their invoices (two-way link).\n\nContinue?"
+    )) return;
+
+    setIsSyncingPaymentLinks(true);
+    setRecalculateResults(null); // Reuse result display
+
+    try {
+      const res = await syncMissingPaymentLinks();
+      setRecalculateResults(res);
+      await loadLogs();
+    } catch (error) {
+      setRecalculateResults({ success: false, error: String(error) });
+    } finally {
+      setIsSyncingPaymentLinks(false);
     }
   };
 
@@ -676,17 +697,30 @@ Continue?`
               <p className="text-sm text-secondary-600 mb-3">
                 Recalculate <code>percent_of_total_amount</code>, update <code>paid</code> status, and set <code>full_payment_date</code>.
               </p>
-              <div className="text-xs text-secondary-500">
+              <div className="text-xs text-secondary-500 mb-2">
                 Logic: Percent = (Sum Payments / Total) * 100. If &gt;= 100%, Paid = true.
               </div>
+              <h3 className="font-medium text-secondary-900 mb-1 mt-4">Sync Missing Payment Links</h3>
+              <p className="text-sm text-secondary-600 mb-3">
+                Scan all verified payments and add their IDs to the invoice&apos;s <code>linked_payment</code> array if missing.
+              </p>
             </div>
-            <button
-              onClick={handleUpdatePaymentCalculations}
-              disabled={isRecalculating}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-secondary-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-            >
-              {isRecalculating ? 'Processing...' : 'Run Update'}
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleUpdatePaymentCalculations}
+                disabled={isRecalculating || isSyncingPaymentLinks}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-secondary-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+              >
+                {isRecalculating ? 'Processing...' : 'Run Update'}
+              </button>
+              <button
+                onClick={handleSyncMissingPaymentLinks}
+                disabled={isRecalculating || isSyncingPaymentLinks}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-secondary-300 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+              >
+                {isSyncingPaymentLinks ? 'Linking...' : 'Fix Links'}
+              </button>
+            </div>
           </div>
 
           {/* Results Display */}

@@ -67,6 +67,10 @@ export {
   syncInvoiceItemLinks
 } from './link-restoration';
 
+export {
+  syncMissingPaymentLinks
+} from './sync-missing-links';
+
 // Utility Operations
 export {
   fetchSyncLogs,
