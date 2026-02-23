@@ -106,8 +106,8 @@ export default function CatalogPage() {
             const dataToSave = {
                 name: editingItem?.name,
                 description: editingItem?.description,
-                selling_price: editingItem?.selling_price,
-                cost_price: editingItem?.cost_price,
+                selling_price: editingItem?.selling_price ? String(editingItem.selling_price) : "0",
+                cost_price: editingItem?.cost_price ? String(editingItem.cost_price) : "0",
                 warranty_name: editingItem?.warranty_name,
                 product_warranty_desc: editingItem?.product_warranty_desc,
                 warranty_link: editingItem?.warranty_link,
@@ -122,7 +122,8 @@ export default function CatalogPage() {
             }
             closeAndRefresh();
         } catch (err) {
-            alert("Error saving product");
+            console.error("Save product error", err);
+            alert(`Error saving product: ${err instanceof Error ? err.message : String(err)}`);
         }
     };
 
@@ -132,7 +133,7 @@ export default function CatalogPage() {
             const dataToSave = {
                 package_name: editingItem?.package_name,
                 invoice_desc: editingItem?.invoice_desc,
-                price: editingItem?.price,
+                price: editingItem?.price ? String(editingItem.price) : "0",
                 type: editingItem?.type,
                 active: editingItem?.active === true || editingItem?.active === "true",
             };
@@ -144,7 +145,8 @@ export default function CatalogPage() {
             }
             closeAndRefresh();
         } catch (err) {
-            alert("Error saving package");
+            console.error("Save package error", err);
+            alert(`Error saving package: ${err instanceof Error ? err.message : String(err)}`);
         }
     };
 
