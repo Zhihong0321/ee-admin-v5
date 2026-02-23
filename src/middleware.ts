@@ -21,7 +21,7 @@ export async function middleware(request: NextRequest) {
       console.error("CRITICAL: JWT_SECRET is missing in environment variables! Auth will fail.");
       // Fallback for dev only, or fail
       if (process.env.NODE_ENV === 'production') {
-         throw new Error("Missing JWT_SECRET in production");
+        throw new Error("Missing JWT_SECRET in production");
       }
     }
 
@@ -32,18 +32,18 @@ export async function middleware(request: NextRequest) {
     const { payload } = await jwtVerify(token, secret, {
       clockTolerance: 60 // Allow 60 seconds of clock skew/drift
     });
-    
-    const user = payload as unknown as { 
-      role?: string; 
-      isAdmin?: boolean; 
-      tags?: string[] 
+
+    const user = payload as unknown as {
+      role?: string;
+      isAdmin?: boolean;
+      tags?: string[]
     };
 
     const path = request.nextUrl.pathname;
     const userTags = user.tags || [];
-    const isOwner = user.role === 'owner' || user.isAdmin === true; 
+    const isOwner = user.role === 'owner' || user.isAdmin === true;
 
-    const hasTag = (...required: string[]) => 
+    const hasTag = (...required: string[]) =>
       isOwner || userTags.some(tag => required.includes(tag.toLowerCase()));
 
     // RBAC Rules
@@ -59,7 +59,10 @@ export async function middleware(request: NextRequest) {
     if (path.startsWith('/customers') && !hasTag('admin')) {
       return NextResponse.redirect(new URL('/', request.url));
     }
-    
+    if (path.startsWith('/catalog') && !hasTag('inventory')) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+
     return NextResponse.next();
   } catch (err) {
     console.error(`Auth Error: ${String(err)}`);

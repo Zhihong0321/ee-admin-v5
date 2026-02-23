@@ -43,11 +43,12 @@ export function Sidebar({ user }: SidebarProps) {
         return userTags.includes('admin') || userTags.includes('finance');
       case '/payments':
         return userTags.includes('finance');
+      case '/catalog':
+        return userTags.includes('inventory');
       case '/users':
       case '/customers':
       case '/manage-company':
       case '/sync':
-      case '/catalog':
       case '/schema-manager':
       case '/api-doc':
         return userTags.includes('admin');
