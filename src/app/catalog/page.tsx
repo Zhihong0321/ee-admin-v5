@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Layers, Package as PackageIcon, Filter, AlertCircle, X, CheckCircle2 } from "lucide-react";
+import { Search, Plus, Edit2, Layers, Package as PackageIcon, Filter, AlertCircle, X, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
 import {
     getProducts, updateProduct, createProduct, deleteProduct,
     getPackages, updatePackage, createPackage, deletePackage
@@ -14,11 +14,16 @@ export default function CatalogPage() {
     const [products, setProducts] = useState<any[]>([]);
     const [productsSearch, setProductsSearch] = useState("");
     const [loadingProducts, setLoadingProducts] = useState(true);
+    const [productsPage, setProductsPage] = useState(1);
 
     // Packages state
     const [packagesList, setPackagesList] = useState<any[]>([]);
     const [packagesSearch, setPackagesSearch] = useState("");
+    const [packageTypeFilter, setPackageTypeFilter] = useState("all");
     const [loadingPackages, setLoadingPackages] = useState(true);
+    const [packagesPage, setPackagesPage] = useState(1);
+
+    const itemsPerPage = 10;
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -55,13 +60,29 @@ export default function CatalogPage() {
 
     const handleSearchProducts = (e: React.FormEvent) => {
         e.preventDefault();
+        setProductsPage(1);
         fetchProducts();
     };
 
     const handleSearchPackages = (e: React.FormEvent) => {
         e.preventDefault();
+        setPackagesPage(1);
         fetchPackages();
     };
+
+    const handlePackageFilterChange = (type: string) => {
+        setPackageTypeFilter(type);
+        setPackagesPage(1);
+    };
+
+    // Calculate Paginated Derived State
+    const filteredProducts = products;
+    const paginatedProducts = filteredProducts.slice((productsPage - 1) * itemsPerPage, productsPage * itemsPerPage);
+    const totalProductsPages = Math.ceil(filteredProducts.length / itemsPerPage);
+
+    const filteredPackages = packagesList.filter(pkg => packageTypeFilter === "all" || pkg.type === packageTypeFilter);
+    const paginatedPackages = filteredPackages.slice((packagesPage - 1) * itemsPerPage, packagesPage * itemsPerPage);
+    const totalPackagesPages = Math.ceil(filteredPackages.length / itemsPerPage);
 
     const openAddModal = () => {
         setEditingItem(null);
@@ -166,8 +187,8 @@ export default function CatalogPage() {
                     <button
                         onClick={() => setActiveTab("products")}
                         className={`px-4 py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2 ${activeTab === "products"
-                                ? "border-primary-600 text-primary-600"
-                                : "border-transparent text-secondary-500 hover:text-secondary-700"
+                            ? "border-primary-600 text-primary-600"
+                            : "border-transparent text-secondary-500 hover:text-secondary-700"
                             }`}
                     >
                         <Layers className="h-4 w-4" />
@@ -176,8 +197,8 @@ export default function CatalogPage() {
                     <button
                         onClick={() => setActiveTab("packages")}
                         className={`px-4 py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2 ${activeTab === "packages"
-                                ? "border-primary-600 text-primary-600"
-                                : "border-transparent text-secondary-500 hover:text-secondary-700"
+                            ? "border-primary-600 text-primary-600"
+                            : "border-transparent text-secondary-500 hover:text-secondary-700"
                             }`}
                     >
                         <PackageIcon className="h-4 w-4" />
@@ -220,10 +241,10 @@ export default function CatalogPage() {
                                 <tbody>
                                     {loadingProducts ? (
                                         <tr><td colSpan={5} className="text-center py-8">Loading...</td></tr>
-                                    ) : products.length === 0 ? (
+                                    ) : paginatedProducts.length === 0 ? (
                                         <tr><td colSpan={5} className="text-center py-8 text-secondary-500">No products found.</td></tr>
                                     ) : (
-                                        products.map(product => (
+                                        paginatedProducts.map(product => (
                                             <tr key={product.id}>
                                                 <td>
                                                     <div className="font-semibold text-secondary-900">{product.name || "Unnamed"}</div>
@@ -247,6 +268,32 @@ export default function CatalogPage() {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Products Pagination */}
+                        <div className="p-6 border-t border-secondary-200 bg-secondary-50/30 flex items-center justify-between">
+                            <p className="text-sm text-secondary-600">
+                                Showing <span className="font-semibold text-secondary-900">{(productsPage - 1) * itemsPerPage + 1}</span> to <span className="font-semibold text-secondary-900">{Math.min(productsPage * itemsPerPage, filteredProducts.length)}</span> of <span className="font-semibold text-secondary-900">{filteredProducts.length}</span> entries
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setProductsPage(p => Math.max(1, p - 1))}
+                                    disabled={productsPage === 1}
+                                    className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </button>
+                                <span className="px-3 py-1.5 text-sm font-medium text-secondary-700 bg-white border border-secondary-200 rounded-lg">
+                                    {productsPage}
+                                </span>
+                                <button
+                                    onClick={() => setProductsPage(p => Math.min(totalProductsPages, p + 1))}
+                                    disabled={productsPage === totalProductsPages || totalProductsPages === 0}
+                                    className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -254,17 +301,31 @@ export default function CatalogPage() {
                     <div>
                         <div className="p-6 border-b border-secondary-200 bg-white">
                             <form onSubmit={handleSearchPackages} className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                                <div className="relative w-full md:w-96">
-                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary-400 w-5 h-5" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search packages by name or invoice desc..."
-                                        className="input pl-12 pr-4"
-                                        value={packagesSearch}
-                                        onChange={(e) => setPackagesSearch(e.target.value)}
-                                    />
+                                <div className="flex flex-col md:flex-row gap-4 w-full items-center">
+                                    <div className="relative w-full md:w-96">
+                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary-400 w-5 h-5" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search packages by name or invoice desc..."
+                                            className="input pl-12 pr-4"
+                                            value={packagesSearch}
+                                            onChange={(e) => setPackagesSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="w-full md:w-64">
+                                        <select
+                                            className="input"
+                                            value={packageTypeFilter}
+                                            onChange={(e) => handlePackageFilterChange(e.target.value)}
+                                        >
+                                            <option value="all">All Types</option>
+                                            <option value="Residential">Residential</option>
+                                            <option value="Special / Roadshow">Special / Roadshow</option>
+                                            <option value="Tariff B&D Low Voltage">Tariff B&D Low Voltage</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <button type="submit" className="btn-secondary flex items-center gap-2 w-full md:w-auto">
+                                <button type="submit" className="btn-secondary flex items-center gap-2 w-full md:w-auto shrink-0">
                                     <Filter className="w-4 h-4" /> Search
                                 </button>
                             </form>
@@ -284,17 +345,21 @@ export default function CatalogPage() {
                                 <tbody>
                                     {loadingPackages ? (
                                         <tr><td colSpan={5} className="text-center py-8">Loading...</td></tr>
-                                    ) : packagesList.length === 0 ? (
+                                    ) : paginatedPackages.length === 0 ? (
                                         <tr><td colSpan={5} className="text-center py-8 text-secondary-500">No packages found.</td></tr>
                                     ) : (
-                                        packagesList.map(pkg => (
+                                        paginatedPackages.map(pkg => (
                                             <tr key={pkg.id}>
                                                 <td>
                                                     <div className="font-semibold text-secondary-900">{pkg.package_name || "Unnamed Package"}</div>
                                                     <div className="text-xs text-secondary-500 truncate max-w-[200px]">{pkg.invoice_desc || "No description"}</div>
                                                 </td>
                                                 <td>RM {pkg.price || "0.00"}</td>
-                                                <td>{pkg.type || "N/A"}</td>
+                                                <td>
+                                                    <span className="px-2 py-1 rounded bg-secondary-100 text-secondary-700 text-xs font-medium">
+                                                        {pkg.type || "N/A"}
+                                                    </span>
+                                                </td>
                                                 <td>
                                                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${pkg.active ? 'bg-green-100 text-green-700' : 'bg-secondary-100 text-secondary-700'}`}>
                                                         {pkg.active ? "Active" : "Inactive"}
@@ -310,6 +375,32 @@ export default function CatalogPage() {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* Packages Pagination */}
+                        <div className="p-6 border-t border-secondary-200 bg-secondary-50/30 flex items-center justify-between">
+                            <p className="text-sm text-secondary-600">
+                                Showing <span className="font-semibold text-secondary-900">{filteredPackages.length > 0 ? (packagesPage - 1) * itemsPerPage + 1 : 0}</span> to <span className="font-semibold text-secondary-900">{Math.min(packagesPage * itemsPerPage, filteredPackages.length)}</span> of <span className="font-semibold text-secondary-900">{filteredPackages.length}</span> entries
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setPackagesPage(p => Math.max(1, p - 1))}
+                                    disabled={packagesPage === 1}
+                                    className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </button>
+                                <span className="px-3 py-1.5 text-sm font-medium text-secondary-700 bg-white border border-secondary-200 rounded-lg">
+                                    {packagesPage}
+                                </span>
+                                <button
+                                    onClick={() => setPackagesPage(p => Math.min(totalPackagesPages, p + 1))}
+                                    disabled={packagesPage === totalPackagesPages || totalPackagesPages === 0}
+                                    className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -383,7 +474,16 @@ export default function CatalogPage() {
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-sm font-semibold text-secondary-700">Type</label>
-                                                <input type="text" className="input" value={editingItem?.type || ""} onChange={(e) => setEditingItem({ ...editingItem, type: e.target.value })} />
+                                                <select
+                                                    className="input"
+                                                    value={editingItem?.type || ""}
+                                                    onChange={(e) => setEditingItem({ ...editingItem, type: e.target.value })}
+                                                >
+                                                    <option value="">None</option>
+                                                    <option value="Residential">Residential</option>
+                                                    <option value="Special / Roadshow">Special / Roadshow</option>
+                                                    <option value="Tariff B&D Low Voltage">Tariff B&D Low Voltage</option>
+                                                </select>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-6 pt-2">
