@@ -20,7 +20,7 @@ export async function getProducts(search?: string) {
             .from(products)
             .where(filters)
             .orderBy(desc(products.id))
-            .limit(100);
+            .limit(2000);
 
         return data;
     } catch (error) {
@@ -89,7 +89,7 @@ export async function getPackages(search?: string) {
             .from(packages)
             .where(filters)
             .orderBy(desc(packages.id))
-            .limit(100);
+            .limit(2000);
 
         return data;
     } catch (error) {
