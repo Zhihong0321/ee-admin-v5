@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, FileDigit } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, FileDigit, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 import { logoutAction } from "@/app/auth-actions";
@@ -14,6 +14,7 @@ const menuItems = [
   { name: "Engineering", href: "/engineering", icon: FileDigit },
   { name: "Payments", href: "/payments", icon: CreditCard },
   { name: "Customers", href: "/customers", icon: Users },
+  { name: "Catalog", href: "/catalog", icon: Layers },
   { name: "Users", href: "/users", icon: UserCircle },
   { name: "Manage Company", href: "/manage-company", icon: Building2 },
   { name: "Sync Center", href: "/sync", icon: RefreshCw },
@@ -46,6 +47,7 @@ export function Sidebar({ user }: SidebarProps) {
       case '/customers':
       case '/manage-company':
       case '/sync':
+      case '/catalog':
       case '/schema-manager':
       case '/api-doc':
         return userTags.includes('admin');
@@ -65,7 +67,7 @@ export function Sidebar({ user }: SidebarProps) {
           <span className="text-xl font-bold text-white tracking-tight">EE Admin</span>
         </div>
       </div>
-      
+
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto scrollbar-hide">
         {filteredMenuItems.map((item) => {
@@ -96,7 +98,7 @@ export function Sidebar({ user }: SidebarProps) {
           );
         })}
       </nav>
-      
+
       {/* Footer */}
       <div className="p-4 border-t border-secondary-200 bg-secondary-50/50">
         {user && (

@@ -432,3 +432,55 @@ export const vouchers = pgTable('voucher', {
   updated_at: timestamp('updated_at', { withTimezone: true }),
   last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
 });
+
+// Product Table
+export const products = pgTable('product', {
+  id: serial('id').primaryKey(),
+  bubble_id: text('bubble_id'),
+  active: boolean('active'),
+  cost_price: numeric('cost_price'),
+  created_at: timestamp('created_at', { withTimezone: true }),
+  created_by: text('created_by'),
+  created_date: timestamp('created_date', { withTimezone: true }),
+  description: text('description'),
+  image: text('image'),
+  inventory: boolean('inventory'),
+  inverter_rating: integer('inverter_rating'),
+  label: text('label'),
+  last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
+  linked_brand: text('linked_brand'),
+  linked_category: text('linked_category'),
+  modified_date: timestamp('modified_date', { withTimezone: true }),
+  name: text('name'),
+  pdf_product: text('pdf_product'),
+  product_warranty_desc: text('product_warranty_desc'),
+  selling_price: numeric('selling_price'),
+  solar_output_rating: integer('solar_output_rating'),
+  updated_at: timestamp('updated_at', { withTimezone: true }),
+  warranty_link: text('warranty_link'),
+  warranty_name: text('warranty_name'),
+});
+
+// Package Table
+export const packages = pgTable('package', {
+  id: serial('id').primaryKey(),
+  bubble_id: text('bubble_id'),
+  active: boolean('active'),
+  created_at: timestamp('created_at', { withTimezone: true }),
+  created_by: text('created_by'),
+  created_date: timestamp('created_date', { withTimezone: true }),
+  invoice_desc: text('invoice_desc'),
+  last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
+  linked_package_item: text('linked_package_item').array(), // ARRAY
+  max_discount: integer('max_discount'),
+  modified_date: timestamp('modified_date', { withTimezone: true }),
+  need_approval: boolean('need_approval'),
+  package_name: text('package_name'),
+  panel: text('panel'),
+  panel_qty: integer('panel_qty'),
+  password: text('password'),
+  price: numeric('price'),
+  special: boolean('special'),
+  type: text('type'),
+  updated_at: timestamp('updated_at', { withTimezone: true }),
+});

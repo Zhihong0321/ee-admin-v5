@@ -9,18 +9,18 @@ async function inspect() {
     await client.connect();
 
     try {
-        console.log('--- Searching for Voucher Tables again ---');
+        console.log('--- Searching for Package and Product Tables ---');
         const tableRes = await client.query(`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public' 
-      AND table_name ILIKE '%voucher%';
+      AND (table_name ILIKE '%package%' OR table_name ILIKE '%product%');
     `);
 
         if (tableRes.rows.length > 0) {
             for (const row of tableRes.rows) {
                 const tableName = row.table_name;
-                console.log(`\nTABLE FIELD FOUND: ${tableName}`);
+                console.log(`\nTABLE FOUND: ${tableName}`);
                 const colRes = await client.query(`
                 SELECT column_name, data_type 
                 FROM information_schema.columns 
@@ -33,7 +33,7 @@ async function inspect() {
                 });
             }
         } else {
-            console.log("No tables found with 'voucher' in the name.");
+            console.log("No tables found with 'package' or 'product' in the name.");
         }
 
     } catch (err) {
