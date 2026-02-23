@@ -108,6 +108,9 @@ export default function CatalogPage() {
                 description: editingItem?.description,
                 selling_price: editingItem?.selling_price,
                 cost_price: editingItem?.cost_price,
+                warranty_name: editingItem?.warranty_name,
+                product_warranty_desc: editingItem?.product_warranty_desc,
+                warranty_link: editingItem?.warranty_link,
                 active: editingItem?.active === true || editingItem?.active === "true",
                 inventory: editingItem?.inventory === true || editingItem?.inventory === "true",
             };
@@ -443,6 +446,18 @@ export default function CatalogPage() {
                                                 <label className="text-sm font-semibold text-secondary-700">Cost Price</label>
                                                 <input type="number" step="0.01" className="input" required value={editingItem?.cost_price || ""} onChange={(e) => setEditingItem({ ...editingItem, cost_price: e.target.value })} />
                                             </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-secondary-700">Warranty Name</label>
+                                            <input type="text" className="input" value={editingItem?.warranty_name || ""} onChange={(e) => setEditingItem({ ...editingItem, warranty_name: e.target.value })} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-secondary-700">Warranty Description</label>
+                                            <textarea className="input min-h-[60px]" value={editingItem?.product_warranty_desc || ""} onChange={(e) => setEditingItem({ ...editingItem, product_warranty_desc: e.target.value })} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-secondary-700">Warranty Link</label>
+                                            <input type="url" className="input" placeholder="https://..." value={editingItem?.warranty_link || ""} onChange={(e) => setEditingItem({ ...editingItem, warranty_link: e.target.value })} />
                                         </div>
                                         <div className="flex items-center gap-6 pt-2">
                                             <label className="flex items-center gap-2 cursor-pointer">
