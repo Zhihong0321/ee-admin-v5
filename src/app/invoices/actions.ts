@@ -10,11 +10,12 @@ import { logInvoiceEdit } from "@/lib/invoice-edit-logger";
 
 const PDF_API_URL = "https://pdf-gen-production-6c81.up.railway.app";
 
-export async function getInvoices(version: "v1" | "v2", search?: string) {
+export async function getInvoices(version: "v1" | "v2", search?: string, tab: "active" | "deleted" = "active") {
   try {
     if (version === "v1") {
       const filters = [
-        sql`(${invoices.invoice_number} IS NULL OR ${invoices.invoice_number} = '')`
+        sql`(${invoices.invoice_number} IS NULL OR ${invoices.invoice_number} = '')`,
+        tab === "active" ? sql`COALESCE(${invoices.is_deleted}, false) = false` : sql`COALESCE(${invoices.is_deleted}, false) = true`
       ];
 
       if (search) {
@@ -35,12 +36,12 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
         agent_name: agents.name,
         dealercode: invoices.dealercode,
       })
-      .from(invoices)
-      .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
-      .where(and(...filters))
-      .orderBy(desc(invoices.id))
-      .limit(50);
-      
+        .from(invoices)
+        .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
+        .where(and(...filters))
+        .orderBy(desc(invoices.id))
+        .limit(50);
+
       return data;
     } else {
       // v2 - Modern Invoices (Consolidated)
@@ -51,12 +52,14 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
           i.total_amount,
           i.invoice_date,
           i.percent_of_total_amount,
+          i.is_deleted,
           c.name as customer_name,
           COALESCE(a.name, i.linked_agent) as agent_name
         FROM invoice i
         LEFT JOIN customer c ON c.customer_id = i.linked_customer
         LEFT JOIN agent a ON a.bubble_id = i.linked_agent
         WHERE i.is_latest = true
+        AND COALESCE(i.is_deleted, false) = ${tab === 'active' ? false : true}
         ${search ? sql`AND (c.name ILIKE ${`%${search}%`} OR i.invoice_number ILIKE ${`%${search}%`} OR a.name ILIKE ${`%${search}%`})` : sql``}
         ORDER BY i.created_at DESC
         LIMIT 50
@@ -68,6 +71,7 @@ export async function getInvoices(version: "v1" | "v2", search?: string) {
         total_amount: row.total_amount,
         invoice_date: row.invoice_date,
         percent_of_total_amount: row.percent_of_total_amount,
+        is_deleted: row.is_deleted,
         customer_name_snapshot: row.customer_name || "N/A",
         agent_name: row.agent_name || "N/A"
       }));
@@ -220,6 +224,28 @@ export async function generateInvoicePdf(id: number, version: "v1" | "v2") {
   } catch (error) {
     console.error("Failed to generate PDF:", error);
     throw error;
+  }
+}
+
+export async function deleteInvoice(id: number) {
+  try {
+    await db.update(invoices).set({ is_deleted: true, deleted_at: new Date() }).where(eq(invoices.id, id));
+    revalidatePath("/invoices");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to delete invoice:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function recoverInvoice(id: number) {
+  try {
+    await db.update(invoices).set({ is_deleted: false, deleted_at: null }).where(eq(invoices.id, id));
+    revalidatePath("/invoices");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to recover invoice:", error);
+    return { success: false, error: String(error) };
   }
 }
 
@@ -668,7 +694,7 @@ export async function updateInvoiceWithEppFees(
     for (const fee of fees) {
       currentSort++;
       const bubbleId = `${Date.now()}x${Math.random().toString().slice(2, 20)}`; // Generate ID
-      
+
       const newItem = await db
         .insert(invoice_items)
         .values({
@@ -684,7 +710,7 @@ export async function updateInvoiceWithEppFees(
           updated_at: new Date(),
         })
         .returning();
-      
+
       newFeeItems.push(newItem[0]);
     }
 
@@ -694,7 +720,7 @@ export async function updateInvoiceWithEppFees(
       .map((item) => item.bubble_id); // Keep existing non-fee items
 
     const newFeeItemIds = newFeeItems.map((item) => item.bubble_id);
-    
+
     // Combine IDs (cast to string to fix type error if needed, but bubble_id is string)
     const updatedLinkedItems = [...nonFeeItemIds, ...newFeeItemIds] as string[];
 

@@ -2,13 +2,14 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, RefreshCw, Database } from "lucide-react";
-import { getInvoices, getInvoiceDetails, generateInvoicePdf, triggerInvoiceSync } from "./actions";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, RefreshCw, Database, Trash2, RotateCcw } from "lucide-react";
+import { getInvoices, getInvoiceDetails, generateInvoicePdf, triggerInvoiceSync, deleteInvoice, recoverInvoice } from "./actions";
 import InvoiceEditor from "@/components/InvoiceEditor";
 
 function InvoicesContent() {
   const searchParams = useSearchParams();
   const [version, setVersion] = useState<"v1" | "v2">("v2");
+  const [tab, setTab] = useState<"active" | "deleted">("active");
   const [search, setSearch] = useState("");
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +21,7 @@ function InvoicesContent() {
 
   useEffect(() => {
     fetchData();
-  }, [version]);
+  }, [version, tab]);
 
   // Handle auto-opening invoice from query param
   useEffect(() => {
@@ -33,7 +34,7 @@ function InvoicesContent() {
   async function fetchData() {
     setLoading(true);
     try {
-      const data = await getInvoices(version, search);
+      const data = await getInvoices(version, search, tab);
       setInvoices(data);
     } catch (error) {
       console.error("Failed to fetch invoices:", error);
@@ -41,6 +42,35 @@ function InvoicesContent() {
       setLoading(false);
     }
   }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this invoice?")) return;
+    try {
+      const res = await deleteInvoice(id);
+      if (res.success) {
+        fetchData();
+      } else {
+        alert("Failed to delete invoice");
+      }
+    } catch (error) {
+      console.error("Failed to delete invoice:", error);
+      alert("Failed to delete invoice");
+    }
+  };
+
+  const handleRecover = async (id: number) => {
+    try {
+      const res = await recoverInvoice(id);
+      if (res.success) {
+        fetchData();
+      } else {
+        alert("Failed to recover invoice");
+      }
+    } catch (error) {
+      console.error("Failed to recover invoice:", error);
+      alert("Failed to recover invoice");
+    }
+  };
 
   const handleViewDetails = async (id: number) => {
     setLoadingDetails(true);
@@ -99,9 +129,9 @@ function InvoicesContent() {
     <div className="space-y-6 animate-fade-in">
       {/* Invoice Editor Modal */}
       {selectedInvoice && (
-        <InvoiceEditor 
-          invoiceData={selectedInvoice} 
-          onClose={() => setSelectedInvoice(null)} 
+        <InvoiceEditor
+          invoiceData={selectedInvoice}
+          onClose={() => setSelectedInvoice(null)}
           version={version}
         />
       )}
@@ -123,7 +153,7 @@ function InvoicesContent() {
             Manage and browse your {version === "v1" ? "legacy Bubble" : "modern consolidated"} invoices.
           </p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <button
             onClick={handleSync}
@@ -141,11 +171,10 @@ function InvoicesContent() {
                 setVersion("v1");
                 setInvoices([]);
               }}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                version === "v1"
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${version === "v1"
                   ? "bg-primary-600 text-white shadow-sm"
                   : "text-secondary-600 hover:text-secondary-900 hover:bg-secondary-50"
-              }`}
+                }`}
             >
               Legacy
             </button>
@@ -154,16 +183,15 @@ function InvoicesContent() {
                 setVersion("v2");
                 setInvoices([]);
               }}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                version === "v2"
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${version === "v2"
                   ? "bg-primary-600 text-white shadow-sm"
                   : "text-secondary-600 hover:text-secondary-900 hover:bg-secondary-50"
-              }`}
+                }`}
             >
               Consolidated
             </button>
           </div>
-          
+
           {/* Action Buttons */}
           <button className="btn-secondary flex items-center gap-2">
             <Download className="h-4 w-4" />
@@ -178,6 +206,28 @@ function InvoicesContent() {
 
       {/* Main Card */}
       <div className="card">
+        {/* Tabs Bar */}
+        <div className="flex border-b border-secondary-200 px-6 pt-2 gap-4">
+          <button
+            onClick={() => { setTab("active"); setInvoices([]); }}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === "active"
+                ? "border-primary-600 text-primary-600"
+                : "border-transparent text-secondary-500 hover:text-secondary-700 hover:border-secondary-300"
+              }`}
+          >
+            Active Invoices
+          </button>
+          <button
+            onClick={() => { setTab("deleted"); setInvoices([]); }}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === "deleted"
+                ? "border-primary-600 text-primary-600"
+                : "border-transparent text-secondary-500 hover:text-secondary-700 hover:border-secondary-300"
+              }`}
+          >
+            Deleted Invoices
+          </button>
+        </div>
+
         {/* Filters Bar */}
         <div className="p-6 border-b border-secondary-200 bg-gradient-to-r from-secondary-50/50 to-white">
           <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -191,9 +241,9 @@ function InvoicesContent() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            
+
             <div className="flex items-center gap-2 w-full md:w-auto">
-              <button 
+              <button
                 type="button"
                 onClick={fetchData}
                 className="btn-secondary flex items-center gap-2"
@@ -201,7 +251,7 @@ function InvoicesContent() {
                 <Filter className="w-4 h-4" />
                 Filter
               </button>
-              <button 
+              <button
                 type="button"
                 className="btn-secondary flex items-center gap-2"
               >
@@ -215,17 +265,17 @@ function InvoicesContent() {
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="table">
-             <thead>
-                 <tr>
-                   <th>Invoice No.</th>
-                   <th>Customer</th>
-                   <th>Agent</th>
-                   <th>Date</th>
-                   <th className="text-right">Amount</th>
-                   {version === "v2" ? <th className="text-right">% Paid</th> : null}
-                   <th className="text-right">Actions</th>
-                 </tr>
-             </thead>
+            <thead>
+              <tr>
+                <th>Invoice No.</th>
+                <th>Customer</th>
+                <th>Agent</th>
+                <th>Date</th>
+                <th className="text-right">Amount</th>
+                {version === "v2" ? <th className="text-right">% Paid</th> : null}
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
             <tbody>
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
@@ -235,28 +285,28 @@ function InvoicesContent() {
                     </td>
                   </tr>
                 ))
-               ) : invoices.length === 0 ? (
-                 <tr>
-                   <td colSpan={version === "v1" ? 6 : 7} className="px-6 py-16 text-center">
-                     <div className="flex flex-col items-center gap-3">
-                       <div className="p-4 bg-secondary-100 rounded-full">
-                         <FileText className="h-8 w-8 text-secondary-400" />
-                       </div>
-                       <div>
-                         <p className="font-medium text-secondary-900 mb-1">No invoices found</p>
-                         <p className="text-sm text-secondary-600">
-                           {search ? "Try adjusting your search criteria" : "Get started by creating your first invoice"}
-                         </p>
-                       </div>
-                     </div>
-                   </td>
-                 </tr>
+              ) : invoices.length === 0 ? (
+                <tr>
+                  <td colSpan={version === "v1" ? 6 : 7} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="p-4 bg-secondary-100 rounded-full">
+                        <FileText className="h-8 w-8 text-secondary-400" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-secondary-900 mb-1">No invoices found</p>
+                        <p className="text-sm text-secondary-600">
+                          {search ? "Try adjusting your search criteria" : "Get started by creating your first invoice"}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
               ) : (
                 invoices.map((inv) => {
                   // Safety check: ensure we're rendering the correct version of data
                   const isV1Data = 'invoice_id' in inv;
                   const currentViewIsV1 = version === 'v1';
-                  
+
                   // Skip if data doesn't match expected version structure (helps during state transitions)
                   if (isV1Data !== currentViewIsV1) return null;
 
@@ -281,10 +331,10 @@ function InvoicesContent() {
                         <div className="text-secondary-600">
                           {inv.invoice_date
                             ? new Date(inv.invoice_date).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
                             : "N/A"}
                         </div>
                       </td>
@@ -305,7 +355,7 @@ function InvoicesContent() {
                       ) : null}
                       <td className="text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button 
+                          <button
                             onClick={() => handleDownloadPdf(inv.id)}
                             disabled={downloadingId === inv.id}
                             className="btn-ghost text-secondary-600 hover:text-secondary-900 p-2"
@@ -317,13 +367,30 @@ function InvoicesContent() {
                               <Download className="h-4 w-4" />
                             )}
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleViewDetails(inv.id)}
-                            className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
+                            className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5 px-2 py-1"
                           >
                             <Edit2 className="h-4 w-4" />
-                            Edit
+                            {tab === "active" ? "Edit" : "View"}
                           </button>
+                          {tab === "active" ? (
+                            <button
+                              onClick={() => handleDelete(inv.id)}
+                              className="btn-ghost text-red-600 hover:text-red-700 p-2"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleRecover(inv.id)}
+                              className="btn-ghost text-green-600 hover:text-green-700 p-2"
+                              title="Recover"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

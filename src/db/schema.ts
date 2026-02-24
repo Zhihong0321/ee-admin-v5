@@ -88,6 +88,8 @@ export const invoices = pgTable('invoice', {
   updated_at: timestamp('updated_at', { withTimezone: true }),
   template_id: text('template_id'),
   created_by: text('created_by'),
+  is_deleted: boolean('is_deleted').default(false),
+  deleted_at: timestamp('deleted_at', { withTimezone: true }),
 });
 
 // Snapshot Table
