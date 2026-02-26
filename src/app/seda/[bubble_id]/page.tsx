@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, Loader2, FileText, ExternalLink, Save, X, Pencil, Check, RefreshCw, UserPlus, CheckCircle, XCircle, AlertCircle, Clock, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, ExternalLink, Save, X, Pencil, Check, RefreshCw, UserPlus, CheckCircle, XCircle, AlertCircle, Clock, Sparkles, ChevronDown } from "lucide-react";
 import { StatusBadge } from "@/components/seda/status-badge";
 import { StatusDropdown } from "@/components/seda/status-dropdown";
 import { ProgressBar } from "@/components/seda/progress-bar";
@@ -57,7 +57,7 @@ const SEDA_FIELD_CONFIG: Record<string, { label: string; type: 'text' | 'textare
   nem_type: { label: "NEM Type", type: "text", section: "nem" },
   nem_cert: { label: "NEM Certificate URL", type: "url", section: "nem" },
   seda_status: { label: "SEDA Status", type: "text", section: "nem" },
-  reg_status: { label: "Registration Status", type: "text", section: "nem" },
+  mapper_status: { label: "Registration Status", type: "text", section: "nem" },
   redex_status: { label: "Redex Status", type: "text", section: "nem" },
   redex_remark: { label: "Redex Remark", type: "textarea", section: "nem" },
 
@@ -701,7 +701,23 @@ export default function SedaDetailPage() {
       <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl shadow-sm p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">SEDA Manager Profile</h2>
+            <div className="flex items-center gap-4 mb-2">
+              <h2 className="text-xl font-semibold text-gray-900">SEDA Manager Profile</h2>
+              <div className="relative">
+                <select
+                  disabled={saving}
+                  value={seda.mapper_status || "not ready"}
+                  onChange={(e) => handleFieldSave("mapper_status", e.target.value)}
+                  className="pl-3 pr-8 py-1 bg-white border border-purple-200 rounded-md text-sm font-medium text-purple-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:opacity-50 appearance-none cursor-pointer"
+                >
+                  <option value="not ready">Not Ready</option>
+                  <option value="ready in mapper">Ready in Mapper</option>
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                  <ChevronDown className="w-4 h-4 text-purple-500" />
+                </div>
+              </div>
+            </div>
             <div className="flex flex-wrap items-center gap-3">
               {getProfileStatusBadge(seda.seda_profile_status)}
               {seda.seda_profile_id && (

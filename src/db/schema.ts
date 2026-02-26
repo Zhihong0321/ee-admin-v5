@@ -180,7 +180,7 @@ export const sedaRegistration = pgTable('seda_registration', {
   last_synced_at: timestamp('last_synced_at', { withTimezone: true }),
   created_at: timestamp('created_at', { withTimezone: true }),
   updated_at: timestamp('updated_at', { withTimezone: true }),
-  reg_status: text('reg_status'),
+  mapper_status: text('mapper_status'),
   created_by: text('created_by'),
   drawing_system_submitted: text('drawing_system_submitted'),
   modified_date: timestamp('modified_date', { withTimezone: true }),

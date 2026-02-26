@@ -208,7 +208,7 @@ export const SEDA_REGISTRATION_FIELD_MAPPING: Record<string, FieldMappingConfig>
   'Project Price': { column: 'project_price', type: 'numeric' },
   'System Size': { column: 'system_size', type: 'numeric' },
   'System Size in Form (kwp)': { column: 'system_size_in_form_kwp', type: 'numeric' },
-  'Reg Status': { column: 'reg_status', type: 'string' },
+  'Reg Status': { column: 'mapper_status', type: 'string' },
   'REDEX Status': { column: 'redex_status', type: 'string' },
   'REDEX Remark': { column: 'redex_remark', type: 'text' },
   'Roof Images': { column: 'roof_images', type: 'array' },
