@@ -115,10 +115,15 @@ export default function CatalogPage() {
                 inventory: editingItem?.inventory === true || editingItem?.inventory === "true",
             };
 
+            let res;
             if (editingItem?.id) {
-                await updateProduct(editingItem.id, dataToSave);
+                res = await updateProduct(editingItem.id, dataToSave);
             } else {
-                await createProduct(dataToSave as any);
+                res = await createProduct(dataToSave as any);
+            }
+
+            if (!res.success) {
+                throw new Error(res.error || "Failed to save product");
             }
             closeAndRefresh();
         } catch (err) {
@@ -138,10 +143,15 @@ export default function CatalogPage() {
                 active: editingItem?.active === true || editingItem?.active === "true",
             };
 
+            let res;
             if (editingItem?.id) {
-                await updatePackage(editingItem.id, dataToSave);
+                res = await updatePackage(editingItem.id, dataToSave);
             } else {
-                await createPackage(dataToSave as any);
+                res = await createPackage(dataToSave as any);
+            }
+
+            if (!res.success) {
+                throw new Error(res.error || "Failed to save package");
             }
             closeAndRefresh();
         } catch (err) {
@@ -153,16 +163,21 @@ export default function CatalogPage() {
     const handleDelete = async (id: number) => {
         if (!confirm("Are you sure you want to delete this item?")) return;
         try {
+            let res;
             if (activeTab === "products") {
-                await deleteProduct(id);
-                fetchProducts();
+                res = await deleteProduct(id);
+                if (res.success) fetchProducts();
             } else {
-                await deletePackage(id);
-                fetchPackages();
+                res = await deletePackage(id);
+                if (res.success) fetchPackages();
+            }
+
+            if (!res.success) {
+                throw new Error(res.error || "Failed to delete item");
             }
             setIsModalOpen(false);
         } catch (err) {
-            alert("Error deleting item");
+            alert(`Error deleting item: ${err instanceof Error ? err.message : String(err)}`);
         }
     };
 
@@ -433,7 +448,7 @@ export default function CatalogPage() {
                                     <>
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-secondary-700">Name</label>
-                                            <input type="text" className="input" required value={editingItem?.name || ""} onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })} />
+                                            <input type="text" className="input" value={editingItem?.name || ""} onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })} />
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-secondary-700">Description</label>
@@ -442,11 +457,11 @@ export default function CatalogPage() {
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-2">
                                                 <label className="text-sm font-semibold text-secondary-700">Selling Price</label>
-                                                <input type="number" step="0.01" className="input" required value={editingItem?.selling_price || ""} onChange={(e) => setEditingItem({ ...editingItem, selling_price: e.target.value })} />
+                                                <input type="number" step="0.01" className="input" value={editingItem?.selling_price || ""} onChange={(e) => setEditingItem({ ...editingItem, selling_price: e.target.value })} />
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-sm font-semibold text-secondary-700">Cost Price</label>
-                                                <input type="number" step="0.01" className="input" required value={editingItem?.cost_price || ""} onChange={(e) => setEditingItem({ ...editingItem, cost_price: e.target.value })} />
+                                                <input type="number" step="0.01" className="input" value={editingItem?.cost_price || ""} onChange={(e) => setEditingItem({ ...editingItem, cost_price: e.target.value })} />
                                             </div>
                                         </div>
                                         <div className="space-y-2">
@@ -478,7 +493,7 @@ export default function CatalogPage() {
                                     <>
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-secondary-700">Package Name</label>
-                                            <input type="text" className="input" required value={editingItem?.package_name || ""} onChange={(e) => setEditingItem({ ...editingItem, package_name: e.target.value })} />
+                                            <input type="text" className="input" value={editingItem?.package_name || ""} onChange={(e) => setEditingItem({ ...editingItem, package_name: e.target.value })} />
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-secondary-700">Invoice Description</label>
@@ -487,7 +502,7 @@ export default function CatalogPage() {
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-2">
                                                 <label className="text-sm font-semibold text-secondary-700">Price</label>
-                                                <input type="number" step="0.01" className="input" required value={editingItem?.price || ""} onChange={(e) => setEditingItem({ ...editingItem, price: e.target.value })} />
+                                                <input type="number" step="0.01" className="input" value={editingItem?.price || ""} onChange={(e) => setEditingItem({ ...editingItem, price: e.target.value })} />
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-sm font-semibold text-secondary-700">Type</label>

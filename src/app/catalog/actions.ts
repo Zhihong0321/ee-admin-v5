@@ -25,7 +25,7 @@ export async function getProducts(search?: string) {
         return data;
     } catch (error) {
         console.error("Database error in getProducts:", error);
-        throw error;
+        return [];
     }
 }
 
@@ -43,7 +43,7 @@ export async function updateProduct(id: number, data: Partial<typeof products.$i
         return { success: true };
     } catch (error) {
         console.error("Database error in updateProduct:", error);
-        throw error;
+        return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
 
@@ -59,7 +59,7 @@ export async function createProduct(data: typeof products.$inferInsert) {
         return { success: true };
     } catch (error) {
         console.error("Database error in createProduct:", error);
-        throw error;
+        return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
 
@@ -70,7 +70,7 @@ export async function deleteProduct(id: number) {
         return { success: true };
     } catch (error) {
         console.error("Database error in deleteProduct:", error);
-        throw error;
+        return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
 
@@ -94,7 +94,7 @@ export async function getPackages(search?: string) {
         return data;
     } catch (error) {
         console.error("Database error in getPackages:", error);
-        throw error;
+        return [];
     }
 }
 
@@ -112,7 +112,7 @@ export async function updatePackage(id: number, data: Partial<typeof packages.$i
         return { success: true };
     } catch (error) {
         console.error("Database error in updatePackage:", error);
-        throw error;
+        return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
 
@@ -128,7 +128,7 @@ export async function createPackage(data: typeof packages.$inferInsert) {
         return { success: true };
     } catch (error) {
         console.error("Database error in createPackage:", error);
-        throw error;
+        return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
 
@@ -139,6 +139,6 @@ export async function deletePackage(id: number) {
         return { success: true };
     } catch (error) {
         console.error("Database error in deletePackage:", error);
-        throw error;
+        return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }

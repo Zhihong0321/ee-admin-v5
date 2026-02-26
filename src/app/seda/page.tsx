@@ -166,9 +166,16 @@ export default function SedaListPage() {
               <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
                 SEDA Registration Management
               </h1>
-              <p className="text-slate-500 mt-1">
-                View and manage existing SEDA registration forms
-              </p>
+              <div className="flex flex-col gap-2 mt-2">
+                <p className="text-slate-500">
+                  View and manage existing SEDA registration forms
+                </p>
+                <div className="flex items-center">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-sm">
+                    INVOICE WITH PAYMENT &ge; 4% RECEIVED
+                  </span>
+                </div>
+              </div>
             </div>
 
             {attentionCount > 0 && (
