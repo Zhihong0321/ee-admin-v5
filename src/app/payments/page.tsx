@@ -2096,42 +2096,50 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   </div>
 
                   {viewingPayment.attachment && viewingPayment.attachment.length > 0 ? (
-                    <div
-                      className="relative cursor-none group h-full w-full flex items-center justify-center"
-                      onMouseMove={handleMouseMove}
-                      onMouseEnter={() => setShowMagnifier(true)}
-                      onMouseLeave={() => setShowMagnifier(false)}
-                    >
-                      <img
-                        ref={imgRef}
+                    viewingPayment.attachment[0].toLowerCase().includes('.pdf') ? (
+                      <iframe
                         src={viewingPayment.attachment[0]}
-                        alt="Payment Attachment"
-                        className="max-h-full max-w-full object-contain shadow-2xl transition-opacity group-hover:opacity-90"
+                        className="w-full h-full rounded-xl shadow-2xl bg-white"
+                        title="Payment Attachment PDF"
                       />
+                    ) : (
+                      <div
+                        className="relative cursor-none group h-full w-full flex items-center justify-center"
+                        onMouseMove={handleMouseMove}
+                        onMouseEnter={() => setShowMagnifier(true)}
+                        onMouseLeave={() => setShowMagnifier(false)}
+                      >
+                        <img
+                          ref={imgRef}
+                          src={viewingPayment.attachment[0]}
+                          alt="Payment Attachment"
+                          className="max-h-full max-w-full object-contain shadow-2xl transition-opacity group-hover:opacity-90"
+                        />
 
-                      {showMagnifier && (
-                        <>
-                          {/* Custom Cursor / Magnifier Ring */}
-                          <div
-                            className="pointer-events-none absolute border-2 border-primary-500 rounded-full shadow-2xl z-50 overflow-hidden"
-                            style={{
-                              left: `${cursorPos.x - 75}px`,
-                              top: `${cursorPos.y - 75}px`,
-                              width: '150px',
-                              height: '150px',
-                              backgroundImage: `url(${viewingPayment.attachment[0]})`,
-                              backgroundRepeat: 'no-repeat',
-                              backgroundSize: `${imgRef.current ? imgRef.current.width * 2.5 : 0}px ${imgRef.current ? imgRef.current.height * 2.5 : 0}px`,
-                              backgroundPosition: `${magnifierPos.x}% ${magnifierPos.y}%`
-                            }}
-                          />
-                          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/60 backdrop-blur-md rounded-full text-white text-xs flex items-center gap-2 pointer-events-none">
-                            <ZoomIn className="h-3 w-3" />
-                            Magnifying glass active
-                          </div>
-                        </>
-                      )}
-                    </div>
+                        {showMagnifier && (
+                          <>
+                            {/* Custom Cursor / Magnifier Ring */}
+                            <div
+                              className="pointer-events-none absolute border-2 border-primary-500 rounded-full shadow-2xl z-50 overflow-hidden"
+                              style={{
+                                left: `${cursorPos.x - 75}px`,
+                                top: `${cursorPos.y - 75}px`,
+                                width: '150px',
+                                height: '150px',
+                                backgroundImage: `url(${viewingPayment.attachment[0]})`,
+                                backgroundRepeat: 'no-repeat',
+                                backgroundSize: `${imgRef.current ? imgRef.current.width * 2.5 : 0}px ${imgRef.current ? imgRef.current.height * 2.5 : 0}px`,
+                                backgroundPosition: `${magnifierPos.x}% ${magnifierPos.y}%`
+                              }}
+                            />
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/60 backdrop-blur-md rounded-full text-white text-xs flex items-center gap-2 pointer-events-none">
+                              <ZoomIn className="h-3 w-3" />
+                              Magnifying glass active
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )
                   ) : (
                     <div className="flex flex-col items-center gap-4 text-white/50">
                       <div className="p-8 bg-white/5 rounded-full">
