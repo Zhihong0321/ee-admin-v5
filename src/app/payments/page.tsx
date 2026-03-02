@@ -72,7 +72,7 @@ function formatTime(dateInput: string | Date | null | undefined): string {
 }
 
 export default function PaymentsPage() {
-  const [activeTab, setActiveTab] = useState<"pending" | "verified" | "deleted" | "fully-paid" | "update-method" | "epp-costs">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "verified" | "fully-paid" | "update-method" | "epp-costs">("pending");
   const [search, setSearch] = useState("");
   const [payments, setPayments] = useState<any[]>([]);
   const [fullyPaidInvoices, setFullyPaidInvoices] = useState<any[]>([]);
@@ -212,7 +212,7 @@ export default function PaymentsPage() {
       } else if (activeTab === "epp-costs") {
         data = await getEppPayments(search);
       } else {
-        // Pending or Deleted
+        // Pending
         data = await getSubmittedPayments(search, activeTab);
       }
       if (activeTab !== "fully-paid") {
@@ -674,18 +674,6 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
         >
           <CheckCircle className="h-4 w-4" />
           Verified Payments
-        </button>
-        <button
-          onClick={() => setActiveTab("deleted")}
-          className={cn(
-            "px-6 py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2",
-            activeTab === "deleted"
-              ? "border-red-600 text-red-600 bg-red-50/50"
-              : "border-transparent text-secondary-500 hover:text-secondary-700 hover:bg-secondary-50"
-          )}
-        >
-          <Trash2 className="h-4 w-4" />
-          Deleted Submissions
         </button>
         <button
           onClick={() => setActiveTab("fully-paid")}
@@ -1475,7 +1463,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
               </tbody>
             </table>
           ) : (
-            // Regular Table View (Pending / Verified / Deleted)
+            // Regular Table View (Pending / Verified)
             <table className="table">
               {/* Only show headers relevant to payments, no invoice stuff mixed in */}
               <thead>
@@ -1483,7 +1471,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   <th>
                     {activeTab === "verified"
                       ? "Payment Date"
-                      : activeTab === "pending" || activeTab === "deleted"
+                      : activeTab === "pending"
                         ? "Created On"
                         : "Date"}
                   </th>
@@ -1519,8 +1507,6 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                               ? "Try adjusting your search criteria"
                               : activeTab === "pending"
                                 ? "No pending payments"
-                                : activeTab === "deleted"
-                                  ? "No deleted submissions"
                                   : "No verified payments"}
                           </p>
                         </div>
@@ -1528,7 +1514,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     </td>
                   </tr>
                 ) : (
-                  // Payment Views (Pending/Verified/Deleted)
+                  // Payment Views (Pending/Verified)
                   filteredAndSortedPayments.map((payment) => (
                     <tr key={payment.id}>
                       <td>
@@ -1536,7 +1522,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           <span className="font-medium text-secondary-900">
                             {activeTab === "verified"
                               ? `${formatDate(payment.payment_date || payment.created_at)}`
-                              : activeTab === "pending" || activeTab === "deleted"
+                              : activeTab === "pending"
                                 ? `${formatDate(payment.created_at || payment.payment_date)}`
                                 : `${formatDate(payment.payment_date || payment.created_at)}`}
                           </span>
@@ -1575,7 +1561,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       </td>
                       <td>
                         <div className="flex flex-col gap-1">
-                          {(activeTab === "pending" || activeTab === "deleted") && (
+                          {activeTab === "pending" && (
                             <span className={cn(
                               "w-fit px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
                               payment.status === 'pending' ? "bg-yellow-100 text-yellow-700" :

@@ -17,6 +17,11 @@ export async function triggerPaymentSync() {
 
 export async function getSubmittedPayments(search?: string, status: string = 'pending') {
   try {
+    // Business rule: deleted submitted payments must not be listed.
+    if (status === 'deleted') {
+      return [];
+    }
+
     const searchFilters = search
       ? or(
         ilike(submitted_payments.remark, `%${search}%`),
@@ -560,10 +565,10 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
       log: p.log, // Preserve log from submission
     });
 
-    // 3. Update status in submitted_payments
+    // 3. Mark submitted payment as deleted after successful verification
     await db
       .update(submitted_payments)
-      .set({ status: 'verified', updated_at: new Date(), verified_by: adminId })
+      .set({ status: 'deleted', updated_at: new Date(), verified_by: adminId })
       .where(eq(submitted_payments.id, submittedPaymentId));
 
     // 4. If this payment is linked to an invoice, link it and recalculate
