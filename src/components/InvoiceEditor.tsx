@@ -91,13 +91,13 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
       } else if (split.type === "amex") {
         rate = AMEX_RATE;
       }
-      
+
       const amount = parseFloat(split.amount) || 0;
       const fee = (amount * rate) / 100;
-      
+
       return { ...split, feeRate: rate, feeAmount: fee };
     });
-    
+
     // Only update if values actually changed to avoid infinite loop
     const hasChanges = JSON.stringify(updatedSplits) !== JSON.stringify(eppSplits);
     if (hasChanges) {
@@ -190,9 +190,9 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
 
   const handleItemFieldChange = (field: keyof EditingItem, value: string) => {
     if (!editingItem) return;
-    
+
     const updated = { ...editingItem, [field]: value };
-    
+
     // Auto-calculate amount when qty or unit_price changes
     if (field === "qty" || field === "unit_price") {
       updated.amount = calculateAmount(
@@ -200,7 +200,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
         field === "unit_price" ? value : updated.unit_price
       );
     }
-    
+
     setEditingItem(updated);
   };
 
@@ -374,7 +374,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
 
   const handleApplyEpp = async () => {
     if (!invoiceData?.id) return;
-    
+
     // Validate totals
     const totalSplitAmount = eppSplits.reduce((sum, split) => sum + (parseFloat(split.amount) || 0), 0);
     if (Math.abs(totalSplitAmount - cleanInvoiceTotal) > 0.05) { // 5 cent tolerance
@@ -392,7 +392,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
           if (split.type === "epp") desc = `EPP Processing Fee (${split.bank} ${split.tenure} mos @ ${split.feeRate}%)`;
           if (split.type === "foreign") desc = `Foreign Card Fee (${split.bank} @ ${split.feeRate}%)`;
           if (split.type === "amex") desc = `Amex Fee (@ ${split.feeRate}%)`;
-          
+
           return {
             description: desc,
             amount: split.feeAmount || 0
@@ -400,7 +400,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
         });
 
       const result = await updateInvoiceWithEppFees(invoiceData.id, fees);
-      
+
       if (result.success) {
         const refreshed = await getInvoiceDetails(invoiceData.id, version);
         if (refreshed) {
@@ -431,7 +431,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4 md:p-8">
-      <div className="bg-white rounded-xl shadow-xl w-full h-[95vh] max-h-[95vh] flex flex-col overflow-hidden border border-secondary-200">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-7xl h-[95vh] max-h-[95vh] flex flex-col overflow-hidden border border-secondary-200">
         {/* Header Bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-secondary-200 bg-white">
           <div className="flex items-center gap-3">
@@ -443,9 +443,9 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
               <p className="text-[11px] text-secondary-500 font-medium">{invoiceData?.invoice_number || 'Draft'}</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3">
-            <button 
+            <button
               onClick={handleDownloadPdf}
               disabled={downloading}
               className="text-[12px] font-medium text-secondary-700 hover:text-secondary-900 flex items-center gap-2 px-3 py-1.5 rounded border border-secondary-200 hover:bg-secondary-50 transition-colors"
@@ -453,7 +453,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
               {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
               <span>Download PDF</span>
             </button>
-            <button 
+            <button
               onClick={onClose}
               className="p-1.5 hover:bg-secondary-100 rounded-md transition-colors text-secondary-400 hover:text-secondary-900"
             >
@@ -466,42 +466,38 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
         <div className="flex items-center px-6 border-b border-secondary-200 bg-secondary-50/50 overflow-x-auto">
           <button
             onClick={() => setActiveTab("details")}
-            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all mr-2 whitespace-nowrap ${
-              activeTab === "details"
-                ? "border-primary-600 text-primary-600"
-                : "border-transparent text-secondary-500 hover:text-secondary-700"
-            }`}
+            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all mr-2 whitespace-nowrap ${activeTab === "details"
+              ? "border-primary-600 text-primary-600"
+              : "border-transparent text-secondary-500 hover:text-secondary-700"
+              }`}
           >
             Invoice Details
           </button>
           <button
             onClick={() => setActiveTab("preview")}
-            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all mr-2 whitespace-nowrap ${
-              activeTab === "preview"
-                ? "border-primary-600 text-primary-600"
-                : "border-transparent text-secondary-500 hover:text-secondary-700"
-            }`}
+            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all mr-2 whitespace-nowrap ${activeTab === "preview"
+              ? "border-primary-600 text-primary-600"
+              : "border-transparent text-secondary-500 hover:text-secondary-700"
+              }`}
           >
             Preview Document
           </button>
           <button
             onClick={() => setActiveTab("epp")}
-            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all mr-2 whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === "epp"
-                ? "border-primary-600 text-primary-600"
-                : "border-transparent text-secondary-500 hover:text-secondary-700"
-            }`}
+            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all mr-2 whitespace-nowrap flex items-center gap-1.5 ${activeTab === "epp"
+              ? "border-primary-600 text-primary-600"
+              : "border-transparent text-secondary-500 hover:text-secondary-700"
+              }`}
           >
             <Calculator className="w-3.5 h-3.5" />
             Payment Plan / EPP
           </button>
           <button
             onClick={() => setActiveTab("history")}
-            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === "history"
-                ? "border-primary-600 text-primary-600"
-                : "border-transparent text-secondary-500 hover:text-secondary-700"
-            }`}
+            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === "history"
+              ? "border-primary-600 text-primary-600"
+              : "border-transparent text-secondary-500 hover:text-secondary-700"
+              }`}
           >
             <Clock className="w-3.5 h-3.5" />
             Edit History
@@ -556,11 +552,10 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                         <div className="flex gap-4 pb-6">
                           {/* Timeline dot */}
                           <div className="flex-shrink-0 mt-1">
-                            <div className={`w-[10px] h-[10px] rounded-full border-2 ${
-                              entry.action_type === 'create' ? 'border-green-400 bg-green-100' :
+                            <div className={`w-[10px] h-[10px] rounded-full border-2 ${entry.action_type === 'create' ? 'border-green-400 bg-green-100' :
                               entry.action_type === 'delete' ? 'border-red-400 bg-red-100' :
-                              'border-blue-400 bg-blue-100'
-                            }`} style={{ marginLeft: '10px' }} />
+                                'border-blue-400 bg-blue-100'
+                              }`} style={{ marginLeft: '10px' }} />
                           </div>
 
                           {/* Content card */}
@@ -815,7 +810,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                     <div>
                       <span className="text-[11px] font-medium text-secondary-500 block mb-1">Date of Issue</span>
                       <p className="text-sm font-semibold text-secondary-900">
-                        {invoiceData?.invoice_date 
+                        {invoiceData?.invoice_date
                           ? new Date(invoiceData.invoice_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
                           : 'N/A'}
                       </p>
@@ -823,9 +818,8 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                     <div>
                       <span className="text-[11px] font-medium text-secondary-500 block mb-1">Status</span>
                       <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          invoiceData?.paid ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${invoiceData?.paid ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
                           {invoiceData?.paid ? 'Paid' : 'Unpaid'}
                         </span>
                         <span className="text-[11px] font-bold text-secondary-500 font-mono">
@@ -883,7 +877,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                         <p className="text-base font-bold text-secondary-900 font-mono">{invoiceData.customer_data.ic_number || 'N/A'}</p>
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-8 border-t border-secondary-100 pt-6">
                       <div className="flex items-start gap-3">
                         <Mail className="w-4 h-4 text-secondary-400 mt-0.5" />
@@ -947,11 +941,10 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                       <div className="md:col-span-6">
                         <label className="text-[11px] font-bold text-secondary-500 uppercase mb-2 block">Item Description</label>
-                        <input
-                          type="text"
+                        <textarea
                           value={newItem.description}
                           onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                          className="w-full h-9 px-3 rounded border border-secondary-200 focus:border-primary-500 text-sm font-medium outline-none transition-all"
+                          className="w-full min-h-[4rem] py-2 px-3 rounded border border-secondary-200 focus:border-primary-500 text-sm font-medium outline-none transition-all resize-y"
                           placeholder="e.g. Solar PV System"
                         />
                       </div>
@@ -1017,15 +1010,17 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                           <tr key={item.id || index} className={`${isEditing ? "bg-primary-50/20" : "hover:bg-secondary-50/20 transition-all group"} ${isFee ? "bg-blue-50/30" : ""}`}>
                             <td className="px-6 py-4">
                               {isEditing ? (
-                                <input
-                                  type="text"
+                                <textarea
                                   value={itemData.description}
                                   onChange={(e) => handleItemFieldChange("description", e.target.value)}
-                                  className="w-full h-8 px-2 rounded border border-primary-200 text-sm font-medium outline-none"
+                                  className="w-full min-h-[4rem] py-1 px-2 rounded border border-primary-200 text-sm font-medium outline-none resize-y"
                                 />
                               ) : (
                                 <div>
-                                  <div className={`text-sm font-semibold leading-tight ${isFee ? "text-blue-700" : "text-secondary-900"}`}>{item.description || 'N/A'}</div>
+                                  <div
+                                    className={`text-sm font-semibold leading-tight whitespace-pre-wrap ${isFee ? "text-blue-700" : "text-secondary-900"}`}
+                                    dangerouslySetInnerHTML={{ __html: (item.description || 'N/A').replace(/\n/g, '<br />') }}
+                                  />
                                   {item.inv_item_type && (
                                     <div className="text-[9px] font-bold text-secondary-400 uppercase mt-1 tracking-tight">{item.inv_item_type}</div>
                                   )}
@@ -1127,7 +1122,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                   </span>
                 </div>
               </div>
-              
+
               {invoiceData?.linked_payments && invoiceData.linked_payments.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                   {invoiceData.linked_payments.map((payment: any, index: number) => (
@@ -1164,7 +1159,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
             <button onClick={onClose} className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-secondary-600 hover:bg-secondary-50 rounded transition-all">
               Discard Changes
             </button>
-            <button 
+            <button
               onClick={handleDownloadPdf}
               disabled={downloading}
               className="px-6 py-2 bg-secondary-900 hover:bg-black text-white text-[11px] font-bold uppercase tracking-wider rounded transition-all shadow-sm flex items-center gap-2"
