@@ -12,7 +12,7 @@
  */
 
 import { db } from "@/lib/db";
-import { invoices, payments, sedaRegistration, invoice_items, users, agents, submitted_payments } from "@/db/schema";
+import { invoices, payments, sedaRegistration, invoice_items, users, agents, submitted_payments, packages, products } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
 import { eq } from "drizzle-orm";
 import { patchSchemaFromJson, type SchemaPatchResult } from "./schema-patcher";
@@ -23,7 +23,7 @@ import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
  * TYPE DEFINITIONS
  * ============================================================================
  */
-export type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user' | 'agent' | 'submitted_payment';
+export type EntityType = 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user' | 'agent' | 'submitted_payment' | 'package' | 'product';
 
 export interface JsonUploadSyncResult {
   success: boolean;
@@ -95,7 +95,7 @@ async function upsertInvoice(bubbleId: string, vals: any, jsonModifiedDate: Date
     // Check if JSON data is newer than existing record
     // Note: invoices table doesn't have modified_date, use updated_at
     const existingDate = existing.updated_at || existing.created_at;
-    
+
     if (jsonModifiedDate && existingDate) {
       // If existing record is newer or same, skip update
       if (existingDate > jsonModifiedDate) {
@@ -107,7 +107,7 @@ async function upsertInvoice(bubbleId: string, vals: any, jsonModifiedDate: Date
         return { updated: false, reason: 'same_timestamp' };
       }
     }
-    
+
     // JSON is newer - perform update
     await db.update(invoices)
       .set(vals)
@@ -128,7 +128,7 @@ async function upsertPayment(bubbleId: string, vals: any, jsonModifiedDate: Date
   if (existing) {
     // Check if JSON data is newer than existing record
     const existingDate = existing.updated_at || existing.modified_date || existing.created_at;
-    
+
     if (jsonModifiedDate && existingDate) {
       // If existing record is newer or same, skip update
       if (existingDate > jsonModifiedDate) {
@@ -139,7 +139,7 @@ async function upsertPayment(bubbleId: string, vals: any, jsonModifiedDate: Date
         return { updated: false, reason: 'same_timestamp' };
       }
     }
-    
+
     // JSON is newer - perform update
     await db.update(payments)
       .set(vals)
@@ -174,10 +174,10 @@ async function upsertSedaRegistrationMerge(bubbleId: string, vals: any): Promise
     for (const [key, value] of Object.entries(vals)) {
       // Skip bubble_id and auto-managed timestamps
       if (key === 'bubble_id' || key === 'created_at' || key === 'id') continue;
-      
+
       // Skip if JSON value is empty
       if (isEmptyValue(value)) continue;
-      
+
       // Check if existing DB value is empty
       const existingValue = (existing as any)[key];
       if (isEmptyValue(existingValue)) {
@@ -198,7 +198,7 @@ async function upsertSedaRegistrationMerge(bubbleId: string, vals: any): Promise
     await db.update(sedaRegistration)
       .set(mergeUpdates)
       .where(eq(sedaRegistration.bubble_id, bubbleId));
-    
+
     return { updated: true, inserted: false, fieldsFilled };
   } else {
     // New record - insert all values
@@ -216,7 +216,7 @@ async function upsertInvoiceItem(bubbleId: string, vals: any, jsonModifiedDate: 
   if (existing) {
     // Check if JSON data is newer than existing record
     const existingDate = existing.updated_at || existing.modified_date || existing.created_at;
-    
+
     if (jsonModifiedDate && existingDate) {
       // If existing record is newer or same, skip update
       if (existingDate > jsonModifiedDate) {
@@ -227,7 +227,7 @@ async function upsertInvoiceItem(bubbleId: string, vals: any, jsonModifiedDate: 
         return { updated: false, reason: 'same_timestamp' };
       }
     }
-    
+
     // JSON is newer - perform update
     await db.update(invoice_items)
       .set(vals)
@@ -248,7 +248,7 @@ async function upsertUser(bubbleId: string, vals: any, jsonModifiedDate: Date | 
   if (existing) {
     // Check if JSON data is newer than existing record
     const existingDate = existing.updated_at || existing.created_at;
-    
+
     if (jsonModifiedDate && existingDate) {
       // If existing record is newer or same, skip update
       if (existingDate > jsonModifiedDate) {
@@ -259,7 +259,7 @@ async function upsertUser(bubbleId: string, vals: any, jsonModifiedDate: Date | 
         return { updated: false, reason: 'same_timestamp' };
       }
     }
-    
+
     // JSON is newer - perform update
     await db.update(users)
       .set(vals)
@@ -284,7 +284,7 @@ async function syncInvoice(inv: any): Promise<{ updated: boolean; reason?: strin
     // Parse array fields properly
     const linkedPayment = parseCommaSeparated(inv["Linked Payment"]);
     const linkedInvoiceItem = parseCommaSeparated(inv["Linked Invoice Item"]);
-    
+
     // Parse Modified Date for comparison
     const jsonModifiedDate = parseBubbleDate(inv["Modified Date"]);
 
@@ -337,7 +337,7 @@ async function syncPayment(pay: any): Promise<{ updated: boolean; reason?: strin
   try {
     // Parse array fields properly
     const attachment = parseCommaSeparated(pay["Attachment"]);
-    
+
     // Parse Modified Date for comparison
     const jsonModifiedDate = parseBubbleDate(pay["Modified Date"]);
 
@@ -464,7 +464,7 @@ async function syncUser(user: any): Promise<{ updated: boolean; reason?: string 
   try {
     // Parse array field for access_level
     const accessLevel = parseCommaSeparated(user["Access Level"]);
-    
+
     // Parse Modified Date for comparison
     const jsonModifiedDate = parseBubbleDate(user["Modified Date"]);
 
@@ -505,7 +505,7 @@ async function upsertAgent(bubbleId: string, vals: any, jsonModifiedDate: Date |
   if (existing) {
     // Check if JSON data is newer than existing record
     const existingDate = existing.updated_at || existing.created_at;
-    
+
     if (jsonModifiedDate && existingDate) {
       // If existing record is newer or same, skip update
       if (existingDate > jsonModifiedDate) {
@@ -516,7 +516,7 @@ async function upsertAgent(bubbleId: string, vals: any, jsonModifiedDate: Date |
         return { updated: false, reason: 'same_timestamp' };
       }
     }
-    
+
     // JSON is newer - perform update
     await db.update(agents)
       .set(vals)
@@ -579,7 +579,7 @@ async function upsertSubmittedPayment(bubbleId: string, vals: any, jsonModifiedD
   if (existing) {
     // Check if JSON data is newer than existing record
     const existingDate = existing.updated_at || existing.modified_date || existing.created_at;
-    
+
     if (jsonModifiedDate && existingDate) {
       // If existing record is newer or same, skip update
       if (existingDate > jsonModifiedDate) {
@@ -590,7 +590,7 @@ async function upsertSubmittedPayment(bubbleId: string, vals: any, jsonModifiedD
         return { updated: false, reason: 'same_timestamp' };
       }
     }
-    
+
     // JSON is newer - perform update
     await db.update(submitted_payments)
       .set(vals)
@@ -614,7 +614,7 @@ async function syncSubmittedPayment(submittedPay: any): Promise<{ updated: boole
   try {
     // Parse array fields properly
     const attachment = parseCommaSeparated(submittedPay["Attachment"]);
-    
+
     // Parse Modified Date for comparison
     const jsonModifiedDate = parseBubbleDate(submittedPay["Modified Date"]);
 
@@ -656,6 +656,155 @@ async function syncSubmittedPayment(submittedPay: any): Promise<{ updated: boole
       }
     }
     throw new Error(`Submitted Payment ${bubbleId} sync failed: ${columnInfo}${error?.message || error}`);
+  }
+}
+
+// Upsert function for products - ONLY overwrite if JSON is newer
+async function upsertProduct(bubbleId: string, vals: any, jsonModifiedDate: Date | null): Promise<{ updated: boolean; reason?: string }> {
+  const existing = await db.query.products.findFirst({
+    where: eq(products.bubble_id, bubbleId)
+  });
+
+  if (existing) {
+    const existingDate = existing.updated_at || existing.modified_date || existing.created_at;
+    if (jsonModifiedDate && existingDate) {
+      if (existingDate > jsonModifiedDate) {
+        return { updated: false, reason: 'existing_is_newer' };
+      }
+      if (existingDate.getTime() === jsonModifiedDate.getTime()) {
+        return { updated: false, reason: 'same_timestamp' };
+      }
+    }
+
+    await db.update(products)
+      .set(vals)
+      .where(eq(products.bubble_id, bubbleId));
+    return { updated: true };
+  } else {
+    await db.insert(products).values(vals);
+    return { updated: true };
+  }
+}
+
+/**
+ * PRODUCT SYNC FUNCTION
+ */
+async function syncProduct(prod: any): Promise<{ updated: boolean; reason?: string }> {
+  const bubbleId = prod["unique id"] || prod._id;
+  if (!bubbleId) throw new Error("Product missing 'unique id' or '_id' field");
+
+  try {
+    const jsonModifiedDate = parseBubbleDate(prod["Modified Date"]);
+
+    const vals = {
+      bubble_id: bubbleId,
+      active: prod["Active"] || prod["active"] || false,
+      cost_price: parseAmount(prod["Cost Price"]),
+      created_by: prod["Created By"] || null,
+      created_date: parseBubbleDate(prod["Created Date"]),
+      description: prod["Description"] || null,
+      image: prod["Image"] || null,
+      inventory: prod["Inventory"] || prod["inventory"] || false,
+      inverter_rating: prod["Inverter Rating"] ? Number(prod["Inverter Rating"]) : null,
+      label: prod["Label"] || null,
+      linked_brand: prod["Linked Brand"] || null,
+      linked_category: prod["Linked Category"] || null,
+      modified_date: jsonModifiedDate,
+      name: prod["Name"] || null,
+      pdf_product: prod["PDF Product"] || null,
+      product_warranty_desc: prod["Product Warranty Desc"] || null,
+      selling_price: parseAmount(prod["Selling Price"]),
+      solar_output_rating: prod["Solar Output Rating"] ? Number(prod["Solar Output Rating"]) : null,
+      warranty_link: prod["Warranty Link"] || null,
+      warranty_name: prod["Warranty Name"] || null,
+      created_at: parseBubbleDate(prod["Created Date"]) || new Date(),
+      updated_at: jsonModifiedDate || new Date(),
+      last_synced_at: new Date(),
+    };
+
+    return await upsertProduct(bubbleId, vals, jsonModifiedDate);
+  } catch (error: any) {
+    let columnInfo = '';
+    if (error?.message) {
+      const columnMatch = error.message.match(/column "([^"]+)"/);
+      if (columnMatch) {
+        columnInfo = `Column: ${columnMatch[1]} | `;
+      }
+    }
+    throw new Error(`Product ${bubbleId} sync failed: ${columnInfo}${error?.message || error}`);
+  }
+}
+
+// Upsert function for packages - ONLY overwrite if JSON is newer
+async function upsertPackage(bubbleId: string, vals: any, jsonModifiedDate: Date | null): Promise<{ updated: boolean; reason?: string }> {
+  const existing = await db.query.packages.findFirst({
+    where: eq(packages.bubble_id, bubbleId)
+  });
+
+  if (existing) {
+    const existingDate = existing.updated_at || existing.modified_date || existing.created_at;
+    if (jsonModifiedDate && existingDate) {
+      if (existingDate > jsonModifiedDate) {
+        return { updated: false, reason: 'existing_is_newer' };
+      }
+      if (existingDate.getTime() === jsonModifiedDate.getTime()) {
+        return { updated: false, reason: 'same_timestamp' };
+      }
+    }
+
+    await db.update(packages)
+      .set(vals)
+      .where(eq(packages.bubble_id, bubbleId));
+    return { updated: true };
+  } else {
+    await db.insert(packages).values(vals);
+    return { updated: true };
+  }
+}
+
+/**
+ * PACKAGE SYNC FUNCTION
+ */
+async function syncPackage(pkg: any): Promise<{ updated: boolean; reason?: string }> {
+  const bubbleId = pkg["unique id"] || pkg._id;
+  if (!bubbleId) throw new Error("Package missing 'unique id' or '_id' field");
+
+  try {
+    const linkedPackageItem = parseCommaSeparated(pkg["Linked Package Item"]);
+    const jsonModifiedDate = parseBubbleDate(pkg["Modified Date"]);
+
+    const vals = {
+      bubble_id: bubbleId,
+      active: pkg["Active"] || pkg["active"] || false,
+      created_by: pkg["Created By"] || null,
+      created_date: parseBubbleDate(pkg["Created Date"]),
+      invoice_desc: pkg["Invoice Desc"] || null,
+      linked_package_item: linkedPackageItem,
+      max_discount: pkg["Max Discount"] ? Number(pkg["Max Discount"]) : null,
+      modified_date: jsonModifiedDate,
+      need_approval: pkg["Need Approval"] || pkg["need_approval"] || false,
+      package_name: pkg["Package Name"] || null,
+      panel: pkg["Panel"] || null,
+      panel_qty: pkg["Panel Qty"] ? Number(pkg["Panel Qty"]) : null,
+      password: pkg["Password"] || null,
+      price: parseAmount(pkg["Price"]),
+      special: pkg["Special"] || pkg["special"] || false,
+      type: pkg["Type"] || null,
+      created_at: parseBubbleDate(pkg["Created Date"]) || new Date(),
+      updated_at: jsonModifiedDate || new Date(),
+      last_synced_at: new Date(),
+    };
+
+    return await upsertPackage(bubbleId, vals, jsonModifiedDate);
+  } catch (error: any) {
+    let columnInfo = '';
+    if (error?.message) {
+      const columnMatch = error.message.match(/column "([^"]+)"/);
+      if (columnMatch) {
+        columnInfo = `Column: ${columnMatch[1]} | `;
+      }
+    }
+    throw new Error(`Package ${bubbleId} sync failed: ${columnInfo}${error?.message || error}`);
   }
 }
 
@@ -730,6 +879,14 @@ export async function syncJsonWithValidation(
       syncFn = syncSubmittedPayment;
       tableName = "submitted_payments";
       break;
+    case 'package':
+      syncFn = syncPackage;
+      tableName = "packages";
+      break;
+    case 'product':
+      syncFn = syncProduct;
+      tableName = "products";
+      break;
     default:
       result.validationError = `Unknown entity type: ${entityType}`;
       return result;
@@ -763,7 +920,7 @@ export async function syncJsonWithValidation(
   try {
     const firstResult = await syncFn(jsonData[0]);
     result.processed = 1;
-    
+
     if (isSedaMerge) {
       // SEDA merge mode: check updated/inserted/fieldsFilled
       if (firstResult.inserted) {
@@ -800,7 +957,7 @@ export async function syncJsonWithValidation(
     result.processed++;
     try {
       const syncResult = await syncFn(jsonData[i]);
-      
+
       if (isSedaMerge) {
         // SEDA merge mode
         if (syncResult.inserted) {

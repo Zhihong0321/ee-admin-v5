@@ -150,14 +150,14 @@ export async function patchPaymentMethodsFromJson(jsonData: any[]) {
     }
 
     logSyncActivity(`JSON Payment Method Patch SUCCESS: Patched ${patchedCount}, Skipped ${skippedCount}, Not found ${notFoundCount}`, 'INFO');
-    
+
     revalidatePath("/payments");
     revalidatePath("/sync");
 
-    return { 
-      success: true, 
-      patchedCount, 
-      skippedCount, 
+    return {
+      success: true,
+      patchedCount,
+      skippedCount,
       notFoundCount,
       message: `Successfully patched ${patchedCount} payment methods. ${skippedCount} records were skipped (already had data or no source), and ${notFoundCount} records were not found in our database.`
     };
@@ -229,6 +229,18 @@ export async function uploadAndSyncJson(
       case 'invoice_item':
         pathsToRevalidate.push("/invoices");
         break;
+      case 'user':
+        pathsToRevalidate.push("/users");
+        break;
+      case 'agent':
+        pathsToRevalidate.push("/agents");
+        break;
+      case 'package':
+        pathsToRevalidate.push("/packages");
+        break;
+      case 'product':
+        pathsToRevalidate.push("/products");
+        break;
     }
 
     pathsToRevalidate.forEach(path => revalidatePath(path));
@@ -274,4 +286,18 @@ export async function uploadSedaRegistrationsJson(jsonData: any[]) {
  */
 export async function uploadInvoiceItemsJson(jsonData: any[]) {
   return uploadAndSyncJson('invoice_item', jsonData);
+}
+
+/**
+ * Upload and sync package data from JSON
+ */
+export async function uploadPackagesJson(jsonData: any[]) {
+  return uploadAndSyncJson('package', jsonData);
+}
+
+/**
+ * Upload and sync product data from JSON
+ */
+export async function uploadProductsJson(jsonData: any[]) {
+  return uploadAndSyncJson('product', jsonData);
 }
