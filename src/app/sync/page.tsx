@@ -28,6 +28,7 @@ import {
 } from "./actions";
 import { migrateBubbleFilesToLocal, randomTestMigration } from "./actions/bubble-file-migration";
 import { patchPaymentMethodsFromJson } from "./actions/json-upload-sync";
+import type { EntityType } from "@/lib/bubble/sync-json-upload";
 
 export default function SyncPage() {
   // ============================================================================
@@ -105,7 +106,7 @@ export default function SyncPage() {
     }
   };
 
-  const handleJsonUploadSync = async (entityType: 'invoice' | 'payment' | 'seda_registration' | 'invoice_item' | 'user' | 'agent' | 'submitted_payment', jsonData: any[]) => {
+  const handleJsonUploadSync = async (entityType: EntityType, jsonData: any[]) => {
     if (!jsonData || jsonData.length === 0) {
       alert("No JSON data to sync");
       return;
