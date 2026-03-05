@@ -146,6 +146,9 @@ export default function CatalogPage() {
                 warranty_name: editingItem?.warranty_name,
                 product_warranty_desc: editingItem?.product_warranty_desc,
                 warranty_link: editingItem?.warranty_link,
+                label: editingItem?.label,
+                solar_output_rating: editingItem?.solar_output_rating ? Number(editingItem.solar_output_rating) : null,
+                inverter_rating: editingItem?.inverter_rating ? Number(editingItem.inverter_rating) : null,
                 active: editingItem?.active === true || editingItem?.active === "true",
                 inventory: editingItem?.inventory === true || editingItem?.inventory === "true",
             };
@@ -539,6 +542,20 @@ export default function CatalogPage() {
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-secondary-700">Warranty Link</label>
                                             <input type="url" className="input" placeholder="https://..." value={editingItem?.warranty_link || ""} onChange={(e) => setEditingItem({ ...editingItem, warranty_link: e.target.value })} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-secondary-700">Label</label>
+                                            <input type="text" className="input" value={editingItem?.label || ""} onChange={(e) => setEditingItem({ ...editingItem, label: e.target.value })} />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-secondary-700">Solar Output Rating (W)</label>
+                                                <input type="number" className="input" placeholder="e.g. 550" value={editingItem?.solar_output_rating ?? ""} onChange={(e) => setEditingItem({ ...editingItem, solar_output_rating: e.target.value === "" ? null : Number(e.target.value) })} />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-secondary-700">Inverter Rating (kW)</label>
+                                                <input type="number" className="input" placeholder="e.g. 5" value={editingItem?.inverter_rating ?? ""} onChange={(e) => setEditingItem({ ...editingItem, inverter_rating: e.target.value === "" ? null : Number(e.target.value) })} />
+                                            </div>
                                         </div>
                                         <div className="flex items-center gap-6 pt-2">
                                             <label className="flex items-center gap-2 cursor-pointer">
