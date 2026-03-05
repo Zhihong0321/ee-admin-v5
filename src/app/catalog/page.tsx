@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Search, Plus, Edit2, Layers, Package as PackageIcon, Filter, AlertCircle, X, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
 import {
     getProducts, updateProduct, createProduct, deleteProduct,
-    getPackages, updatePackage, createPackage, deletePackage
+    getPackages, updatePackage, createPackage, deletePackage, bulkTogglePackagesActive
 } from "./actions";
 
 export default function CatalogPage() {
@@ -22,6 +22,7 @@ export default function CatalogPage() {
     const [packageTypeFilter, setPackageTypeFilter] = useState("all");
     const [loadingPackages, setLoadingPackages] = useState(true);
     const [packagesPage, setPackagesPage] = useState(1);
+    const [selectedPackages, setSelectedPackages] = useState<number[]>([]);
 
     const itemsPerPage = 10;
 
@@ -67,12 +68,46 @@ export default function CatalogPage() {
     const handleSearchPackages = (e: React.FormEvent) => {
         e.preventDefault();
         setPackagesPage(1);
+        setSelectedPackages([]);
         fetchPackages();
     };
 
     const handlePackageFilterChange = (type: string) => {
         setPackageTypeFilter(type);
         setPackagesPage(1);
+        setSelectedPackages([]);
+    };
+
+    const handleSelectAllPackages = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            setSelectedPackages(paginatedPackages.map(p => p.id));
+        } else {
+            setSelectedPackages([]);
+        }
+    };
+
+    const handleSelectPackage = (id: number) => {
+        setSelectedPackages(prev =>
+            prev.includes(id) ? prev.filter(pId => pId !== id) : [...prev, id]
+        );
+    };
+
+    const handleBulkTogglePackages = async (active: boolean) => {
+        if (selectedPackages.length === 0) return;
+        const confirmMsg = `Are you sure you want to set ${selectedPackages.length} package(s) to ${active ? 'Active' : 'Inactive'}?`;
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            const res = await bulkTogglePackagesActive(selectedPackages, active);
+            if (res.success) {
+                fetchPackages();
+                setSelectedPackages([]);
+            } else {
+                throw new Error(res.error || "Failed to toggle packages");
+            }
+        } catch (err) {
+            alert(`Error: ${err instanceof Error ? err.message : String(err)}`);
+        }
     };
 
     // Calculate Paginated Derived State
@@ -296,6 +331,7 @@ export default function CatalogPage() {
                             </p>
                             <div className="flex items-center gap-2">
                                 <button
+                                    type="button"
                                     onClick={() => setProductsPage(p => Math.max(1, p - 1))}
                                     disabled={productsPage === 1}
                                     className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
@@ -306,8 +342,9 @@ export default function CatalogPage() {
                                     {productsPage}
                                 </span>
                                 <button
+                                    type="button"
                                     onClick={() => setProductsPage(p => Math.min(totalProductsPages, p + 1))}
-                                    disabled={productsPage === totalProductsPages || totalProductsPages === 0}
+                                    disabled={productsPage >= totalProductsPages || totalProductsPages === 0}
                                     className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
                                 >
                                     <ChevronRight className="h-4 w-4" />
@@ -355,6 +392,14 @@ export default function CatalogPage() {
                             <table className="table">
                                 <thead>
                                     <tr>
+                                        <th className="w-12 text-center">
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 text-primary-600 border-secondary-300 rounded focus:ring-primary-500 cursor-pointer"
+                                                onChange={handleSelectAllPackages}
+                                                checked={paginatedPackages.length > 0 && selectedPackages.length === paginatedPackages.length}
+                                            />
+                                        </th>
                                         <th>Package Name</th>
                                         <th>Price</th>
                                         <th>Type</th>
@@ -370,6 +415,14 @@ export default function CatalogPage() {
                                     ) : (
                                         paginatedPackages.map(pkg => (
                                             <tr key={pkg.id}>
+                                                <td className="text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="w-4 h-4 text-primary-600 border-secondary-300 rounded focus:ring-primary-500 cursor-pointer"
+                                                        onChange={() => handleSelectPackage(pkg.id)}
+                                                        checked={selectedPackages.includes(pkg.id)}
+                                                    />
+                                                </td>
                                                 <td>
                                                     <div className="font-semibold text-secondary-900">{pkg.package_name || "Unnamed Package"}</div>
                                                     <div className="text-xs text-secondary-500 truncate max-w-[200px]">{pkg.invoice_desc || "No description"}</div>
@@ -399,11 +452,21 @@ export default function CatalogPage() {
 
                         {/* Packages Pagination */}
                         <div className="p-6 border-t border-secondary-200 bg-secondary-50/30 flex items-center justify-between">
-                            <p className="text-sm text-secondary-600">
-                                Showing <span className="font-semibold text-secondary-900">{filteredPackages.length > 0 ? (packagesPage - 1) * itemsPerPage + 1 : 0}</span> to <span className="font-semibold text-secondary-900">{Math.min(packagesPage * itemsPerPage, filteredPackages.length)}</span> of <span className="font-semibold text-secondary-900">{filteredPackages.length}</span> entries
-                            </p>
+                            <div className="flex items-center gap-4">
+                                <p className="text-sm text-secondary-600">
+                                    Showing <span className="font-semibold text-secondary-900">{filteredPackages.length > 0 ? (packagesPage - 1) * itemsPerPage + 1 : 0}</span> to <span className="font-semibold text-secondary-900">{Math.min(packagesPage * itemsPerPage, filteredPackages.length)}</span> of <span className="font-semibold text-secondary-900">{filteredPackages.length}</span> entries
+                                </p>
+                                {selectedPackages.length > 0 && (
+                                    <div className="flex items-center gap-2 border-l border-secondary-200 pl-4 ml-2">
+                                        <span className="text-sm text-secondary-600 font-medium">{selectedPackages.length} selected</span>
+                                        <button onClick={() => handleBulkTogglePackages(true)} type="button" className="btn-secondary py-1 px-3 text-xs bg-green-50 text-green-700 hover:bg-green-100 border-green-200">Set Active</button>
+                                        <button onClick={() => handleBulkTogglePackages(false)} type="button" className="btn-secondary py-1 px-3 text-xs bg-red-50 text-red-700 hover:bg-red-100 border-red-200">Set Inactive</button>
+                                    </div>
+                                )}
+                            </div>
                             <div className="flex items-center gap-2">
                                 <button
+                                    type="button"
                                     onClick={() => setPackagesPage(p => Math.max(1, p - 1))}
                                     disabled={packagesPage === 1}
                                     className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
@@ -414,8 +477,9 @@ export default function CatalogPage() {
                                     {packagesPage}
                                 </span>
                                 <button
+                                    type="button"
                                     onClick={() => setPackagesPage(p => Math.min(totalPackagesPages, p + 1))}
-                                    disabled={packagesPage === totalPackagesPages || totalPackagesPages === 0}
+                                    disabled={packagesPage >= totalPackagesPages || totalPackagesPages === 0}
                                     className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-400 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
                                 >
                                     <ChevronRight className="h-4 w-4" />

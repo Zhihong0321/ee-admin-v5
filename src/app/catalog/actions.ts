@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { products, packages } from "@/db/schema";
-import { ilike, or, desc, eq } from "drizzle-orm";
+import { ilike, or, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getProducts(search?: string) {
@@ -139,6 +139,24 @@ export async function deletePackage(id: number) {
         return { success: true };
     } catch (error) {
         console.error("Database error in deletePackage:", error);
+        return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    }
+}
+
+export async function bulkTogglePackagesActive(ids: number[], active: boolean) {
+    try {
+        await db
+            .update(packages)
+            .set({
+                active,
+                updated_at: new Date(),
+            })
+            .where(inArray(packages.id, ids));
+
+        revalidatePath("/catalog");
+        return { success: true };
+    } catch (error) {
+        console.error("Database error in bulkTogglePackagesActive:", error);
         return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
