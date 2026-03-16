@@ -619,9 +619,10 @@ async function recalculateInvoicePaymentStatus(invoiceBubbleId: string, triggere
       .from(payments)
       .where(eq(payments.linked_invoice, invoiceBubbleId));
 
-    // 3. Sum up all payments
+    // 3. Sum up all payments and track dates
     let totalPaid = 0;
     let latestPaymentDate: Date | null = null;
+    let firstPaymentDate: Date | null = null;
 
     for (const payment of linkedPayments) {
       const amount = parseFloat(payment.amount || '0');
@@ -629,8 +630,15 @@ async function recalculateInvoicePaymentStatus(invoiceBubbleId: string, triggere
 
       if (payment.payment_date) {
         const paymentDate = new Date(payment.payment_date);
+
+        // Track latest date
         if (!latestPaymentDate || paymentDate > latestPaymentDate) {
           latestPaymentDate = paymentDate;
+        }
+
+        // Track earliest date
+        if (!firstPaymentDate || paymentDate < firstPaymentDate) {
+          firstPaymentDate = paymentDate;
         }
       }
     }
@@ -648,6 +656,7 @@ async function recalculateInvoicePaymentStatus(invoiceBubbleId: string, triggere
       .set({
         percent_of_total_amount: percentage.toString(),
         paid: isFullyPaid,
+        first_payment_date: firstPaymentDate,
         full_payment_date: fullPaymentDate,
         last_payment_date: latestPaymentDate,
         updated_at: new Date()
