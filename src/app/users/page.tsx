@@ -272,11 +272,30 @@ export default function UsersPage() {
                             <User className="h-5 w-5 text-secondary-400" />
                           )}
                         </div>
-                        <div>
-                          <div className="font-semibold text-secondary-900">{user.agent_name || "N/A"}</div>
-                          <div className="text-xs text-secondary-500 mb-1.5">{user.agent_code || "No Code"}</div>
+                        <div className="min-w-0 max-w-[280px]">
+                          <div className="truncate font-semibold text-secondary-900" title={user.agent_name || "N/A"}>
+                            {user.agent_name || "N/A"}
+                          </div>
+                          <div className="mt-1.5 space-y-1 text-[11px] leading-4">
+                            <div className="flex items-start gap-2 min-w-0">
+                              <span className="shrink-0 font-bold uppercase tracking-wide text-secondary-400">
+                                Agent Code
+                              </span>
+                              <span className="truncate text-secondary-600" title={user.agent_code || "No Code"}>
+                                {user.agent_code || "No Code"}
+                              </span>
+                            </div>
+                            <div className="flex items-start gap-2 min-w-0">
+                              <span className="shrink-0 font-bold uppercase tracking-wide text-secondary-400">
+                                Introducer
+                              </span>
+                              <span className="truncate text-secondary-600" title={user.dealership || "N/A"}>
+                                {user.dealership || "N/A"}
+                              </span>
+                            </div>
+                          </div>
                           {user.access_level && user.access_level.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
+                            <div className="mt-2 flex flex-wrap gap-1">
                               {user.access_level.slice(0, 3).map((tag: string) => (
                                 <span 
                                   key={tag} 
