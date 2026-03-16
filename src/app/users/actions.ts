@@ -30,31 +30,49 @@ export async function syncUserFromBubble(bubbleId: string, agentBubbleId?: strin
   }
 }
 
+type GetUsersParams = {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+};
 
-export async function getUsers(search?: string) {
+export async function getUsers({ search, page = 1, pageSize = 50 }: GetUsersParams = {}) {
   try {
-    // Using relational query for more reliable joins
-    const data = await db.query.users.findMany({
-      with: {
-        agent: true
-      },
-      where: (users, { or, ilike }) => {
-        if (!search) return undefined;
-        return or(
+    const currentPage = Math.max(1, page);
+    const safePageSize = Math.max(1, Math.min(pageSize, 100));
+    const searchFilter = search
+      ? or(
           ilike(users.agent_code, `%${search}%`),
           sql`EXISTS (
             SELECT 1 FROM agent a 
             WHERE a.bubble_id = ${users.linked_agent_profile} 
             AND (a.name ILIKE ${`%${search}%`} OR a.email ILIKE ${`%${search}%`})
           )`
-        );
+        )
+      : undefined;
+
+    const totalCountQuery = db.select({
+      count: sql<number>`count(*)::int`,
+    }).from(users);
+    const [{ count }] = searchFilter
+      ? await totalCountQuery.where(searchFilter)
+      : await totalCountQuery;
+    const total = count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+    const effectivePage = Math.min(currentPage, totalPages);
+    const offset = (effectivePage - 1) * safePageSize;
+
+    const data = await db.query.users.findMany({
+      with: {
+        agent: true
       },
+      where: searchFilter,
       orderBy: (users, { desc }) => [desc(users.id)],
-      limit: 50,
+      limit: safePageSize,
+      offset,
     });
 
-    // Transform to match the UI expectation
-    const transformedData = data.map(u => ({
+    const transformedData = data.map((u) => ({
       id: u.id,
       bubble_id: u.bubble_id,
       agent_code: u.agent_code,
@@ -76,7 +94,15 @@ export async function getUsers(search?: string) {
       last_synced_at: u.last_synced_at,
     }));
 
-    return transformedData;
+    return {
+      users: transformedData,
+      pagination: {
+        page: effectivePage,
+        pageSize: safePageSize,
+        total,
+        totalPages,
+      },
+    };
   } catch (error) {
     console.error("Database error in getUsers:", error);
     throw error;

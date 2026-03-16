@@ -7,6 +7,10 @@ import { getUsers, updateUserProfile, getAllUniqueTags, triggerProfileSync, sync
 export default function UsersPage() {
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
@@ -20,11 +24,15 @@ export default function UsersPage() {
     loadAvailableTags();
   }, []);
 
-  async function fetchData() {
+  async function fetchData(page = currentPage, searchTerm = search) {
     setLoading(true);
     try {
-      const data = await getUsers(search);
-      setUsers(data);
+      const data = await getUsers({ search: searchTerm, page });
+      setUsers(data.users);
+      setCurrentPage(data.pagination.page);
+      setPageSize(data.pagination.pageSize);
+      setTotalUsers(data.pagination.total);
+      setTotalPages(data.pagination.totalPages);
     } catch (error) {
       console.error("Failed to fetch users", error);
     } finally {
@@ -38,7 +46,7 @@ export default function UsersPage() {
       const result = await triggerProfileSync();
       if (result.success) {
         alert("Sync complete: Profiles updated based on latest modification.");
-        fetchData();
+        fetchData(currentPage);
       } else {
         alert("Sync failed: " + result.error);
       }
@@ -57,11 +65,11 @@ export default function UsersPage() {
       if (result.success) {
         // Update local state for editing user if open
         if (editingUser && editingUser.bubble_id === bubbleId) {
-          const updatedUsers = await getUsers(search);
-          const updatedUser = updatedUsers.find(u => u.bubble_id === bubbleId);
+          const updatedUsers = await getUsers({ search, page: currentPage });
+          const updatedUser = updatedUsers.users.find(u => u.bubble_id === bubbleId);
           if (updatedUser) setEditingUser(updatedUser);
         }
-        fetchData();
+        fetchData(currentPage);
       } else {
         alert("Sync failed");
       }
@@ -83,7 +91,7 @@ export default function UsersPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchData();
+    fetchData(1, search);
   };
 
   const handleEditClick = (user: any) => {
@@ -108,7 +116,7 @@ export default function UsersPage() {
 
       if (result.success) {
         setIsEditModalOpen(false);
-        fetchData();
+        fetchData(currentPage);
         loadAvailableTags();
       } else {
         alert(`Failed to update user: ${result.error || 'Unknown error'}`);
@@ -144,6 +152,9 @@ export default function UsersPage() {
     }
     setNewTagInput("");
   };
+
+  const startResult = totalUsers === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endResult = totalUsers === 0 ? 0 : Math.min(currentPage * pageSize, totalUsers);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -195,7 +206,7 @@ export default function UsersPage() {
             <div className="flex items-center gap-2 w-full md:w-auto">
               <button 
                 type="button"
-                onClick={fetchData}
+                onClick={() => fetchData(1, search)}
                 className="btn-secondary flex items-center gap-2"
               >
                 <Filter className="w-4 h-4" />
@@ -352,6 +363,37 @@ export default function UsersPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="p-6 border-t border-secondary-200 bg-secondary-50/30 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm text-secondary-600">
+            Showing <span className="font-semibold text-secondary-900">{startResult}</span> to{" "}
+            <span className="font-semibold text-secondary-900">{endResult}</span> of{" "}
+            <span className="font-semibold text-secondary-900">{totalUsers}</span> users
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => fetchData(currentPage - 1)}
+              disabled={loading || currentPage <= 1}
+              className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="px-3 py-1.5 text-sm font-medium text-secondary-700 bg-white border border-secondary-200 rounded-lg">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => fetchData(currentPage + 1)}
+              disabled={loading || currentPage >= totalPages}
+              className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
+              aria-label="Next page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -608,7 +650,7 @@ export default function UsersPage() {
                       if (result.success) {
                         alert('Saved successfully!');
                         setIsEditModalOpen(false);
-                        fetchData();
+                        fetchData(currentPage);
                         loadAvailableTags();
                       } else if (result.error?.includes('no linked agent') || result.error?.includes('broken')) {
                         // Offer to create agent profile
@@ -626,7 +668,7 @@ export default function UsersPage() {
                           if (createResult.success) {
                             alert('Agent profile created and linked successfully!');
                             setIsEditModalOpen(false);
-                            fetchData();
+                            fetchData(currentPage);
                           } else {
                             alert(`Failed to create agent: ${createResult.error}`);
                           }
