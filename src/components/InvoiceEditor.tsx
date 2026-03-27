@@ -1324,9 +1324,9 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                       className="w-full h-9 px-2 rounded border border-secondary-200 focus:border-emerald-500 text-sm outline-none transition-colors"
                     >
                       <option value="all">All Types</option>
-                      <option value="residential">Residential</option>
-                      <option value="tariff_b">Tariff B</option>
-                      <option value="tariff_d">Tariff D</option>
+                      <option value="Residential">Residential</option>
+                      <option value="Tariff B&D">Tariff B&D Low Voltage</option>
+                      <option value="Special / Roadshow">Special / Roadshow</option>
                     </select>
                   </div>
                 </div>

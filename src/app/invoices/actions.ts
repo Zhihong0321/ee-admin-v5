@@ -778,9 +778,16 @@ export async function searchPackagesForSwitch(query: {
       );
     }
 
-    // Panel watt / model (text search on panel field)
+    // Panel watt / model (search in panel ID, package_name, and invoice_desc)
     if (query.panel_watt?.trim()) {
-      conditions.push(ilike(packages.panel, `%${query.panel_watt.trim()}%`));
+      const watt = query.panel_watt.trim();
+      conditions.push(
+        or(
+          ilike(packages.panel, `%${watt}%`),
+          ilike(packages.package_name, `%${watt}%`),
+          ilike(packages.invoice_desc, `%${watt}%`)
+        )
+      );
     }
 
     // Number of panels (exact match)
@@ -793,7 +800,7 @@ export async function searchPackagesForSwitch(query: {
 
     // Package type (residential / tariff)
     if (query.type?.trim() && query.type.trim() !== "all") {
-      conditions.push(eq(packages.type, query.type.trim()));
+      conditions.push(ilike(packages.type, `%${query.type.trim()}%`));
     }
 
     const results = await db
