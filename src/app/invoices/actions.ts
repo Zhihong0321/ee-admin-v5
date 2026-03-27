@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, agents, users, invoice_templates, customers, payments, invoice_items, invoice_edit_history } from "@/db/schema";
+import { invoices, agents, users, invoice_templates, customers, payments, invoice_items, invoice_edit_history, packages } from "@/db/schema";
 import { ilike, or, sql, desc, eq, and, inArray } from "drizzle-orm";
 import { getInvoiceHtml } from "@/lib/invoice-renderer";
 import { revalidatePath } from "next/cache";
@@ -751,6 +751,162 @@ export async function updateInvoiceWithEppFees(
     return { success: true };
   } catch (error) {
     console.error("Error updating invoice EPP fees:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+// ============================================================================
+// PACKAGE SWITCHING — Search & Switch
+// ============================================================================
+
+export async function searchPackagesForSwitch(query: {
+  panel_watt?: string;
+  panel_qty?: string;
+  type?: string;
+  search?: string;
+}) {
+  try {
+    const conditions: any[] = [eq(packages.active, true)];
+
+    // Generic keyword search (package_name or invoice_desc)
+    if (query.search?.trim()) {
+      conditions.push(
+        or(
+          ilike(packages.package_name, `%${query.search.trim()}%`),
+          ilike(packages.invoice_desc, `%${query.search.trim()}%`)
+        )
+      );
+    }
+
+    // Panel watt / model (text search on panel field)
+    if (query.panel_watt?.trim()) {
+      conditions.push(ilike(packages.panel, `%${query.panel_watt.trim()}%`));
+    }
+
+    // Number of panels (exact match)
+    if (query.panel_qty?.trim()) {
+      const qty = parseInt(query.panel_qty.trim(), 10);
+      if (!isNaN(qty)) {
+        conditions.push(eq(packages.panel_qty, qty));
+      }
+    }
+
+    // Package type (residential / tariff)
+    if (query.type?.trim() && query.type.trim() !== "all") {
+      conditions.push(eq(packages.type, query.type.trim()));
+    }
+
+    const results = await db
+      .select({
+        id: packages.id,
+        bubble_id: packages.bubble_id,
+        package_name: packages.package_name,
+        invoice_desc: packages.invoice_desc,
+        panel: packages.panel,
+        panel_qty: packages.panel_qty,
+        price: packages.price,
+        type: packages.type,
+      })
+      .from(packages)
+      .where(and(...conditions))
+      .orderBy(desc(packages.id))
+      .limit(50);
+
+    return { success: true, packages: results };
+  } catch (error) {
+    console.error("Error searching packages:", error);
+    return { success: false, error: String(error), packages: [] };
+  }
+}
+
+export async function switchInvoiceItemPackage(
+  itemId: number,
+  newPackageBubbleId: string
+) {
+  try {
+    // 1. Get the invoice item
+    const item = await db.query.invoice_items.findFirst({
+      where: eq(invoice_items.id, itemId),
+    });
+
+    if (!item) {
+      return { success: false, error: "Invoice item not found" };
+    }
+
+    if (!item.is_a_package) {
+      return { success: false, error: "This item is not a package item" };
+    }
+
+    // 2. Get the target package
+    const targetPackage = await db.query.packages.findFirst({
+      where: eq(packages.bubble_id, newPackageBubbleId),
+    });
+
+    if (!targetPackage) {
+      return { success: false, error: "Package not found" };
+    }
+
+    // 3. Get the invoice for total recalculation & history logging
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.bubble_id, item.linked_invoice || ""),
+    });
+
+    if (!invoice) {
+      return { success: false, error: "Invoice not found for this item" };
+    }
+
+    // 4. Calculate new amount (keep existing qty, new unit_price from package)
+    const qtyValue = parseFloat(String(item.qty || 1));
+    const newUnitPrice = parseFloat(String(targetPackage.price || 0));
+    const newAmount = qtyValue * newUnitPrice;
+
+    // 5. Update the invoice item
+    const updatedItem = await db
+      .update(invoice_items)
+      .set({
+        description: targetPackage.invoice_desc || targetPackage.package_name || "",
+        unit_price: newUnitPrice.toString(),
+        amount: newAmount.toString(),
+        linked_package: newPackageBubbleId,
+        updated_at: new Date(),
+      })
+      .where(eq(invoice_items.id, itemId))
+      .returning();
+
+    if (updatedItem.length === 0) {
+      return { success: false, error: "Failed to update invoice item" };
+    }
+
+    // 6. Recalculate invoice total
+    await recalculateInvoiceTotal(invoice.id);
+
+    // 7. Log audit history
+    await logInvoiceEdit({
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoice_number,
+      entityType: "invoice_item",
+      entityId: item.bubble_id,
+      actionType: "update",
+      before: {
+        linked_package: item.linked_package,
+        description: item.description,
+        unit_price: item.unit_price,
+        amount: item.amount,
+      },
+      after: {
+        linked_package: newPackageBubbleId,
+        package_name: targetPackage.package_name,
+        description: targetPackage.invoice_desc,
+        unit_price: newUnitPrice,
+        amount: newAmount,
+      },
+      fields: ["linked_package", "description", "unit_price", "amount"],
+    });
+
+    revalidatePath("/invoices");
+    return { success: true, item: updatedItem[0] };
+  } catch (error) {
+    console.error("Error switching invoice item package:", error);
     return { success: false, error: String(error) };
   }
 }

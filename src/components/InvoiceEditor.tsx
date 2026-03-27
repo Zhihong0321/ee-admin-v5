@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
-import { X, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info, Save, Edit2, Plus, Trash2, Check, X as XIcon, Clock, ArrowRight, Calculator, AlertCircle } from "lucide-react";
-import { generateInvoicePdf, updateInvoiceItem, createInvoiceItem, deleteInvoiceItem, updateInvoiceAgent, getAgentsForSelection, getInvoiceDetails, getInvoiceEditHistory, updateInvoiceWithEppFees } from "@/app/invoices/actions";
+import { X, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info, Save, Edit2, Plus, Trash2, Check, X as XIcon, Clock, ArrowRight, Calculator, AlertCircle, RefreshCw, Search } from "lucide-react";
+import { generateInvoicePdf, updateInvoiceItem, createInvoiceItem, deleteInvoiceItem, updateInvoiceAgent, getAgentsForSelection, getInvoiceDetails, getInvoiceEditHistory, updateInvoiceWithEppFees, searchPackagesForSwitch, switchInvoiceItemPackage } from "@/app/invoices/actions";
 import { EPP_RATES, EPP_BANKS, getEppRate, FOREIGN_CARD_RATES, AMEX_RATE } from "@/lib/epp-rates";
 
 interface InvoiceEditorProps {
@@ -54,6 +54,15 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
   // EPP State
   const [eppSplits, setEppSplits] = useState<EppSplit[]>([]);
   const [applyingEpp, setApplyingEpp] = useState(false);
+
+  // Package Switcher State
+  const [changePkgItemId, setChangePkgItemId] = useState<number | null>(null);
+  const [changePkgItemName, setChangePkgItemName] = useState<string>("");
+  const [pkgFilter, setPkgFilter] = useState({ search: "", panel_watt: "", panel_qty: "", type: "all" });
+  const [pkgResults, setPkgResults] = useState<any[]>([]);
+  const [pkgSearching, setPkgSearching] = useState(false);
+  const [switchingPkgId, setSwitchingPkgId] = useState<string | null>(null);
+  const [pkgSearched, setPkgSearched] = useState(false);
 
   const refreshHistory = () => setHistoryRefreshKey((k) => k + 1);
 
@@ -423,6 +432,61 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
   const totalSplitAmount = eppSplits.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
   const totalFees = eppSplits.reduce((sum, s) => sum + (s.feeAmount || 0), 0);
   const remainingAmount = cleanInvoiceTotal - totalSplitAmount;
+
+  // Package Switcher Handlers
+  const openChangePkg = (item: any) => {
+    setChangePkgItemId(item.id);
+    setChangePkgItemName(item.package_name || item.description || "Package");
+    setPkgFilter({ search: "", panel_watt: "", panel_qty: "", type: "all" });
+    setPkgResults([]);
+    setPkgSearched(false);
+  };
+
+  const closeChangePkg = () => {
+    setChangePkgItemId(null);
+    setPkgResults([]);
+    setPkgSearched(false);
+  };
+
+  const handleSearchPackages = async () => {
+    setPkgSearching(true);
+    setPkgSearched(false);
+    try {
+      const result = await searchPackagesForSwitch(pkgFilter);
+      if (result.success) {
+        setPkgResults(result.packages || []);
+      } else {
+        alert("Search failed: " + result.error);
+      }
+    } catch (e) {
+      alert("Search error. Please try again.");
+    } finally {
+      setPkgSearching(false);
+      setPkgSearched(true);
+    }
+  };
+
+  const handleSelectPackage = async (pkg: any) => {
+    if (!changePkgItemId || !invoiceData?.id) return;
+    if (!confirm(`Switch to "${pkg.package_name}"? This will update the description and price.`)) return;
+
+    setSwitchingPkgId(pkg.bubble_id);
+    try {
+      const result = await switchInvoiceItemPackage(changePkgItemId, pkg.bubble_id);
+      if (result.success) {
+        const refreshed = await getInvoiceDetails(invoiceData.id, version);
+        if (refreshed) setInvoiceData(refreshed);
+        refreshHistory();
+        closeChangePkg();
+      } else {
+        alert(result.error || "Failed to switch package");
+      }
+    } catch (e) {
+      alert("An error occurred. Please try again.");
+    } finally {
+      setSwitchingPkgId(null);
+    }
+  };
 
   // Calculate total from items (client-side for display)
   const calculatedTotal = invoiceData?.items?.reduce((sum: number, item: any) => {
@@ -1005,25 +1069,47 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                         const isEditing = editingItemId === item.id;
                         const itemData = isEditing && editingItem ? editingItem : item;
                         const isFee = item.inv_item_type === "epp_fee" || item.description?.includes("Processing Fee");
+                        const isPackage = !!item.is_a_package;
 
                         return (
-                          <tr key={item.id || index} className={`${isEditing ? "bg-primary-50/20" : "hover:bg-secondary-50/20 transition-all group"} ${isFee ? "bg-blue-50/30" : ""}`}>
+                          <tr key={item.id || index} className={`${isEditing ? "bg-primary-50/20" : "hover:bg-secondary-50/20 transition-all group"} ${isFee ? "bg-blue-50/30" : ""} ${isPackage && !isEditing ? "bg-emerald-50/20" : ""}`}>
                             <td className="px-6 py-4">
                               {isEditing ? (
-                                <textarea
-                                  value={itemData.description}
-                                  onChange={(e) => handleItemFieldChange("description", e.target.value)}
-                                  className="w-full min-h-[4rem] py-1 px-2 rounded border border-primary-200 text-sm font-medium outline-none resize-y"
-                                />
+                                isPackage ? (
+                                  // Package items: description is locked — show read-only with a note
+                                  <div className="space-y-1.5">
+                                    <div
+                                      className="text-sm font-semibold leading-tight whitespace-pre-wrap text-secondary-700 bg-secondary-50 border border-secondary-200 rounded px-2 py-1.5 min-h-[4rem]"
+                                      dangerouslySetInnerHTML={{ __html: (item.description || 'N/A').replace(/\n/g, '<br />') }}
+                                    />
+                                    <p className="text-[10px] font-medium text-amber-600 flex items-center gap-1">
+                                      <Package className="w-3 h-3" />
+                                      Description is locked — use &ldquo;Change Package&rdquo; to switch
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <textarea
+                                    value={itemData.description}
+                                    onChange={(e) => handleItemFieldChange("description", e.target.value)}
+                                    className="w-full min-h-[4rem] py-1 px-2 rounded border border-primary-200 text-sm font-medium outline-none resize-y"
+                                  />
+                                )
                               ) : (
                                 <div>
                                   <div
                                     className={`text-sm font-semibold leading-tight whitespace-pre-wrap ${isFee ? "text-blue-700" : "text-secondary-900"}`}
                                     dangerouslySetInnerHTML={{ __html: (item.description || 'N/A').replace(/\n/g, '<br />') }}
                                   />
-                                  {item.inv_item_type && (
-                                    <div className="text-[9px] font-bold text-secondary-400 uppercase mt-1 tracking-tight">{item.inv_item_type}</div>
-                                  )}
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    {item.inv_item_type && (
+                                      <div className="text-[9px] font-bold text-secondary-400 uppercase tracking-tight">{item.inv_item_type}</div>
+                                    )}
+                                    {isPackage && (
+                                      <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded uppercase tracking-tight flex items-center gap-0.5">
+                                        <Package className="w-2.5 h-2.5" /> Package
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </td>
@@ -1077,6 +1163,16 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                                 ) : (
                                   version === "v2" && !isFee && (
                                     <>
+                                      {isPackage && (
+                                        <button
+                                          onClick={() => openChangePkg(item)}
+                                          title="Change Package"
+                                          className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded transition-colors"
+                                        >
+                                          <RefreshCw className="w-3 h-3" />
+                                          Change Pkg
+                                        </button>
+                                      )}
                                       <button onClick={() => startEditingItem(item)} className="p-1.5 text-secondary-400 hover:text-primary-600 rounded-md hover:bg-primary-50 transition-colors">
                                         <Edit2 className="w-3.5 h-3.5" />
                                       </button>
@@ -1146,6 +1242,201 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                   <p className="text-[11px] font-medium italic">No payments recorded</p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ================================================================ */}
+        {/* Change Package Modal                                              */}
+        {/* ================================================================ */}
+        {changePkgItemId !== null && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col border border-secondary-200 overflow-hidden">
+
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-secondary-200 bg-gradient-to-r from-emerald-50 to-white">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-100 rounded-lg">
+                    <RefreshCw className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-secondary-900">Change Package</h3>
+                    <p className="text-[11px] text-secondary-500 mt-0.5 truncate max-w-[400px]">{changePkgItemName}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={closeChangePkg}
+                  className="p-1.5 hover:bg-secondary-100 rounded-md transition-colors text-secondary-400 hover:text-secondary-900"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Filter Row */}
+              <div className="px-6 py-4 border-b border-secondary-100 bg-secondary-50/40">
+                <p className="text-[10px] font-bold text-secondary-400 uppercase tracking-wider mb-3">Search Filters</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {/* Keyword Search */}
+                  <div className="md:col-span-1">
+                    <label className="text-[10px] font-bold text-secondary-500 uppercase block mb-1.5">Package Name</label>
+                    <input
+                      type="text"
+                      value={pkgFilter.search}
+                      onChange={(e) => setPkgFilter(f => ({ ...f, search: e.target.value }))}
+                      onKeyDown={(e) => e.key === "Enter" && handleSearchPackages()}
+                      placeholder="e.g. 10kW Residential"
+                      className="w-full h-9 px-3 rounded border border-secondary-200 focus:border-emerald-500 text-sm font-medium outline-none transition-colors"
+                    />
+                  </div>
+
+                  {/* Panel Watt */}
+                  <div>
+                    <label className="text-[10px] font-bold text-secondary-500 uppercase block mb-1.5">Panel (Watt/Model)</label>
+                    <input
+                      type="text"
+                      value={pkgFilter.panel_watt}
+                      onChange={(e) => setPkgFilter(f => ({ ...f, panel_watt: e.target.value }))}
+                      onKeyDown={(e) => e.key === "Enter" && handleSearchPackages()}
+                      placeholder="e.g. 550, Jinko"
+                      className="w-full h-9 px-3 rounded border border-secondary-200 focus:border-emerald-500 text-sm font-medium outline-none transition-colors"
+                    />
+                  </div>
+
+                  {/* No. of Panels */}
+                  <div>
+                    <label className="text-[10px] font-bold text-secondary-500 uppercase block mb-1.5">No. of Panels</label>
+                    <input
+                      type="number"
+                      value={pkgFilter.panel_qty}
+                      onChange={(e) => setPkgFilter(f => ({ ...f, panel_qty: e.target.value }))}
+                      onKeyDown={(e) => e.key === "Enter" && handleSearchPackages()}
+                      placeholder="e.g. 20"
+                      className="w-full h-9 px-3 rounded border border-secondary-200 focus:border-emerald-500 text-sm font-medium outline-none transition-colors"
+                    />
+                  </div>
+
+                  {/* Type */}
+                  <div>
+                    <label className="text-[10px] font-bold text-secondary-500 uppercase block mb-1.5">Package Type</label>
+                    <select
+                      value={pkgFilter.type}
+                      onChange={(e) => setPkgFilter(f => ({ ...f, type: e.target.value }))}
+                      className="w-full h-9 px-2 rounded border border-secondary-200 focus:border-emerald-500 text-sm outline-none transition-colors"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="residential">Residential</option>
+                      <option value="tariff_b">Tariff B</option>
+                      <option value="tariff_d">Tariff D</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end mt-3">
+                  <button
+                    onClick={handleSearchPackages}
+                    disabled={pkgSearching}
+                    className="h-9 px-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold uppercase tracking-wider flex items-center gap-2 transition-colors disabled:opacity-60"
+                  >
+                    {pkgSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                    Search Packages
+                  </button>
+                </div>
+              </div>
+
+              {/* Results Table */}
+              <div className="flex-1 overflow-auto">
+                {pkgSearching ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
+                    <span className="ml-3 text-sm text-secondary-500">Searching packages...</span>
+                  </div>
+                ) : !pkgSearched ? (
+                  <div className="py-16 text-center">
+                    <Package className="w-10 h-10 mx-auto text-secondary-200 mb-3" />
+                    <p className="text-[12px] font-semibold text-secondary-400">Use filters above and click Search</p>
+                    <p className="text-[11px] text-secondary-300 mt-1">You can also leave all filters empty to browse all packages</p>
+                  </div>
+                ) : pkgResults.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <Package className="w-10 h-10 mx-auto text-secondary-200 mb-3" />
+                    <p className="text-[12px] font-semibold text-secondary-400">No packages found</p>
+                    <p className="text-[11px] text-secondary-300 mt-1">Try adjusting your filters</p>
+                  </div>
+                ) : (
+                  <table className="w-full border-collapse">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="border-b border-secondary-200 bg-secondary-50">
+                        <th className="px-5 py-3 text-left text-[10px] font-bold text-secondary-400 uppercase tracking-wider">Package Name</th>
+                        <th className="px-5 py-3 text-left text-[10px] font-bold text-secondary-400 uppercase tracking-wider">Panel</th>
+                        <th className="px-4 py-3 text-center text-[10px] font-bold text-secondary-400 uppercase tracking-wider w-20">Panels</th>
+                        <th className="px-4 py-3 text-center text-[10px] font-bold text-secondary-400 uppercase tracking-wider w-28">Type</th>
+                        <th className="px-5 py-3 text-right text-[10px] font-bold text-secondary-400 uppercase tracking-wider w-36">Price (RM)</th>
+                        <th className="px-4 py-3 text-right text-[10px] font-bold text-secondary-400 uppercase tracking-wider w-28">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-secondary-100">
+                      {pkgResults.map((pkg) => (
+                        <tr key={pkg.id} className="hover:bg-emerald-50/30 transition-colors group">
+                          <td className="px-5 py-3">
+                            <div className="text-sm font-semibold text-secondary-900">{pkg.package_name}</div>
+                            {pkg.invoice_desc && (
+                              <div className="text-[10px] text-secondary-400 mt-0.5 line-clamp-1">{pkg.invoice_desc}</div>
+                            )}
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="text-sm text-secondary-700 font-medium">{pkg.panel || '—'}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="text-sm font-mono font-bold text-secondary-700">{pkg.panel_qty ?? '—'}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                              pkg.type === 'residential' ? 'text-blue-700 bg-blue-50 border-blue-200' :
+                              pkg.type === 'tariff_b' ? 'text-purple-700 bg-purple-50 border-purple-200' :
+                              pkg.type === 'tariff_d' ? 'text-orange-700 bg-orange-50 border-orange-200' :
+                              'text-secondary-600 bg-secondary-50 border-secondary-200'
+                            }`}>
+                              {pkg.type || 'N/A'}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <span className="text-sm font-bold font-mono text-secondary-900">
+                              {pkg.price ? parseFloat(pkg.price).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => handleSelectPackage(pkg)}
+                              disabled={!!switchingPkgId}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ml-auto transition-colors disabled:opacity-50"
+                            >
+                              {switchingPkgId === pkg.bubble_id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Check className="w-3 h-3" />
+                              )}
+                              Select
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-3 border-t border-secondary-100 bg-secondary-50/40 flex items-center justify-between">
+                <span className="text-[10px] text-secondary-400">
+                  {pkgSearched && !pkgSearching && `${pkgResults.length} package${pkgResults.length !== 1 ? 's' : ''} found`}
+                </span>
+                <button
+                  onClick={closeChangePkg}
+                  className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-secondary-600 hover:bg-secondary-100 rounded transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}

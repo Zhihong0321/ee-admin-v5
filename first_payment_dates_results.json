@@ -1,0 +1,982 @@
+[
+  {
+    "invoice_number": "1008152",
+    "bubble_id": "1765091913373x832998343636680700",
+    "customer_name": "KRISHNA MURTHI A/L K SUBRAMANIAM (ATAP)",
+    "created_at": "2025-12-07T07:18:33.954Z",
+    "first_payment_date": "2025-11-27"
+  },
+  {
+    "invoice_number": "1008276",
+    "bubble_id": "1766910723110x859067081631465500",
+    "customer_name": "LIM LI CHIN (ATAP)",
+    "created_at": "2025-12-28T08:32:03.626Z",
+    "first_payment_date": "2025-12-27"
+  },
+  {
+    "invoice_number": "INV-1008151",
+    "bubble_id": "bdae8e33-fd72-4dc3-a8ac-1633710dd691",
+    "customer_name": "Chow Jing Chong",
+    "created_at": "2026-01-29T04:27:37.090Z",
+    "first_payment_date": "2026-01-31"
+  },
+  {
+    "invoice_number": "1008349",
+    "bubble_id": "1767527336365x862050708788871200",
+    "customer_name": "CHEW RAY MING (ATAP)",
+    "created_at": "2026-01-04T11:48:57.228Z",
+    "first_payment_date": "2026-01-03"
+  },
+  {
+    "invoice_number": "INV-1008377",
+    "bubble_id": "df7d36c4-a0e0-4ebe-8b40-55c037dcbcd7",
+    "customer_name": "Mr Wong",
+    "created_at": "2026-02-23T01:20:00.180Z",
+    "first_payment_date": "2026-02-15"
+  },
+  {
+    "invoice_number": "1008526",
+    "bubble_id": "1769925455262x974601543803207700",
+    "customer_name": "RAMAYEE A/P SUBRAMANIAM",
+    "created_at": "2026-02-01T05:57:35.572Z",
+    "first_payment_date": "2026-01-30"
+  },
+  {
+    "invoice_number": "INV-1008402",
+    "bubble_id": "30400bf0-e1f4-40f1-b400-411791ef4057",
+    "customer_name": "LEE THIEN BOON",
+    "created_at": "2026-02-26T05:03:01.874Z",
+    "first_payment_date": "2026-02-28"
+  },
+  {
+    "invoice_number": "INV-1008361",
+    "bubble_id": "d6762eac-5b14-4fed-82c1-f4adf768383c",
+    "customer_name": "AW MUN LAI",
+    "created_at": "2026-02-14T09:36:43.660Z",
+    "first_payment_date": "2026-02-14"
+  },
+  {
+    "invoice_number": "INV-1008360",
+    "bubble_id": "3f9d8606-9f6f-41fd-8ad8-96109eb1885d",
+    "customer_name": "KUEK SIOW HOCK",
+    "created_at": "2026-02-14T09:15:34.633Z",
+    "first_payment_date": "2026-02-17"
+  },
+  {
+    "invoice_number": "1008532",
+    "bubble_id": "1769926340720x294573873479811100",
+    "customer_name": "GOH LAY MUI  (Shop-Lot)",
+    "created_at": "2026-02-01T06:12:21.150Z",
+    "first_payment_date": "2026-01-23"
+  },
+  {
+    "invoice_number": "INV-1008384",
+    "bubble_id": "4162dede-38b2-423f-bf1c-17b6e7266067",
+    "customer_name": "Tan You chan",
+    "created_at": "2026-02-23T09:08:33.358Z",
+    "first_payment_date": "2026-02-15"
+  },
+  {
+    "invoice_number": "1008294",
+    "bubble_id": "1767160278409x952873084909518800",
+    "customer_name": "LAI LI KUN (ATAP)",
+    "created_at": "2025-12-31T05:51:19.743Z",
+    "first_payment_date": "2025-08-11"
+  },
+  {
+    "invoice_number": "INV-1008170",
+    "bubble_id": "7b92371e-a931-4777-9298-ae53c00ca541",
+    "customer_name": "Cho Chooi Peng",
+    "created_at": "2026-01-30T08:23:52.004Z",
+    "first_payment_date": "2026-01-30"
+  },
+  {
+    "invoice_number": "INV-1008337",
+    "bubble_id": "b4a7803e-90a2-44df-8daa-1d4927234716",
+    "customer_name": "CHAI YONG BING",
+    "created_at": "2026-02-12T14:18:00.416Z",
+    "first_payment_date": "2026-02-13"
+  },
+  {
+    "invoice_number": "INV-1008389",
+    "bubble_id": "e36d626c-9983-4cfc-bd64-de9e28f7c27e",
+    "customer_name": "CHAN CHENG FATT (ATAP)",
+    "created_at": "2026-02-24T03:35:19.022Z",
+    "first_payment_date": "2026-02-23"
+  },
+  {
+    "invoice_number": "INV-1008204",
+    "bubble_id": "dc04b1d2-1813-4ba8-be86-06e9c82709f3",
+    "customer_name": "ENG PO ER (ATAP)",
+    "created_at": "2026-01-31T14:57:23.879Z",
+    "first_payment_date": "2026-01-31"
+  },
+  {
+    "invoice_number": "INV-1008203",
+    "bubble_id": "0f2a1442-b976-4c50-9847-655a1b088156",
+    "customer_name": "Tuan Amirul Ref",
+    "created_at": "2026-01-31T14:05:28.356Z",
+    "first_payment_date": "2026-01-31"
+  },
+  {
+    "invoice_number": "INV-1008308",
+    "bubble_id": "94a97727-07a9-4cd6-a62b-8aa2c2915f24",
+    "customer_name": "Sh Ab Razak Bin Sh Mohamad ",
+    "created_at": "2026-02-11T13:30:31.284Z",
+    "first_payment_date": "2026-02-26"
+  },
+  {
+    "invoice_number": "INV-1008086",
+    "bubble_id": "977225af-6e12-46f6-bf10-7c12cf0d88ff",
+    "customer_name": "Max Ng",
+    "created_at": "2026-01-22T03:50:15.077Z",
+    "first_payment_date": "2025-12-16"
+  },
+  {
+    "invoice_number": "INV-1008410",
+    "bubble_id": "e70c347c-cd4f-437a-9fef-e61fd5cedeba",
+    "customer_name": "TIONG SIEW TIEN",
+    "created_at": "2026-02-27T06:42:03.876Z",
+    "first_payment_date": "2026-02-27"
+  },
+  {
+    "invoice_number": "1008040",
+    "bubble_id": "1763816632379x496923160750850050",
+    "customer_name": "DANIEL LO KHAI SHEN",
+    "created_at": "2025-11-22T13:03:53.678Z",
+    "first_payment_date": "2025-11-21"
+  },
+  {
+    "invoice_number": "1008042",
+    "bubble_id": "1763853827076x456132977863426050",
+    "customer_name": "Mohd Hosaini Bin Abd Jalil (No 27)",
+    "created_at": "2025-11-22T23:23:48.580Z",
+    "first_payment_date": "2025-11-21"
+  },
+  {
+    "invoice_number": "1008143",
+    "bubble_id": "1764947566669x218650283375591420",
+    "customer_name": "SAY MUI KWEE",
+    "created_at": "2025-12-05T15:12:47.376Z",
+    "first_payment_date": "2025-12-04"
+  },
+  {
+    "invoice_number": "1008159",
+    "bubble_id": "1765172352500x269184438637428740",
+    "customer_name": "TAM DI YANG",
+    "created_at": "2025-12-08T05:39:12.925Z",
+    "first_payment_date": "2025-11-25"
+  },
+  {
+    "invoice_number": "1008320",
+    "bubble_id": "1767328747555x913292915453984800",
+    "customer_name": "Chin Jing Yuan",
+    "created_at": "2026-01-02T04:39:09.487Z",
+    "first_payment_date": "2025-12-19"
+  },
+  {
+    "invoice_number": "1008391",
+    "bubble_id": "1768014266609x285265590626549760",
+    "customer_name": "Yuki Teng Hui Xin (Atap)",
+    "created_at": "2026-01-10T03:04:27.322Z",
+    "first_payment_date": "2026-01-09"
+  },
+  {
+    "invoice_number": "1008543",
+    "bubble_id": "1770029536754x934799162911752200",
+    "customer_name": "MARY WONG",
+    "created_at": "2026-02-02T10:52:17.856Z",
+    "first_payment_date": "2026-01-29"
+  },
+  {
+    "invoice_number": "1008533",
+    "bubble_id": "1769995521827x449914766010875900",
+    "customer_name": "Yik Wai San",
+    "created_at": "2026-02-02T01:25:23.063Z",
+    "first_payment_date": "2026-01-28"
+  },
+  {
+    "invoice_number": "1008522",
+    "bubble_id": "1769487572415x634510767162392600",
+    "customer_name": "NG SEE HUI (ATAP)",
+    "created_at": "2026-01-27T04:19:33.351Z",
+    "first_payment_date": "2026-01-27"
+  },
+  {
+    "invoice_number": "1007917",
+    "bubble_id": "1762510247413x101838776776785920",
+    "customer_name": "LIEW MIEW CHOONG (ATAP)",
+    "created_at": "2025-11-07T10:10:47.657Z",
+    "first_payment_date": "2025-11-21"
+  },
+  {
+    "invoice_number": "1008435",
+    "bubble_id": "1768594400823x535666973979967500",
+    "customer_name": "Cheong Hong Wee (Atap)",
+    "created_at": "2026-01-16T20:13:22.604Z",
+    "first_payment_date": "2026-01-15"
+  },
+  {
+    "invoice_number": "1008549",
+    "bubble_id": "1770045031689x548470781234118660",
+    "customer_name": "LAW KOI CHUNG ",
+    "created_at": "2026-02-02T15:10:32.028Z",
+    "first_payment_date": "2026-01-13"
+  },
+  {
+    "invoice_number": "1008093",
+    "bubble_id": "1764499254224x283571210562830340",
+    "customer_name": "Mohd Hosaini Bin Abd Jalil (No 1)",
+    "created_at": "2025-11-30T10:40:55.783Z",
+    "first_payment_date": "2025-11-29"
+  },
+  {
+    "invoice_number": "1008296",
+    "bubble_id": "1767191365701x365213258818519040",
+    "customer_name": "MOHD AZAM BIN MOHAMAD (ATAP) SEJAPAC SB",
+    "created_at": "2025-12-31T14:29:26.688Z",
+    "first_payment_date": "2025-12-30"
+  },
+  {
+    "invoice_number": "INV-1008298",
+    "bubble_id": "74d51cd9-4e74-469e-b136-389921169b85",
+    "customer_name": "YAP JUN HONG",
+    "created_at": "2026-02-10T07:27:50.488Z",
+    "first_payment_date": "2026-02-10"
+  },
+  {
+    "invoice_number": "1007889",
+    "bubble_id": "1762135508426x187227105921597440",
+    "customer_name": "DOREEN CHEE (ATAP)",
+    "created_at": "2025-11-03T02:05:08.760Z",
+    "first_payment_date": "2025-11-03"
+  },
+  {
+    "invoice_number": "1008054",
+    "bubble_id": "1763898224954x639890662991593500",
+    "customer_name": "Chong Jyh Shyong",
+    "created_at": "2025-11-23T11:43:46.669Z",
+    "first_payment_date": "2025-11-26"
+  },
+  {
+    "invoice_number": "1008072",
+    "bubble_id": "1764219159089x457110985642868740",
+    "customer_name": "TANG SIANG HONG",
+    "created_at": "2025-11-27T04:52:40.401Z",
+    "first_payment_date": "2025-11-29"
+  },
+  {
+    "invoice_number": "1008110",
+    "bubble_id": "1764604618772x553894327288332300",
+    "customer_name": "Sam Poh Lin",
+    "created_at": "2025-12-01T15:56:59.524Z",
+    "first_payment_date": "2025-11-29"
+  },
+  {
+    "invoice_number": "1008161",
+    "bubble_id": "1765182594782x310705091875700740",
+    "customer_name": "HA LIGHTING WHOLESALE  SDN BHD (ATAP-Commercial)",
+    "created_at": "2025-12-08T08:29:55.548Z",
+    "first_payment_date": "2025-12-04"
+  },
+  {
+    "invoice_number": "INV-1008333",
+    "bubble_id": "fbdc778c-ef54-4c13-981b-5fadca3f5cb8",
+    "customer_name": "Cheng Qi Si (ATAP)",
+    "created_at": "2026-02-12T10:25:38.374Z",
+    "first_payment_date": "2026-02-15"
+  },
+  {
+    "invoice_number": "1008398",
+    "bubble_id": "1768133263130x735027247824764900",
+    "customer_name": "Ng Yann Chyn@ Ng Yann Fey (ATAP)",
+    "created_at": "2026-01-11T12:07:44.055Z",
+    "first_payment_date": "2026-01-10"
+  },
+  {
+    "invoice_number": "1008399",
+    "bubble_id": "1768189099730x137768819332481020",
+    "customer_name": "V M RAMACHANDRAN A/L MUTHUSAMY",
+    "created_at": "2026-01-12T03:38:20.602Z",
+    "first_payment_date": "2026-01-27"
+  },
+  {
+    "invoice_number": "1008098",
+    "bubble_id": "1764564388100x723465204540899300",
+    "customer_name": "TEA BEE CHOON (ATAP)",
+    "created_at": "2025-12-01T04:46:28.843Z",
+    "first_payment_date": "2025-11-18"
+  },
+  {
+    "invoice_number": "1008400",
+    "bubble_id": "1768208114898x973537295086649300",
+    "customer_name": "LAU WEE CHIN (ATAP)",
+    "created_at": "2026-01-12T08:55:15.806Z",
+    "first_payment_date": "2026-01-14"
+  },
+  {
+    "invoice_number": "1008477",
+    "bubble_id": "1768806221204x256811518380998660",
+    "customer_name": "WEE JOKE NGOH ",
+    "created_at": "2026-01-19T07:03:41.681Z",
+    "first_payment_date": "2026-01-23"
+  },
+  {
+    "invoice_number": "1008512",
+    "bubble_id": "1769403431152x149366083617816580",
+    "customer_name": "Max Ng",
+    "created_at": "2026-01-26T04:57:12.462Z",
+    "first_payment_date": "2025-12-15"
+  },
+  {
+    "invoice_number": "1008534",
+    "bubble_id": "1769997706675x612432632832065500",
+    "customer_name": "Cho Chooi Peng",
+    "created_at": "2026-02-02T02:01:57.949Z",
+    "first_payment_date": "2026-01-29"
+  },
+  {
+    "invoice_number": "INV-1008229",
+    "bubble_id": "11040674-2498-434b-982c-466bbb80134b",
+    "customer_name": "Go Sing Kang (ATAP)",
+    "created_at": "2026-02-04T04:10:56.968Z",
+    "first_payment_date": "2026-02-09"
+  },
+  {
+    "invoice_number": "1008541",
+    "bubble_id": "1770014768964x911315148402851800",
+    "customer_name": "CHENG KHING YIN",
+    "created_at": "2026-02-02T06:46:11.514Z",
+    "first_payment_date": "2026-01-30"
+  },
+  {
+    "invoice_number": "1008544",
+    "bubble_id": "1770040469581x957875401165635600",
+    "customer_name": "Suan Teck Ching ",
+    "created_at": "2026-02-02T13:54:31.380Z",
+    "first_payment_date": "2026-01-30"
+  },
+  {
+    "invoice_number": "1008542",
+    "bubble_id": "1770014997756x814713631847743500",
+    "customer_name": "Chow Jing Chong",
+    "created_at": "2026-02-02T06:49:59.943Z",
+    "first_payment_date": "2026-01-30"
+  },
+  {
+    "invoice_number": "1008548",
+    "bubble_id": "1770044891844x238633059220979700",
+    "customer_name": "Chong Shek Har (ATAP)",
+    "created_at": "2026-02-02T15:08:11.617Z",
+    "first_payment_date": "2026-01-30"
+  },
+  {
+    "invoice_number": "INV-1008431",
+    "bubble_id": "aae76870-fcd9-4095-8054-4383132d9d25",
+    "customer_name": "Seng Hoe Motor (M) Sdn Bhd",
+    "created_at": "2026-02-28T15:00:29.616Z",
+    "first_payment_date": "2026-02-28"
+  },
+  {
+    "invoice_number": "1008371",
+    "bubble_id": "1767781549782x938580067228319700",
+    "customer_name": "T S BEACH RESORT SDN. BHD. (ATAP)",
+    "created_at": "2026-01-07T10:25:50.515Z",
+    "first_payment_date": "2026-01-08"
+  },
+  {
+    "invoice_number": "INV-1008240",
+    "bubble_id": "64b23e7b-13a5-4cab-ac93-e4a36088a953",
+    "customer_name": "TEO KIM SENG (ATAP)",
+    "created_at": "2026-02-05T15:32:57.206Z",
+    "first_payment_date": "2026-01-31"
+  },
+  {
+    "invoice_number": "1008305",
+    "bubble_id": "1767259887507x737466101217886200",
+    "customer_name": "THAI TONG TRADING SDN. BHD. (ATAP - Commercial)",
+    "created_at": "2026-01-01T09:31:27.800Z",
+    "first_payment_date": "2026-01-04"
+  },
+  {
+    "invoice_number": "1008477",
+    "bubble_id": "1768799543211x596759908565123100",
+    "customer_name": "LEE FANG TEEN (ATAP)",
+    "created_at": "2026-01-19T05:12:24.350Z",
+    "first_payment_date": "2026-01-15"
+  },
+  {
+    "invoice_number": "INV-1008424",
+    "bubble_id": "5a78fcc6-1f2c-4314-9c2a-149fa481ce5f",
+    "customer_name": "Kalaiselvan A/L Arumugam (ATAP)",
+    "created_at": "2026-02-28T07:15:13.413Z",
+    "first_payment_date": "2026-02-28"
+  },
+  {
+    "invoice_number": "1007996",
+    "bubble_id": "1763607921313x333230927166308350",
+    "customer_name": "Ee Chin Hock (add-on case)",
+    "created_at": "2025-11-20T03:05:21.682Z",
+    "first_payment_date": "2026-01-28"
+  },
+  {
+    "invoice_number": "1008051",
+    "bubble_id": "1763892356149x101705796832985090",
+    "customer_name": "NG JIN CHUAN",
+    "created_at": "2025-11-23T10:05:56.847Z",
+    "first_payment_date": "2025-11-22"
+  },
+  {
+    "invoice_number": "1008500",
+    "bubble_id": "1769049909218x646784479918293000",
+    "customer_name": "TF23 CURRY PUFF SDN BHD",
+    "created_at": "2026-01-22T02:45:09.623Z",
+    "first_payment_date": "2026-01-21"
+  },
+  {
+    "invoice_number": "1008064",
+    "bubble_id": "1763985144074x991562850429829100",
+    "customer_name": "MUHAMED IQBAL BIN ABDULLAH (ATAP)",
+    "created_at": "2025-11-24T11:52:24.126Z",
+    "first_payment_date": "2025-11-21"
+  },
+  {
+    "invoice_number": "1008557",
+    "bubble_id": "1770625559192x691482875833876500",
+    "customer_name": "LEE CHEW LI (DIESEL TRUCK SB)",
+    "created_at": "2026-02-09T08:25:59.573Z",
+    "first_payment_date": "2026-02-27"
+  },
+  {
+    "invoice_number": "1008558",
+    "bubble_id": "1770626846451x595611071444156400",
+    "customer_name": "DIESEL TRUCK SDN BHD (COMMERCIAL)",
+    "created_at": "2026-02-09T08:47:26.754Z",
+    "first_payment_date": "2026-02-27"
+  },
+  {
+    "invoice_number": "1008358",
+    "bubble_id": "1767605082432x400928611535683600",
+    "customer_name": "BURHANUDDIN HALMI BIN HASIN",
+    "created_at": "2026-01-05T09:24:42.931Z",
+    "first_payment_date": "2026-01-03"
+  },
+  {
+    "invoice_number": "1008400",
+    "bubble_id": "1768191229675x781539930755039200",
+    "customer_name": "ABDUL RASHID BIN OMAR (ATAP)",
+    "created_at": "2026-01-12T04:13:50.253Z",
+    "first_payment_date": "2026-01-13"
+  },
+  {
+    "invoice_number": "1008035",
+    "bubble_id": "1763804187685x787560438540795900",
+    "customer_name": "LIM WEI HUI",
+    "created_at": "2025-11-22T09:36:28.248Z",
+    "first_payment_date": "2025-11-21"
+  },
+  {
+    "invoice_number": "1008287",
+    "bubble_id": "1767074039217x698000589910966300",
+    "customer_name": "Mazlan Bin Othman",
+    "created_at": "2025-12-30T05:54:01.215Z",
+    "first_payment_date": "2025-12-13"
+  },
+  {
+    "invoice_number": "1007984",
+    "bubble_id": "1763584353080x331042948900454400",
+    "customer_name": "Neo Geok Lian (Atap)",
+    "created_at": "2025-11-19T20:32:35.489Z",
+    "first_payment_date": "2025-11-18"
+  },
+  {
+    "invoice_number": "1008545",
+    "bubble_id": "1770042946152x143735091011256320",
+    "customer_name": "LAW KOI YEN ",
+    "created_at": "2026-02-02T14:35:48.242Z",
+    "first_payment_date": "2026-01-13"
+  },
+  {
+    "invoice_number": "1007938",
+    "bubble_id": "1762766954765x808837397203386400",
+    "customer_name": "Foo Yong Soon",
+    "created_at": "2025-11-10T09:29:15.052Z",
+    "first_payment_date": "2025-11-08"
+  },
+  {
+    "invoice_number": "1008137",
+    "bubble_id": "1764915093299x380890650223575000",
+    "customer_name": "LIM WOOI HOW (ATAP)",
+    "created_at": "2025-12-05T06:11:33.527Z",
+    "first_payment_date": "2025-12-04"
+  },
+  {
+    "invoice_number": "1008085",
+    "bubble_id": "1764387132021x689063305517989900",
+    "customer_name": "HON LIP MIN (ATAP)",
+    "created_at": "2025-11-29T03:32:12.497Z",
+    "first_payment_date": "2025-11-28"
+  },
+  {
+    "invoice_number": "1007993",
+    "bubble_id": "1763607077486x952115253818163200",
+    "customer_name": "Tan shau chuan (NO 8,SHOP-LOT, ATAP)",
+    "created_at": "2025-11-20T02:51:17.925Z",
+    "first_payment_date": "2025-11-18"
+  },
+  {
+    "invoice_number": "1008565",
+    "bubble_id": "1771835179001x401196664413487100",
+    "customer_name": "Chinese Association Kluang",
+    "created_at": "2026-02-23T08:26:20.164Z",
+    "first_payment_date": "2026-02-24"
+  },
+  {
+    "invoice_number": "1008522",
+    "bubble_id": "1769484881417x655743336026472400",
+    "customer_name": "LAM SIEW HONG (ATAP)",
+    "created_at": "2026-01-27T03:34:42.257Z",
+    "first_payment_date": "2025-11-23"
+  },
+  {
+    "invoice_number": "1008071",
+    "bubble_id": "1764129722961x385810072694685700",
+    "customer_name": "Kua Boon Ling",
+    "created_at": "2025-11-26T04:02:05.098Z",
+    "first_payment_date": "2026-01-06"
+  },
+  {
+    "invoice_number": "1007948",
+    "bubble_id": "1763009901970x781819299321872400",
+    "customer_name": "Ng Lih Shiang (CANCEL PACKAGE REFUND RM1000 ON 12/01/2026)",
+    "created_at": "2025-11-13T04:58:23.026Z",
+    "first_payment_date": "2025-11-12"
+  },
+  {
+    "invoice_number": "1008305",
+    "bubble_id": "1767255677235x450784965626167300",
+    "customer_name": "GOH HEE TONG (ATAP)",
+    "created_at": "2026-01-01T08:21:17.656Z",
+    "first_payment_date": "2026-01-04"
+  },
+  {
+    "invoice_number": "1008113",
+    "bubble_id": "1764741984366x477650548370178050",
+    "customer_name": "ALL BEST STEEL CONSTRUCTION SDN. BHD. (ATAP)",
+    "created_at": "2025-12-03T06:06:24.790Z",
+    "first_payment_date": "2025-12-02"
+  },
+  {
+    "invoice_number": "1008287",
+    "bubble_id": "1767076935042x757602810582794200",
+    "customer_name": "YAP HONG SIN (EV CHANGE)",
+    "created_at": "2025-12-30T06:42:15.923Z",
+    "first_payment_date": "2025-12-29"
+  },
+  {
+    "invoice_number": "1008310",
+    "bubble_id": "1767263009163x918867958652207100",
+    "customer_name": "NG CHEE HONG",
+    "created_at": "2026-01-01T10:23:31.379Z",
+    "first_payment_date": "2025-12-31"
+  },
+  {
+    "invoice_number": "1008316",
+    "bubble_id": "1767270208997x965250686008688600",
+    "customer_name": "Ng Chew Yen",
+    "created_at": "2026-01-01T12:23:29.869Z",
+    "first_payment_date": "2025-12-31"
+  },
+  {
+    "invoice_number": "1007990",
+    "bubble_id": "1763606592305x991599578087424000",
+    "customer_name": "Tan Shau Chuan  (NO 10 SHOP-LOT))",
+    "created_at": "2025-11-20T02:43:12.914Z",
+    "first_payment_date": "2025-11-18"
+  },
+  {
+    "invoice_number": "INV-1008366",
+    "bubble_id": "c4a9db96-0ead-48e5-b68d-cb151ba9c247",
+    "customer_name": "TANG PEI XIN",
+    "created_at": "2026-02-15T10:06:57.475Z",
+    "first_payment_date": "2026-02-23"
+  },
+  {
+    "invoice_number": "INV-1008343",
+    "bubble_id": "f8cc5ff4-3cf0-40d6-9844-dcd4710c1a93",
+    "customer_name": "NG YUET ENG",
+    "created_at": "2026-02-12T18:47:57.963Z",
+    "first_payment_date": "2026-02-10"
+  },
+  {
+    "invoice_number": "INV-1008394",
+    "bubble_id": "8e76ea67-054f-49cd-830a-6b014cf17db8",
+    "customer_name": "CHIN KUM SUN (ATAP)",
+    "created_at": "2026-02-24T12:07:26.562Z",
+    "first_payment_date": "2026-02-25"
+  },
+  {
+    "invoice_number": "INV-1008395",
+    "bubble_id": "91acc667-6e70-4bb4-a23a-8ab845dc7324",
+    "customer_name": "Sharazali Bin Saban (ATAP)",
+    "created_at": "2026-02-24T14:49:20.726Z",
+    "first_payment_date": "2026-02-26"
+  },
+  {
+    "invoice_number": "INV-1008421",
+    "bubble_id": "e5f87cb6-8917-4eba-91c3-521a37fc111b",
+    "customer_name": "MOHD RAZIF BIN SENIN @ ATTAN",
+    "created_at": "2026-02-28T05:56:19.402Z",
+    "first_payment_date": "2026-02-28"
+  },
+  {
+    "invoice_number": "1008396",
+    "bubble_id": "1768118811109x391817559622549500",
+    "customer_name": "SITI AMINAH BINTI OTHMAN (ATAP)",
+    "created_at": "2026-01-11T08:06:51.539Z",
+    "first_payment_date": "2026-01-10"
+  },
+  {
+    "invoice_number": "1008356",
+    "bubble_id": "1767602970083x863000703587057700",
+    "customer_name": "CHENG MEAW IM (ATAP)",
+    "created_at": "2026-01-05T08:49:31.307Z",
+    "first_payment_date": "2026-01-06"
+  },
+  {
+    "invoice_number": "1008537",
+    "bubble_id": "1770008878735x397183921518018560",
+    "customer_name": "NOOR HAMIRUL ANUAR BIN NORDIN",
+    "created_at": "2026-02-02T05:07:59.189Z",
+    "first_payment_date": "2026-01-30"
+  },
+  {
+    "invoice_number": "1008565",
+    "bubble_id": "1771985204909x475104041759408100",
+    "customer_name": "Adrian Liew Ee Yam",
+    "created_at": "2026-02-25T02:06:45.377Z",
+    "first_payment_date": "2026-02-25"
+  },
+  {
+    "invoice_number": "1008525",
+    "bubble_id": "1769496988961x134062343312375800",
+    "customer_name": "SOOI WEI CHEON (ATAP)",
+    "created_at": "2026-01-27T06:56:29.930Z",
+    "first_payment_date": "2026-01-28"
+  },
+  {
+    "invoice_number": "INV-1008397",
+    "bubble_id": "d73ada5b-f781-4546-9a0d-dfcc0a75da56",
+    "customer_name": "Chew Chye Choon",
+    "created_at": "2026-02-25T08:31:04.481Z",
+    "first_payment_date": "2026-02-15"
+  },
+  {
+    "invoice_number": "1008524",
+    "bubble_id": "1769496345767x623816861823270900",
+    "customer_name": "LAW SEE LAI",
+    "created_at": "2026-01-27T06:45:46.750Z",
+    "first_payment_date": "2026-01-30"
+  },
+  {
+    "invoice_number": "INV-1008398",
+    "bubble_id": "663a1b59-7e1f-4094-95c6-b92ac64652a5",
+    "customer_name": "Thong Peik Choo",
+    "created_at": "2026-02-25T08:46:47.477Z",
+    "first_payment_date": "2026-02-14"
+  },
+  {
+    "invoice_number": "1008516",
+    "bubble_id": "1769420811468x702187221746974700",
+    "customer_name": "CHUA CHOON KIM (ATAP)",
+    "created_at": "2026-01-26T09:46:52.947Z",
+    "first_payment_date": "2026-01-25"
+  },
+  {
+    "invoice_number": "1008175",
+    "bubble_id": "1765327656638x924139746623488000",
+    "customer_name": "HO COMMERCIAL SERVICES (SELCO)",
+    "created_at": "2025-12-10T00:47:37.878Z",
+    "first_payment_date": "2025-12-08"
+  },
+  {
+    "invoice_number": "1008437",
+    "bubble_id": "1768633775959x939862387787825200",
+    "customer_name": "MARIANNE CHEW BEE LING (ATAP)",
+    "created_at": "2026-01-17T07:09:36.654Z",
+    "first_payment_date": "2026-01-16"
+  },
+  {
+    "invoice_number": "1008384",
+    "bubble_id": "1767933648106x520034910244438000",
+    "customer_name": "LING YUK MING (ATAP)",
+    "created_at": "2026-01-09T04:40:49.528Z",
+    "first_payment_date": "2026-01-09"
+  },
+  {
+    "invoice_number": "INV-1008448",
+    "bubble_id": "566f73a8-d682-4faf-af7e-d1eeaf65d36a",
+    "customer_name": "KHOR KOK SENG",
+    "created_at": "2026-03-04T07:15:16.416Z",
+    "first_payment_date": "2026-03-04"
+  },
+  {
+    "invoice_number": "1008074",
+    "bubble_id": "1764225653427x377169967352119300",
+    "customer_name": "IGT Supplies Sdn Bhd (Commercial)",
+    "created_at": "2025-11-27T06:40:54.509Z",
+    "first_payment_date": "2026-01-18"
+  },
+  {
+    "invoice_number": "1008546",
+    "bubble_id": "1770043937129x820026723765059600",
+    "customer_name": "LIM CHEE SING",
+    "created_at": "2026-02-02T14:52:18.266Z",
+    "first_payment_date": "2025-12-31"
+  },
+  {
+    "invoice_number": "1007943",
+    "bubble_id": "1762842115862x400785349949521900",
+    "customer_name": "LEE HAN SENG (CANCEL PACKAGE ON 12/01/2026 RM1000)",
+    "created_at": "2025-11-11T06:21:56.543Z",
+    "first_payment_date": "2025-11-08"
+  },
+  {
+    "invoice_number": "1007945",
+    "bubble_id": "1762845543016x876243214344126500",
+    "customer_name": "NORSAFINA BINTI MOHAMED",
+    "created_at": "2025-11-11T07:19:03.201Z",
+    "first_payment_date": "2025-11-18"
+  },
+  {
+    "invoice_number": "1007956",
+    "bubble_id": "1763101744164x219910231010050050",
+    "customer_name": "ORIENTAL CERAMICS TILE PRODUCTS ",
+    "created_at": "2025-11-14T06:29:05.416Z",
+    "first_payment_date": "2025-11-20"
+  },
+  {
+    "invoice_number": "1008297",
+    "bubble_id": "1767195852363x553243580931768300",
+    "customer_name": "MOHAMAD ZULHAFIZ BIN MOHD AZAM (ATAP)",
+    "created_at": "2025-12-31T15:44:12.663Z",
+    "first_payment_date": "2025-12-30"
+  },
+  {
+    "invoice_number": "1008382",
+    "bubble_id": "1767930154522x764229560377802800",
+    "customer_name": "CHENG CHIN FATT (ATAP)",
+    "created_at": "2026-01-09T03:42:34.344Z",
+    "first_payment_date": "2026-01-08"
+  },
+  {
+    "invoice_number": "1007905",
+    "bubble_id": "1762398454327x551959519875563500",
+    "customer_name": "GE MARRIE (ATAP)",
+    "created_at": "2025-11-06T03:07:35.686Z",
+    "first_payment_date": "2025-11-07"
+  },
+  {
+    "invoice_number": "1007986",
+    "bubble_id": "1763606223237x148317248232095740",
+    "customer_name": "TAN SHAU LEE (ATAP)",
+    "created_at": "2025-11-20T02:37:03.516Z",
+    "first_payment_date": "2025-11-18"
+  },
+  {
+    "invoice_number": "1008324",
+    "bubble_id": "1767344782029x503549742313635800",
+    "customer_name": "Tay Chan Kor",
+    "created_at": "2026-01-02T09:06:24.339Z",
+    "first_payment_date": "2025-12-01"
+  },
+  {
+    "invoice_number": "1008355",
+    "bubble_id": "1767600992638x672718351750922200",
+    "customer_name": "Ong Li Yen",
+    "created_at": "2026-01-05T08:16:34.173Z",
+    "first_payment_date": "2026-01-04"
+  },
+  {
+    "invoice_number": "INV-1008434",
+    "bubble_id": "44c51230-096e-4f47-849c-e6c0fd33df57",
+    "customer_name": "LIM RUI YEONG",
+    "created_at": "2026-03-01T08:19:21.395Z",
+    "first_payment_date": "2026-02-28"
+  },
+  {
+    "invoice_number": "1008057",
+    "bubble_id": "1763957538080x259893922022555650",
+    "customer_name": "LIEW MIU YOONG (ATAP)",
+    "created_at": "2025-11-24T04:12:18.633Z",
+    "first_payment_date": "2025-11-21"
+  },
+  {
+    "invoice_number": "1008274",
+    "bubble_id": "1766909226924x213014302931288060",
+    "customer_name": "TEE SIAN SAN (ATAP)",
+    "created_at": "2025-12-28T08:07:07.657Z",
+    "first_payment_date": "2026-01-02"
+  },
+  {
+    "invoice_number": "1008431",
+    "bubble_id": "1768473443322x448570941386784800",
+    "customer_name": "Tan Han Seen  (IGT Supplies Sdn Bhd)",
+    "created_at": "2026-01-15T10:37:23.864Z",
+    "first_payment_date": "2026-01-18"
+  },
+  {
+    "invoice_number": "INV-1008359",
+    "bubble_id": "160d1fc5-523a-4371-bcde-2ba53c76c549",
+    "customer_name": "Ms Shi Jia",
+    "created_at": "2026-02-14T03:36:15.662Z",
+    "first_payment_date": "2026-02-15"
+  },
+  {
+    "invoice_number": "INV-1008468",
+    "bubble_id": "2e71a4a3-281e-4116-92a6-7fb8fb65b940",
+    "customer_name": "Lee Kim Hoi @ Lee Kim Hai",
+    "created_at": "2026-03-06T05:00:54.069Z",
+    "first_payment_date": "2026-03-06"
+  },
+  {
+    "invoice_number": "1008540",
+    "bubble_id": "1770014585806x231621472903757820",
+    "customer_name": "Lee Zhan Hong (ATAP)",
+    "created_at": "2026-02-02T06:43:07.987Z",
+    "first_payment_date": "2026-01-27"
+  },
+  {
+    "invoice_number": "1008117",
+    "bubble_id": "1764746734763x268470350930771970",
+    "customer_name": "TAN HUEI FENG (ATAP)",
+    "created_at": "2025-12-03T07:25:36.254Z",
+    "first_payment_date": "2025-12-02"
+  },
+  {
+    "invoice_number": "1008523",
+    "bubble_id": "1769495585128x371186884960583700",
+    "customer_name": "PANG KIEN WING (ATAP)",
+    "created_at": "2026-01-27T06:33:06.464Z",
+    "first_payment_date": "2026-01-29"
+  },
+  {
+    "invoice_number": "1008475",
+    "bubble_id": "1768722594636x383405649522065400",
+    "customer_name": "Liew Pui Yee (ATAP)",
+    "created_at": "2026-01-18T07:49:54.723Z",
+    "first_payment_date": "2026-01-16"
+  },
+  {
+    "invoice_number": "1008080",
+    "bubble_id": "1764311434731x284906691352068100",
+    "customer_name": "Yap Hock Lam",
+    "created_at": "2025-11-28T06:30:35.285Z",
+    "first_payment_date": "2025-11-28"
+  },
+  {
+    "invoice_number": "1008513",
+    "bubble_id": "1769412350179x324050139596193800",
+    "customer_name": "DATO GANADAS PANICKER ",
+    "created_at": "2026-01-26T07:25:50.514Z",
+    "first_payment_date": "2026-01-24"
+  },
+  {
+    "invoice_number": "INV-1008371",
+    "bubble_id": "47bd863c-196f-4d0a-b208-a3cc31c47fac",
+    "customer_name": "SOH LIK KUANG",
+    "created_at": "2026-02-19T05:42:21.953Z",
+    "first_payment_date": "2026-02-20"
+  },
+  {
+    "invoice_number": "1008494",
+    "bubble_id": "1768901968190x449671714972631040",
+    "customer_name": "NG JONG SERN",
+    "created_at": "2026-01-20T09:39:28.485Z",
+    "first_payment_date": "2026-01-19"
+  },
+  {
+    "invoice_number": "1008225",
+    "bubble_id": "1766106868955x997282661763121200",
+    "customer_name": "MOHAMAD HEIDI TAN B. MOHAMAD HAIRI TAN (ATAP)",
+    "created_at": "2025-12-19T01:14:29.387Z",
+    "first_payment_date": "2025-12-18"
+  },
+  {
+    "invoice_number": "1008397",
+    "bubble_id": "1768122068740x998131003048853500",
+    "customer_name": "ABU HURAIRAH BIN ZAKARIA (ATAP)",
+    "created_at": "2026-01-11T09:01:09.561Z",
+    "first_payment_date": "2026-01-10"
+  },
+  {
+    "invoice_number": "1007987",
+    "bubble_id": "1763606391641x885514520336269300",
+    "customer_name": "TAN SHAU CHUAN (ATAP)",
+    "created_at": "2025-11-20T02:39:51.843Z",
+    "first_payment_date": "2025-11-18"
+  },
+  {
+    "invoice_number": "1008538",
+    "bubble_id": "1770009049971x664461482277994500",
+    "customer_name": "ENG PO ER (ATAP)",
+    "created_at": "2026-02-02T05:10:50.588Z",
+    "first_payment_date": "2026-01-30"
+  },
+  {
+    "invoice_number": "1008118",
+    "bubble_id": "1764749658816x355064420369694700",
+    "customer_name": "HO LEE KIAN (ATAP)",
+    "created_at": "2025-12-03T08:14:20.704Z",
+    "first_payment_date": "2025-11-20"
+  },
+  {
+    "invoice_number": "1008073",
+    "bubble_id": "1764225088772x835133658468188200",
+    "customer_name": "CHEE YI LING (ATAP)",
+    "created_at": "2025-11-27T06:31:29.686Z",
+    "first_payment_date": "2025-11-29"
+  },
+  {
+    "invoice_number": "1007902",
+    "bubble_id": "1762236191460x340009141808922600",
+    "customer_name": "THEE KIM ANN (ATAP)",
+    "created_at": "2025-11-04T06:03:12.339Z",
+    "first_payment_date": "2025-11-05"
+  },
+  {
+    "invoice_number": "1008220",
+    "bubble_id": "1766028029571x646472602060587000",
+    "customer_name": "CHEONG MEE WAN (ATAP)",
+    "created_at": "2025-12-18T03:20:30.141Z",
+    "first_payment_date": "2025-12-06"
+  },
+  {
+    "invoice_number": "1008384",
+    "bubble_id": "1767939913445x149272359145570300",
+    "customer_name": "SIBLING KITCHEN SDN. BHD.(SHOP LOT - ATAP)",
+    "created_at": "2026-01-09T06:25:13.706Z",
+    "first_payment_date": "2026-01-03"
+  },
+  {
+    "invoice_number": "1008358",
+    "bubble_id": "1767624599446x578392123307196400",
+    "customer_name": "LIM LEE PENG (ATAP)",
+    "created_at": "2026-01-05T14:49:59.814Z",
+    "first_payment_date": "2025-12-30"
+  },
+  {
+    "invoice_number": "1008422",
+    "bubble_id": "1768316106240x766725898727325700",
+    "customer_name": "CHOK YIN PING (ATAP)",
+    "created_at": "2026-01-13T14:55:06.396Z",
+    "first_payment_date": "2026-01-12"
+  },
+  {
+    "invoice_number": "1008157",
+    "bubble_id": "1765100140019x187632080764010500",
+    "customer_name": "LEE KIN SING (Cancel Package Refund Deposit  RM1515 30/12/2025)",
+    "created_at": "2025-12-07T09:35:40.471Z",
+    "first_payment_date": "2025-12-06"
+  }
+]

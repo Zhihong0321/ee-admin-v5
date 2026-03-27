@@ -1,0 +1,147 @@
+﻿Connected to PROD DB
+
+=== submit_payment TABLE CHECK ===
+Columns: id (integer), bubble_id (text), last_synced_at (timestamp with time zone), created_at (timestamp with time zone), updated_at (timestamp with time zone), terminal (text), payment_date (timestamp with time zone), created_date (timestamp with time zone), amount (numeric), linked_invoice (text), payment_method_v2 (text), modified_date (timestamp with time zone), attachment (text), created_by (text), linked_customer (text), linked_agent (text), linked_installment (text), issuer_bank (text)
+
+submit_payment total records: 3
+
+No status column or error: column "status" does not exist
+
+=== submitted_payment PENDING RECORDS (the 2 records) ===
+[
+  {
+    "id": 148,
+    "bubble_id": "pay_19df8ffcbd7a1618",
+    "status": "pending",
+    "amount": "17848.2",
+    "payment_date": "2026-03-09T00:00:00.000Z",
+    "payment_method": "CASH",
+    "payment_method_v2": "CASH",
+    "remark": "[Ref: 247837555]",
+    "created_at": "2026-03-09T02:40:49.171Z",
+    "linked_invoice": "1761802709328x300147038257152000",
+    "linked_agent": "1739418497027x556910891742789600",
+    "linked_customer": "1761714185788x905253428405207000",
+    "attachment": [
+      "https://calculator.atap.solar/uploads/uploaded_payment/payment_1761802709328x300147038257152000_1773024049175_69a803cb.pdf"
+    ]
+  },
+  {
+    "id": 147,
+    "bubble_id": "pay_43f387322f6abe7b",
+    "status": "pending",
+    "amount": "7860",
+    "payment_date": "2026-03-06T00:00:00.000Z",
+    "payment_method": "CREDIT CARD",
+    "payment_method_v2": "CREDIT CARD",
+    "remark": "[Ref: N/A]",
+    "created_at": "2026-03-09T02:24:50.948Z",
+    "linked_invoice": "1761448269112x532141350830473200",
+    "linked_agent": "1739157787604x944826037874196500",
+    "linked_customer": "1761448269112x153970165178433540",
+    "attachment": [
+      "https://calculator.atap.solar/uploads/uploaded_payment/payment_1761448269112x532141350830473200_1773023090954_c6ad269d.webp"
+    ]
+  }
+]
+
+=== JOINED VIEW - simulate what getSubmittedPayments returns ===
+Joined result:
+[
+  {
+    "id": 147,
+    "bubble_id": "pay_43f387322f6abe7b",
+    "status": "pending",
+    "amount": "7860",
+    "payment_date": "2026-03-06T00:00:00.000Z",
+    "linked_invoice": "1761448269112x532141350830473200",
+    "linked_agent": "1739157787604x944826037874196500",
+    "linked_customer": "1761448269112x153970165178433540",
+    "agent_match": "1739157787604x944826037874196500",
+    "agent_name": "Teng Kah Kent",
+    "customer_match": "1761448269112x153970165178433540",
+    "customer_name": "Yeo Soh Hoon (Atap)",
+    "invoice_match": "1761448269112x532141350830473200",
+    "invoice_id": 1007809
+  },
+  {
+    "id": 148,
+    "bubble_id": "pay_19df8ffcbd7a1618",
+    "status": "pending",
+    "amount": "17848.2",
+    "payment_date": "2026-03-09T00:00:00.000Z",
+    "linked_invoice": "1761802709328x300147038257152000",
+    "linked_agent": "1739418497027x556910891742789600",
+    "linked_customer": "1761714185788x905253428405207000",
+    "agent_match": "1739418497027x556910891742789600",
+    "agent_name": "MARTIN HING ",
+    "customer_match": "1761714185788x905253428405207000",
+    "customer_name": "FAISAL BIN MOHD NOR (ATAP)",
+    "invoice_match": "1761802709328x300147038257152000",
+    "invoice_id": 1007849
+  }
+]
+
+=== submit_payment SAMPLE (first 20 rows) ===
+[
+  {
+    "id": 3,
+    "bubble_id": "1768194167149x688167690931798000",
+    "last_synced_at": "2026-01-12T07:08:03.269Z",
+    "created_at": "2026-01-12T07:08:03.269Z",
+    "updated_at": "2026-01-12T07:08:03.269Z",
+    "terminal": "1732778472398x593884569568542700",
+    "payment_date": "2026-01-08T16:00:00.000Z",
+    "created_date": "2026-01-12T05:02:47.871Z",
+    "amount": "11980",
+    "linked_invoice": "1767781549782x938580067228319700",
+    "payment_method_v2": "CASH BANK IN",
+    "modified_date": "2026-01-12T05:02:47.872Z",
+    "attachment": "//a317bcce3a4814c60687fe307b0dbe6b.cdn.bubble.io/f1768194110897x309238301725801340/IMG_3437.jpeg?auto=enhance&q=75&fm=jpg",
+    "created_by": "1705563140333x593203138592086700",
+    "linked_customer": "1767781549782x971736626593792000",
+    "linked_agent": "1705563245735x664603112520810500",
+    "linked_installment": null,
+    "issuer_bank": null
+  },
+  {
+    "id": 2,
+    "bubble_id": "1768180175017x524013594776436740",
+    "last_synced_at": "2026-01-12T07:08:03.264Z",
+    "created_at": "2026-01-12T07:08:03.264Z",
+    "updated_at": "2026-01-12T07:08:03.264Z",
+    "terminal": "1732778481594x865889068930039800",
+    "payment_date": "2026-01-10T16:00:00.000Z",
+    "created_date": "2026-01-12T01:09:35.508Z",
+    "amount": "23496",
+    "linked_invoice": "1748349861195x352802467325673500",
+    "payment_method_v2": "CREDIT CARD LOCAL",
+    "modified_date": "2026-01-12T01:09:35.509Z",
+    "attachment": "//a317bcce3a4814c60687fe307b0dbe6b.cdn.bubble.io/f1768180128304x845645013681746400/IMG_20260111_174344.jpg?auto=enhance&q=75&fm=jpg",
+    "created_by": "1744529718265x401371796902632000",
+    "linked_customer": "1748349861195x247450848233259000",
+    "linked_agent": "1744530083507x877434364005711900",
+    "linked_installment": "1734427545934x801407294880350200",
+    "issuer_bank": "public bank"
+  },
+  {
+    "id": 1,
+    "bubble_id": "1767074158221x222979136615874560",
+    "last_synced_at": "2026-01-12T07:08:03.245Z",
+    "created_at": "2026-01-12T07:08:03.245Z",
+    "updated_at": "2026-01-12T07:08:03.245Z",
+    "terminal": "1732778481594x865889068930039800",
+    "payment_date": "2025-12-13T16:00:00.000Z",
+    "created_date": "2025-12-30T05:56:00.395Z",
+    "amount": "1265",
+    "linked_invoice": "1767074039217x698000589910966300",
+    "payment_method_v2": "CREDIT CARD LOCAL",
+    "modified_date": "2025-12-30T05:56:00.396Z",
+    "attachment": "//a317bcce3a4814c60687fe307b0dbe6b.cdn.bubble.io/f1767074134671x220828264784231680/1000385160.jpg?auto=enhance&q=75&fm=jpg",
+    "created_by": "1705563151420x807895867406405100",
+    "linked_customer": "1767074039217x391494533217779700",
+    "linked_agent": "1705563216735x922857428787920900",
+    "linked_installment": null,
+    "issuer_bank": null
+  }
+]
