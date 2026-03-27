@@ -458,8 +458,9 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
       } else {
         alert("Search failed: " + result.error);
       }
-    } catch (e) {
-      alert("Search error. Please try again.");
+    } catch (e: any) {
+      console.error("Search Action Error:", e);
+      alert("Search error: " + (e?.message || String(e)));
     } finally {
       setPkgSearching(false);
       setPkgSearched(true);
@@ -1390,12 +1391,11 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                             <span className="text-sm font-mono font-bold text-secondary-700">{pkg.panel_qty ?? '—'}</span>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
-                              pkg.type === 'residential' ? 'text-blue-700 bg-blue-50 border-blue-200' :
-                              pkg.type === 'tariff_b' ? 'text-purple-700 bg-purple-50 border-purple-200' :
-                              pkg.type === 'tariff_d' ? 'text-orange-700 bg-orange-50 border-orange-200' :
-                              'text-secondary-600 bg-secondary-50 border-secondary-200'
-                            }`}>
+                            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${pkg.type === 'residential' ? 'text-blue-700 bg-blue-50 border-blue-200' :
+                                pkg.type === 'tariff_b' ? 'text-purple-700 bg-purple-50 border-purple-200' :
+                                  pkg.type === 'tariff_d' ? 'text-orange-700 bg-orange-50 border-orange-200' :
+                                    'text-secondary-600 bg-secondary-50 border-secondary-200'
+                              }`}>
                               {pkg.type || 'N/A'}
                             </span>
                           </td>

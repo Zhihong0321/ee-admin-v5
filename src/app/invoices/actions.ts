@@ -805,13 +805,13 @@ export async function searchPackagesForSwitch(query: {
 
     const results = await db
       .select({
-        id: packages.id,
+        id: sql<number>`CAST(${packages.id} AS INTEGER)`,
         bubble_id: packages.bubble_id,
         package_name: packages.package_name,
         invoice_desc: packages.invoice_desc,
         panel: packages.panel,
-        panel_qty: packages.panel_qty,
-        price: packages.price,
+        panel_qty: sql<number>`CAST(${packages.panel_qty} AS INTEGER)`,
+        price: sql<string>`CAST(${packages.price} AS TEXT)`,
         type: packages.type,
       })
       .from(packages)
@@ -819,7 +819,19 @@ export async function searchPackagesForSwitch(query: {
       .orderBy(desc(packages.id))
       .limit(50);
 
-    return { success: true, packages: results };
+    // Final safety check: ensure everything is a plain serializable object
+    const serializedPackages = results.map(p => ({
+      id: Number(p.id),
+      bubble_id: String(p.bubble_id || ""),
+      package_name: String(p.package_name || ""),
+      invoice_desc: String(p.invoice_desc || ""),
+      panel: String(p.panel || ""),
+      panel_qty: p.panel_qty ? Number(p.panel_qty) : null,
+      price: String(p.price || "0"),
+      type: String(p.type || ""),
+    }));
+
+    return { success: true, packages: serializedPackages };
   } catch (error) {
     console.error("Error searching packages:", error);
     return { success: false, error: String(error), packages: [] };
