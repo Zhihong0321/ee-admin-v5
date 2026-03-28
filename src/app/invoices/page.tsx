@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, RefreshCw, Database, Trash2, RotateCcw } from "lucide-react";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, RefreshCw, Database, Trash2, RotateCcw, AlertTriangle } from "lucide-react";
 import { getInvoices, getInvoiceDetails, generateInvoicePdf, triggerInvoiceSync, deleteInvoice, recoverInvoice } from "./actions";
 import InvoiceEditor from "@/components/InvoiceEditor";
 
@@ -16,6 +16,16 @@ function InvoicesContent() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  // Warning Popup State based on expiry date (Apr 20, 2026)
+  // [ NOTICE TO NEXT AI AGENT / DEVELOPER ]
+  // This warning was requested to be removed after April 20, 2026.
+  // Please delete the entire "Warning Popup" block and related state below after this date.
+  const [showWarning, setShowWarning] = useState(() => {
+    const today = new Date();
+    const expiryDate = new Date("2026-04-20");
+    return today < expiryDate;
+  });
 
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
@@ -127,6 +137,32 @@ function InvoicesContent() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Warning Popup */}
+      {showWarning && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
+          <div className="bg-red-950 text-white p-8 md:p-12 rounded-3xl shadow-2xl max-w-2xl w-full border border-red-900/50 transform animate-in zoom-in-95 duration-300">
+            <div className="flex flex-col items-center text-center space-y-8">
+              <div className="p-4 bg-red-900/30 rounded-2xl border border-red-500/30">
+                <AlertTriangle className="w-16 h-16 text-red-500 animate-pulse" />
+              </div>
+              <div className="space-y-4">
+                <h3 className="text-3xl font-black tracking-tight uppercase">Important Notice</h3>
+                <div className="h-1 w-20 bg-red-500 mx-auto rounded-full"></div>
+                <p className="text-xl md:text-2xl font-bold leading-relaxed text-red-100">
+                  [ WHEN EDIT INVOICE, DO NOT EDIT PACKAGE. PLEASE USE CHANGE PACKAGE FUNCTION ]
+                </p>
+              </div>
+              <button
+                onClick={() => setShowWarning(false)}
+                className="w-full py-4 bg-white text-red-950 font-black text-lg rounded-2xl hover:bg-red-50 transition-all shadow-xl hover:scale-[1.02] active:scale-[0.98] uppercase tracking-wider"
+              >
+                I Understand
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Invoice Editor Modal */}
       {selectedInvoice && (
         <InvoiceEditor
