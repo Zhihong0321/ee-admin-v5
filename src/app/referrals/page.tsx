@@ -5,8 +5,10 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  FileText,
   Filter,
   Handshake,
+  Link2,
   Mail,
   MapPin,
   Phone,
@@ -17,7 +19,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { getReferralAgents, getReferrals, updateReferral } from "./actions";
+import { getReferralAgents, getReferrals, searchReferralInvoices, updateReferral } from "./actions";
 
 type ReferralRow = {
   id: number;
@@ -50,6 +52,18 @@ type AgentOption = {
   contact: string | null;
   email: string | null;
   agent_type: string | null;
+};
+
+type InvoiceOption = {
+  id: number;
+  bubble_id: string | null;
+  invoice_number: string | null;
+  linked_customer: string | null;
+  customer_name: string | null;
+  total_amount: string | number | null;
+  invoice_date: string | Date | null;
+  linked_referral: string | null;
+  is_linked_elsewhere: boolean;
 };
 
 const STATUS_OPTIONS = ["All", "Pending", "Contacted", "Qualified", "Converted", "Won", "Lost", "Rejected"];
@@ -99,6 +113,7 @@ export default function ReferralsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
   const [totalRows, setTotalRows] = useState(0);
@@ -106,6 +121,9 @@ export default function ReferralsPage() {
   const [stats, setStats] = useState({ total: 0, assigned: 0, unassigned: 0, pending: 0 });
   const [editingReferral, setEditingReferral] = useState<ReferralRow | null>(null);
   const [agentSearch, setAgentSearch] = useState("");
+  const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [invoiceResults, setInvoiceResults] = useState<InvoiceOption[]>([]);
+  const [activeTab, setActiveTab] = useState<"details" | "invoice">("details");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
@@ -173,6 +191,29 @@ export default function ReferralsPage() {
     return agents.find((agent) => String(agent.id) === editingReferral.linked_agent) || null;
   }, [agents, editingReferral]);
 
+  const selectedInvoice = useMemo(() => {
+    if (!editingReferral?.linked_invoice) return null;
+    return invoiceResults.find((invoice) => invoice.bubble_id === editingReferral.linked_invoice) || null;
+  }, [invoiceResults, editingReferral]);
+
+  async function loadInvoiceMatches(referralId: number, searchTerm = invoiceSearch) {
+    setLoadingInvoices(true);
+    try {
+      const result = await searchReferralInvoices(referralId, searchTerm);
+      if (result.success) {
+        setInvoiceResults(result.invoices);
+      } else {
+        console.error("Failed to fetch invoices", result.error);
+        setInvoiceResults([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch invoices", error);
+      setInvoiceResults([]);
+    } finally {
+      setLoadingInvoices(false);
+    }
+  }
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
@@ -188,7 +229,12 @@ export default function ReferralsPage() {
   const handleEditClick = (referral: ReferralRow) => {
     setEditingReferral({ ...referral });
     setAgentSearch(referral.agent_name || "");
+    const initialInvoiceSearch = referral.customer_name || referral.name || referral.linked_customer_profile || "";
+    setInvoiceSearch(initialInvoiceSearch);
+    setInvoiceResults([]);
+    setActiveTab("details");
     setIsEditModalOpen(true);
+    void loadInvoiceMatches(referral.id, initialInvoiceSearch);
   };
 
   const handleSaveReferral = async (e: React.FormEvent) => {
@@ -200,6 +246,7 @@ export default function ReferralsPage() {
       const result = await updateReferral(editingReferral.id, {
         status: editingReferral.status || "Pending",
         linked_agent: editingReferral.linked_agent || null,
+        linked_invoice: editingReferral.linked_invoice || null,
       });
 
       if (result.success) {
@@ -489,10 +536,38 @@ export default function ReferralsPage() {
                 <p className="text-sm text-secondary-500 mt-0.5">
                   {editingReferral.name || editingReferral.bubble_id || `Referral #${editingReferral.id}`}
                 </p>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("details")}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      activeTab === "details"
+                        ? "bg-primary-600 text-white"
+                        : "bg-secondary-100 text-secondary-600 hover:bg-secondary-200"
+                    }`}
+                  >
+                    Details
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("invoice")}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                      activeTab === "invoice"
+                        ? "bg-primary-600 text-white"
+                        : "bg-secondary-100 text-secondary-600 hover:bg-secondary-200"
+                    }`}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Invoice Link
+                  </button>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setIsEditModalOpen(false)}
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setInvoiceResults([]);
+                }}
                 className="p-2 hover:bg-secondary-100 rounded-full transition-colors"
               >
                 <X className="h-6 w-6 text-secondary-500" />
@@ -500,160 +575,317 @@ export default function ReferralsPage() {
             </div>
 
             <form id="referral-edit-form" onSubmit={handleSaveReferral} className="flex-1 overflow-y-auto p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-secondary-700">Referral Name</label>
-                  <input
-                    type="text"
-                    className="input bg-secondary-50"
-                    value={editingReferral.name || ""}
-                    disabled
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-secondary-700">Mobile Number</label>
-                  <input
-                    type="text"
-                    className="input bg-secondary-50"
-                    value={editingReferral.mobile_number || ""}
-                    disabled
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-secondary-700">Customer Profile</label>
-                  <input
-                    type="text"
-                    className="input bg-secondary-50"
-                    value={editingReferral.linked_customer_profile || ""}
-                    disabled
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-secondary-700">Project Type</label>
-                  <input
-                    type="text"
-                    className="input bg-secondary-50"
-                    value={editingReferral.project_type || ""}
-                    disabled
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-secondary-700">Status</label>
-                  <input
-                    list="referral-status-options"
-                    type="text"
-                    className="input"
-                    value={editingReferral.status || "Pending"}
-                    onChange={(e) => setEditingReferral({ ...editingReferral, status: e.target.value })}
-                  />
-                  <datalist id="referral-status-options">
-                    {STATUS_OPTIONS.filter((option) => option !== "All").map((option) => (
-                      <option key={option} value={option} />
-                    ))}
-                  </datalist>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-secondary-700">Assigned Agent</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder={loadingAgents ? "Loading agents..." : "Search by name, email, or contact"}
-                      value={agentSearch}
-                      onChange={(e) => setAgentSearch(e.target.value)}
-                    />
-                    {editingReferral.linked_agent && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingReferral({ ...editingReferral, linked_agent: null });
-                          setAgentSearch("");
-                        }}
-                        className="btn-secondary whitespace-nowrap"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-xs text-secondary-500">
-                    Selected:{" "}
-                    <span className="font-medium text-secondary-800">
-                      {selectedAgent ? `${selectedAgent.name} (ID ${selectedAgent.id})` : "Unassigned"}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-secondary-700">Preferred Agent History</label>
-                <textarea
-                  className="input min-h-[180px] font-mono text-xs leading-5 bg-secondary-50"
-                  value={editingReferral.preferred_agent_log || ""}
-                  readOnly
-                  placeholder="Agent change history will appear here after updates."
-                />
-                <p className="text-xs text-secondary-500">
-                  Every change to the preferred agent is appended with the editor name and timestamp.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-secondary-700">Agent Matches</label>
-                  <span className="text-xs text-secondary-500">{filteredAgents.length} shown</span>
-                </div>
-                <div className="max-h-72 overflow-y-auto rounded-2xl border border-secondary-200 bg-secondary-50/40 p-3 space-y-2">
-                  {filteredAgents.length === 0 ? (
-                    <div className="py-10 text-center text-sm text-secondary-500">
-                      No agents match your search.
+              {activeTab === "details" ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-secondary-700">Referral Name</label>
+                      <input
+                        type="text"
+                        className="input bg-secondary-50"
+                        value={editingReferral.name || ""}
+                        disabled
+                      />
                     </div>
-                  ) : (
-                    filteredAgents.map((agent) => {
-                      const isSelected = editingReferral.linked_agent === String(agent.id);
-                      return (
-                        <button
-                          key={agent.id}
-                          type="button"
-                          onClick={() => {
-                            setEditingReferral({ ...editingReferral, linked_agent: String(agent.id) });
-                            setAgentSearch(agent.name || "");
-                          }}
-                          className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
-                            isSelected
-                              ? "border-primary-400 bg-primary-50"
-                              : "border-secondary-200 bg-white hover:border-primary-200 hover:bg-primary-50/60"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="font-semibold text-secondary-900 truncate">
-                                {agent.name || "Unnamed agent"}
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-secondary-700">Mobile Number</label>
+                      <input
+                        type="text"
+                        className="input bg-secondary-50"
+                        value={editingReferral.mobile_number || ""}
+                        disabled
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-secondary-700">Customer Profile</label>
+                      <input
+                        type="text"
+                        className="input bg-secondary-50"
+                        value={editingReferral.linked_customer_profile || ""}
+                        disabled
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-secondary-700">Project Type</label>
+                      <input
+                        type="text"
+                        className="input bg-secondary-50"
+                        value={editingReferral.project_type || ""}
+                        disabled
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-secondary-700">Status</label>
+                      <input
+                        list="referral-status-options"
+                        type="text"
+                        className="input"
+                        value={editingReferral.status || "Pending"}
+                        onChange={(e) => setEditingReferral({ ...editingReferral, status: e.target.value })}
+                      />
+                      <datalist id="referral-status-options">
+                        {STATUS_OPTIONS.filter((option) => option !== "All").map((option) => (
+                          <option key={option} value={option} />
+                        ))}
+                      </datalist>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-secondary-700">Assigned Agent</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          className="input"
+                          placeholder={loadingAgents ? "Loading agents..." : "Search by name, email, or contact"}
+                          value={agentSearch}
+                          onChange={(e) => setAgentSearch(e.target.value)}
+                        />
+                        {editingReferral.linked_agent && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingReferral({ ...editingReferral, linked_agent: null });
+                              setAgentSearch("");
+                            }}
+                            className="btn-secondary whitespace-nowrap"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-secondary-500">
+                        Selected:{" "}
+                        <span className="font-medium text-secondary-800">
+                          {selectedAgent ? `${selectedAgent.name} (ID ${selectedAgent.id})` : "Unassigned"}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-secondary-700">Preferred Agent History</label>
+                    <textarea
+                      className="input min-h-[180px] font-mono text-xs leading-5 bg-secondary-50"
+                      value={editingReferral.preferred_agent_log || ""}
+                      readOnly
+                      placeholder="Agent change history will appear here after updates."
+                    />
+                    <p className="text-xs text-secondary-500">
+                      Every change to the preferred agent is appended with the editor name and timestamp.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-semibold text-secondary-700">Agent Matches</label>
+                      <span className="text-xs text-secondary-500">{filteredAgents.length} shown</span>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto rounded-2xl border border-secondary-200 bg-secondary-50/40 p-3 space-y-2">
+                      {filteredAgents.length === 0 ? (
+                        <div className="py-10 text-center text-sm text-secondary-500">
+                          No agents match your search.
+                        </div>
+                      ) : (
+                        filteredAgents.map((agent) => {
+                          const isSelected = editingReferral.linked_agent === String(agent.id);
+                          return (
+                            <button
+                              key={agent.id}
+                              type="button"
+                              onClick={() => {
+                                setEditingReferral({ ...editingReferral, linked_agent: String(agent.id) });
+                                setAgentSearch(agent.name || "");
+                              }}
+                              className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
+                                isSelected
+                                  ? "border-primary-400 bg-primary-50"
+                                  : "border-secondary-200 bg-white hover:border-primary-200 hover:bg-primary-50/60"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-secondary-900 truncate">
+                                    {agent.name || "Unnamed agent"}
+                                  </div>
+                                  <div className="mt-1 text-xs text-secondary-500 truncate">
+                                    {agent.contact || "No contact"} {agent.email ? `• ${agent.email}` : ""}
+                                  </div>
+                                </div>
+                                <div className="text-right text-[11px] text-secondary-500 shrink-0">
+                                  <div className="font-mono">ID {agent.id}</div>
+                                  <div>{agent.bubble_id || "No bubble id"}</div>
+                                </div>
                               </div>
-                              <div className="mt-1 text-xs text-secondary-500 truncate">
-                                {agent.contact || "No contact"} {agent.email ? `• ${agent.email}` : ""}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-secondary-200 bg-secondary-50/50 p-5 space-y-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-secondary-900">Link Invoice To Referral</h3>
+                        <p className="text-sm text-secondary-600">
+                          Search existing invoices by customer name or invoice number, then attach the invoice to this referral for referral fee tracking.
+                        </p>
+                      </div>
+                      <div className="text-xs text-secondary-500">
+                        Customer: <span className="font-medium text-secondary-700">{editingReferral.customer_name || editingReferral.name || "N/A"}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-secondary-700">Selected Invoice</label>
+                      <div className="rounded-xl border border-secondary-200 bg-white px-4 py-3">
+                        {selectedInvoice ? (
+                          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-secondary-900">
+                                {selectedInvoice.invoice_number || selectedInvoice.bubble_id || `Invoice #${selectedInvoice.id}`}
+                              </div>
+                              <div className="text-xs text-secondary-500 mt-1">
+                                {selectedInvoice.customer_name || selectedInvoice.linked_customer || "Unknown customer"} • {formatDate(selectedInvoice.invoice_date)}
                               </div>
                             </div>
-                            <div className="text-right text-[11px] text-secondary-500 shrink-0">
-                              <div className="font-mono">ID {agent.id}</div>
-                              <div>{agent.bubble_id || "No bubble id"}</div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-semibold text-secondary-800">{formatMoney(selectedInvoice.total_amount)}</span>
+                              <button
+                                type="button"
+                                onClick={() => setEditingReferral({ ...editingReferral, linked_invoice: null })}
+                                className="btn-secondary"
+                              >
+                                Clear Link
+                              </button>
                             </div>
                           </div>
+                        ) : editingReferral.linked_invoice ? (
+                          <div className="text-sm text-secondary-500">
+                            Linked invoice ID: <span className="font-mono text-secondary-700">{editingReferral.linked_invoice}</span>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-secondary-500">No invoice linked yet.</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-secondary-700">Search Invoices</label>
+                      <div className="flex flex-col gap-3 md:flex-row">
+                        <input
+                          type="text"
+                          className="input"
+                          placeholder="Search by customer name, invoice number, or customer ID"
+                          value={invoiceSearch}
+                          onChange={(e) => setInvoiceSearch(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => loadInvoiceMatches(editingReferral.id, invoiceSearch)}
+                          className="btn-secondary flex items-center justify-center gap-2 whitespace-nowrap"
+                        >
+                          <Search className="h-4 w-4" />
+                          Search
                         </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
+                      </div>
+                      <p className="text-xs text-secondary-500">
+                        Matching is biased toward the linked customer profile and similar customer names.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-semibold text-secondary-700">Invoice Matches</label>
+                      <span className="text-xs text-secondary-500">{invoiceResults.length} shown</span>
+                    </div>
+                    <div className="max-h-[28rem] overflow-y-auto rounded-2xl border border-secondary-200 bg-secondary-50/40 p-3 space-y-2">
+                      {loadingInvoices ? (
+                        Array.from({ length: 4 }).map((_, index) => (
+                          <div key={index} className="animate-pulse rounded-xl border border-secondary-200 bg-white px-4 py-4">
+                            <div className="h-4 w-1/3 rounded bg-secondary-200" />
+                            <div className="mt-3 h-3 w-2/3 rounded bg-secondary-100" />
+                          </div>
+                        ))
+                      ) : invoiceResults.length === 0 ? (
+                        <div className="py-12 text-center text-sm text-secondary-500">
+                          No invoice matches found for this referral.
+                        </div>
+                      ) : (
+                        invoiceResults.map((invoice) => {
+                          const isSelected = editingReferral.linked_invoice === invoice.bubble_id;
+                          return (
+                            <button
+                              key={invoice.id}
+                              type="button"
+                              disabled={invoice.is_linked_elsewhere}
+                              onClick={() => setEditingReferral({ ...editingReferral, linked_invoice: invoice.bubble_id })}
+                              className={`w-full text-left rounded-xl border px-4 py-4 transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${
+                                isSelected
+                                  ? "border-primary-400 bg-primary-50"
+                                  : invoice.is_linked_elsewhere
+                                    ? "border-red-200 bg-red-50/60"
+                                    : "border-secondary-200 bg-white hover:border-primary-200 hover:bg-primary-50/60"
+                              }`}
+                            >
+                              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-semibold text-secondary-900">
+                                      {invoice.invoice_number || invoice.bubble_id || `Invoice #${invoice.id}`}
+                                    </span>
+                                    {isSelected && (
+                                      <span className="inline-flex items-center rounded-full bg-primary-100 px-2 py-0.5 text-[11px] font-semibold text-primary-700">
+                                        Linked
+                                      </span>
+                                    )}
+                                    {invoice.is_linked_elsewhere && (
+                                      <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                                        Already linked elsewhere
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="mt-2 text-sm text-secondary-700">
+                                    {invoice.customer_name || invoice.linked_customer || "Unknown customer"}
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-secondary-500">
+                                    <span>Date: {formatDate(invoice.invoice_date)}</span>
+                                    <span>Customer ID: {invoice.linked_customer || "N/A"}</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <div className="text-right">
+                                    <div className="font-semibold text-secondary-900">{formatMoney(invoice.total_amount)}</div>
+                                    <div className="text-[11px] text-secondary-500 flex items-center gap-1 justify-end">
+                                      <Link2 className="h-3 w-3" />
+                                      {invoice.bubble_id || "No invoice id"}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </form>
 
             <div className="p-6 border-t border-secondary-200 bg-white flex items-center justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setIsEditModalOpen(false)}
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setInvoiceResults([]);
+                }}
                 className="btn-secondary"
               >
                 Cancel
