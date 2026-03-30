@@ -110,7 +110,7 @@ export default function CustomerServicePage() {
 
       <div className="card p-6 border-l-4 border-primary-500">
         <h2 className="text-xl font-semibold mb-4 text-secondary-900">Settings</h2>
-        <div className="flex flex-col md:flex-row items-end gap-4 max-w-md">
+        <div className="flex flex-col md:flex-row items-end gap-4 max-w-3xl">
           <div className="w-full">
             <label className="block text-sm font-medium text-secondary-700 mb-1">
               Customer Service WhatsApp No.

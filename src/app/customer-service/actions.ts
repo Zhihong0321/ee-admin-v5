@@ -78,10 +78,29 @@ export async function createWhatsAppGroup(customerName: string, participants: st
 
   const subject = `${customerName} | Eternalgy Solar`;
 
+  // Determine the correct public URL for your image 
+  // Make sure your Next.js app is publicly reachable, or pass a permanent remote URL.
+  // Using an external placeholder URL just to test if the backend accepts imageUrl/picture
+  // Alternatively if your wrapper accepts base64 here, you can place it.
+  
+  let base64Image = "";
+  try {
+    // Check both potential names
+    const names = ["eternalgy-profile.png", "eternalgy-whatsapp.png"];
+    for (const n of names) {
+      const p = path.join(process.cwd(), "public", n);
+      if (fs.existsSync(p)) {
+        base64Image = `data:image/png;base64,${fs.readFileSync(p).toString("base64")}`;
+        break;
+      }
+    }
+  } catch(e) {}
+
   const payload = {
     sessionId: "eternalgy-auth",
-    subject: subject.slice(0, 50), // WA group names max length is up to 100 now, cap at 50 to be safe
-    participants: cleanedParticipants
+    subject: subject.slice(0, 50),
+    participants: cleanedParticipants,
+    profileImageUrl: base64Image || undefined
   };
 
   try {
@@ -103,37 +122,6 @@ export async function createWhatsAppGroup(customerName: string, participants: st
     }
 
     const data = await response.json();
-    const groupId = data.group?.id || data.group?.jid;
-
-    // After creating the group, attempt to set the group icon
-    if (groupId) {
-      try {
-        const imagePath = path.join(process.cwd(), "public", "eternalgy-whatsapp.png");
-        if (fs.existsSync(imagePath)) {
-          const imageBuffer = fs.readFileSync(imagePath);
-          const base64Image = `data:image/png;base64,${imageBuffer.toString("base64")}`;
-
-          const updatePicUrl = "https://ee-baileys-production.up.railway.app/groups/updateProfilePicture";
-          const picPayload = {
-            sessionId: "eternalgy-auth",
-            jid: groupId,
-            url: base64Image // Base64 data URI
-          };
-          
-          await fetch(updatePicUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(picPayload)
-          });
-        } else {
-          console.warn("WhatsApp group image not found at", imagePath);
-        }
-      } catch (picErr) {
-        console.error("Failed to set group profile picture:", picErr);
-        // Do not fail the whole process if only the picture upload fails
-      }
-    }
-
     return { success: true, group: data.group };
   } catch (error: any) {
     console.error("Failed to create whatsapp group", error);
