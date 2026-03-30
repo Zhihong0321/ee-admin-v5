@@ -77,7 +77,7 @@ export async function getReferrals({ search, status, page = 1, pageSize = 50 }: 
       );
     }
 
-    if (status && status !== "all") {
+    if (status && status.toLowerCase() !== "all") {
       filters.push(eq(referrals.status, status));
     }
 
