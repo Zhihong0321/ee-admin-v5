@@ -62,7 +62,7 @@ export async function getPaidInvoices() {
 }
 
 // 3. Create WhatsApp group
-export async function createWhatsAppGroup(customerName: string, participants: string[]) {
+export async function createWhatsAppGroup(customerName: string, participants: string[], retry: boolean = true) {
   const url = "https://ee-baileys-production.up.railway.app/groups/create";
   
   // Clean participants: remove empty/invalid and non-digits
@@ -112,8 +112,17 @@ export async function createWhatsAppGroup(customerName: string, participants: st
       body: JSON.stringify(payload)
     });
 
+    const data = await response.json();
+
     if (response.status === 409) {
-      return { success: false, error: "Group already exists with these same members (409 Conflict)." };
+      const existingGroupUid = data.groupUid;
+      if (existingGroupUid && retry) {
+        console.log(`Conflict detected for group creation. Attempting to leave existing group: ${existingGroupUid}`);
+        await deleteWhatsAppGroup(existingGroupUid);
+        // Retry once after leaving
+        return await createWhatsAppGroup(customerName, participants, false);
+      }
+      return { success: false, error: data.error || "Group already exists with these same members (409 Conflict)." };
     }
 
     if (!response.ok) {
@@ -121,10 +130,31 @@ export async function createWhatsAppGroup(customerName: string, participants: st
       return { success: false, error: `Baileys API error: ${err}` };
     }
 
-    const data = await response.json();
     return { success: true, group: data.group };
   } catch (error: any) {
     console.error("Failed to create whatsapp group", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteWhatsAppGroup(groupUid: string) {
+  const encodedJid = encodeURIComponent(groupUid);
+  const url = `https://ee-baileys-production.up.railway.app/groups/${encodedJid}?sessionId=eternalgy-auth`;
+
+  try {
+    const response = await fetch(url, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error(`Failed to leave group ${groupUid}: ${err}`);
+      return { success: false, error: err };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error(`Error leaving group ${groupUid}:`, error);
     return { success: false, error: error.message };
   }
 }
