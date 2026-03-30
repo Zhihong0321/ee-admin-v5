@@ -13,6 +13,40 @@ type GetReferralsParams = {
   pageSize?: number;
 };
 
+type ReferralEditRow = {
+  id: number;
+  status: string | null;
+  linked_agent: string | null;
+  preferred_agent_log: string | null;
+};
+
+let referralPreferredAgentLogColumnPromise: Promise<boolean> | null = null;
+
+async function hasReferralPreferredAgentLogColumn() {
+  if (!referralPreferredAgentLogColumnPromise) {
+    referralPreferredAgentLogColumnPromise = db
+      .execute(sql`
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'referral'
+            AND column_name = 'preferred_agent_log'
+        ) AS exists
+      `)
+      .then((result) => {
+        const exists = (result.rows[0] as { exists?: boolean } | undefined)?.exists;
+        return exists === true;
+      })
+      .catch((error) => {
+        referralPreferredAgentLogColumnPromise = null;
+        throw error;
+      });
+  }
+
+  return referralPreferredAgentLogColumnPromise;
+}
+
 export async function getReferralAgents() {
   try {
     const data = await db
@@ -55,6 +89,7 @@ export async function getReferrals({ search, status, page = 1, pageSize = 50 }: 
   try {
     const currentPage = Math.max(1, page);
     const safePageSize = Math.max(1, Math.min(pageSize, 100));
+    const hasPreferredAgentLog = await hasReferralPreferredAgentLogColumn();
 
     const filters = [];
 
@@ -109,7 +144,9 @@ export async function getReferrals({ search, status, page = 1, pageSize = 50 }: 
         created_at: referrals.created_at,
         updated_at: referrals.updated_at,
         linked_agent: referrals.linked_agent,
-        preferred_agent_log: referrals.preferred_agent_log,
+        preferred_agent_log: hasPreferredAgentLog
+          ? sql<string | null>`${sql.identifier("referral")}.${sql.identifier("preferred_agent_log")}`
+          : sql<string | null>`NULL`,
         deal_value: referrals.deal_value,
         commission_earned: referrals.commission_earned,
         linked_invoice: referrals.linked_invoice,
@@ -172,26 +209,33 @@ export async function updateReferral(
   try {
     const user = await getUser();
     const actorName = user?.name || user?.phone || user?.userId || "System Admin";
+    const hasPreferredAgentLog = await hasReferralPreferredAgentLogColumn();
 
     await db.transaction(async (tx) => {
-      const existing = await tx
-        .select({
-          id: referrals.id,
-          linked_agent: referrals.linked_agent,
-          preferred_agent_log: referrals.preferred_agent_log,
-        })
-        .from(referrals)
-        .where(eq(referrals.id, id))
-        .limit(1);
+      const existingResult = await tx.execute(sql`
+        SELECT
+          id,
+          status,
+          linked_agent,
+          ${hasPreferredAgentLog
+            ? sql`${sql.identifier("preferred_agent_log")}`
+            : sql`NULL::text`} AS preferred_agent_log
+        FROM referral
+        WHERE id = ${id}
+        LIMIT 1
+      `);
 
-      if (existing.length === 0) {
+      const current = (existingResult.rows[0] as ReferralEditRow | undefined) ?? null;
+
+      if (!current) {
         throw new Error("Referral not found");
       }
 
-      const current = existing[0];
       const oldAgentId = current.linked_agent?.trim() || null;
       const newAgentId = data.linked_agent?.trim() || null;
       const agentChanged = oldAgentId !== newAgentId;
+      const nextStatus = data.status ?? current.status;
+      const nextUpdatedAt = new Date();
 
       let updatedLog = current.preferred_agent_log;
 
@@ -226,13 +270,25 @@ export async function updateReferral(
         updatedLog = appendPreferredAgentLog(current.preferred_agent_log, entry);
       }
 
+      if (hasPreferredAgentLog) {
+        await tx.execute(sql`
+          UPDATE referral
+          SET
+            status = ${nextStatus},
+            linked_agent = ${newAgentId},
+            preferred_agent_log = ${updatedLog},
+            updated_at = ${nextUpdatedAt}
+          WHERE id = ${id}
+        `);
+        return;
+      }
+
       await tx
         .update(referrals)
         .set({
-          status: data.status,
-          linked_agent: data.linked_agent,
-          preferred_agent_log: updatedLog,
-          updated_at: new Date(),
+          status: nextStatus,
+          linked_agent: newAgentId,
+          updated_at: nextUpdatedAt,
         })
         .where(eq(referrals.id, id));
     });
