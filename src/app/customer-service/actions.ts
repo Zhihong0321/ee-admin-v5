@@ -1,5 +1,7 @@
 "use server";
 
+import fs from "fs";
+import path from "path";
 import { db } from "@/lib/db";
 import { invoices, customers, agents, app_settings } from "@/db/schema";
 import { desc, isNotNull, eq } from "drizzle-orm";
@@ -60,7 +62,7 @@ export async function getPaidInvoices() {
 }
 
 // 3. Create WhatsApp group
-export async function createWhatsAppGroup(invoiceNumber: string, participants: string[]) {
+export async function createWhatsAppGroup(customerName: string, participants: string[]) {
   const url = "https://ee-baileys-production.up.railway.app/groups/create";
   
   // Clean participants: remove empty/invalid and non-digits
@@ -74,11 +76,11 @@ export async function createWhatsAppGroup(invoiceNumber: string, participants: s
     return { success: false, error: "No valid participants provided." };
   }
 
-  const subject = `INV-${invoiceNumber} Support`;
+  const subject = `${customerName} | Eternalgy Solar`;
 
   const payload = {
     sessionId: "eternalgy-auth",
-    subject: subject.slice(0, 25), // WA group names max length is 25
+    subject: subject.slice(0, 50), // WA group names max length is up to 100 now, cap at 50 to be safe
     participants: cleanedParticipants
   };
 
@@ -101,9 +103,46 @@ export async function createWhatsAppGroup(invoiceNumber: string, participants: s
     }
 
     const data = await response.json();
+    const groupId = data.group?.id || data.group?.jid;
+
+    // After creating the group, attempt to set the group icon
+    if (groupId) {
+      try {
+        const imagePath = path.join(process.cwd(), "public", "eternalgy-whatsapp.png");
+        if (fs.existsSync(imagePath)) {
+          const imageBuffer = fs.readFileSync(imagePath);
+          const base64Image = `data:image/png;base64,${imageBuffer.toString("base64")}`;
+
+          const updatePicUrl = "https://ee-baileys-production.up.railway.app/groups/updateProfilePicture";
+          const picPayload = {
+            sessionId: "eternalgy-auth",
+            jid: groupId,
+            url: base64Image // Base64 data URI
+          };
+          
+          await fetch(updatePicUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(picPayload)
+          });
+        } else {
+          console.warn("WhatsApp group image not found at", imagePath);
+        }
+      } catch (picErr) {
+        console.error("Failed to set group profile picture:", picErr);
+        // Do not fail the whole process if only the picture upload fails
+      }
+    }
+
     return { success: true, group: data.group };
   } catch (error: any) {
     console.error("Failed to create whatsapp group", error);
     return { success: false, error: error.message };
   }
 }
+
+export async function testCreateWhatsAppGroup(csNo: string) {
+  // Test function to create a group specifically involving the provided csNo and a hardcoded number.
+  return await createWhatsAppGroup("Test Customer", [csNo, "60182920127"]);
+}
+

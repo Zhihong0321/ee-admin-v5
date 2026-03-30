@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getPaidInvoices, getCustomerServiceNo, saveCustomerServiceNo, createWhatsAppGroup } from "./actions";
+import { getPaidInvoices, getCustomerServiceNo, saveCustomerServiceNo, createWhatsAppGroup, testCreateWhatsAppGroup } from "./actions";
 import { Loader2, Save, MessageCircle, AlertTriangle } from "lucide-react";
 
 export default function CustomerServicePage() {
@@ -10,6 +10,7 @@ export default function CustomerServicePage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const [testingGroup, setTestingGroup] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -65,7 +66,7 @@ export default function CustomerServicePage() {
     ];
 
     try {
-      const res = await createWhatsAppGroup(inv.invoice_number || `ID-${inv.id}`, participants);
+      const res = await createWhatsAppGroup(inv.customer_name || "Unknown Customer", participants);
       if (res.success) {
         alert(`Successfully created WhatsApp Group!`);
       } else {
@@ -75,6 +76,26 @@ export default function CustomerServicePage() {
       alert("An unexpected error occurred.");
     } finally {
       setProcessingId(null);
+    }
+  }
+
+  async function handleTestCreateGroup() {
+    if (!csNo) {
+      alert("Please enter or save a Customer Service WhatsApp number first.");
+      return;
+    }
+    setTestingGroup(true);
+    try {
+      const res = await testCreateWhatsAppGroup(csNo);
+      if (res.success) {
+        alert("Successfully created test WhatsApp Group!");
+      } else {
+        alert(`Could not create test group: ${res.error}`);
+      }
+    } catch (e) {
+      alert("An unexpected error occurred during test.");
+    } finally {
+      setTestingGroup(false);
     }
   }
 
@@ -109,6 +130,14 @@ export default function CustomerServicePage() {
           >
             {savingCsNo ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5 mr-2 inline-block" />}
             {savingCsNo ? "Saving..." : "Save Config"}
+          </button>
+          <button 
+            onClick={handleTestCreateGroup}
+            disabled={testingGroup || !csNo}
+            className="btn-secondary whitespace-nowrap"
+          >
+            {testingGroup ? <Loader2 className="w-5 h-5 animate-spin inline-block mr-2" /> : <MessageCircle className="w-5 h-5 mr-2 inline-block" />}
+            {testingGroup ? "Testing..." : "Test Create WA Group"}
           </button>
         </div>
         <p className="text-xs text-secondary-500 mt-2">Include country code without '+' sign (e.g. 60123456789).</p>
