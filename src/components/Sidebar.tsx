@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, FileDigit, Layers } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, FileDigit, Layers, UserPlus, Headset } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 import { logoutAction } from "@/app/auth-actions";
@@ -14,9 +14,11 @@ const menuItems = [
   { name: "Engineering", href: "/engineering", icon: FileDigit },
   { name: "Payments", href: "/payments", icon: CreditCard },
   { name: "Customers", href: "/customers", icon: Users },
+  { name: "Referrals", href: "/referrals", icon: UserPlus },
   { name: "Catalog", href: "/catalog", icon: Layers },
   { name: "Users", href: "/users", icon: UserCircle },
   { name: "Manage Company", href: "/manage-company", icon: Building2 },
+  { name: "Customer Service", href: "/customer-service", icon: Headset },
   { name: "Sync Center", href: "/sync", icon: RefreshCw },
   { name: "Schema Manager", href: "/schema-manager", icon: Database },
   { name: "API Doc", href: "/api-doc", icon: Globe },
@@ -47,7 +49,9 @@ export function Sidebar({ user }: SidebarProps) {
         return userTags.includes('inventory');
       case '/users':
       case '/customers':
+      case '/referrals':
       case '/manage-company':
+      case '/customer-service':
       case '/sync':
       case '/schema-manager':
       case '/api-doc':

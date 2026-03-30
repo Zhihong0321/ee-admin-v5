@@ -126,6 +126,25 @@ export const customers = pgTable('customer', {
   last_synced_at: timestamp('last_synced_at'),
 });
 
+// Referral Table
+export const referrals = pgTable('referral', {
+  id: serial('id').primaryKey(),
+  bubble_id: text('bubble_id'),
+  linked_customer_profile: text('linked_customer_profile'),
+  name: text('name'),
+  relationship: text('relationship'),
+  mobile_number: text('mobile_number'),
+  status: text('status').default('Pending'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  linked_agent: text('linked_agent'),
+  preferred_agent_log: text('preferred_agent_log'),
+  deal_value: numeric('deal_value', { precision: 10, scale: 2 }).default('0'),
+  commission_earned: numeric('commission_earned', { precision: 10, scale: 2 }).default('0'),
+  linked_invoice: text('linked_invoice'),
+  project_type: text('project_type'),
+});
+
 // Customer History Table (Temporal Archive)
 export const customer_history = pgTable('customer_history', {
   history_id: serial('history_id').primaryKey(),
@@ -486,4 +505,12 @@ export const packages = pgTable('package', {
   special: boolean('special'),
   type: text('type'),
   updated_at: timestamp('updated_at', { withTimezone: true }),
+});
+
+// App Settings Table
+export const app_settings = pgTable('app_settings', {
+  id: serial('id').primaryKey(),
+  key: text('key').unique().notNull(),
+  value: text('value'),
+  updated_at: timestamp('updated_at').defaultNow(),
 });
