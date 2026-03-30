@@ -63,6 +63,7 @@ type InvoiceOption = {
   total_amount: string | number | null;
   invoice_date: string | Date | null;
   linked_referral: string | null;
+  linked_referral_name: string | null;
   is_linked_elsewhere: boolean;
 };
 
@@ -103,6 +104,27 @@ function getStatusClasses(status: string | null | undefined) {
     return "bg-amber-100 text-amber-700 border-amber-200";
   }
   return "bg-secondary-100 text-secondary-700 border-secondary-200";
+}
+
+function getInvoiceReferralLinkBadge(invoice: InvoiceOption) {
+  if (invoice.linked_referral && !invoice.is_linked_elsewhere) {
+    return {
+      className: "bg-emerald-100 text-emerald-700 border-emerald-200",
+      label: "Linked to this referral",
+    };
+  }
+
+  if (invoice.linked_referral) {
+    return {
+      className: "bg-red-100 text-red-700 border-red-200",
+      label: `Linked to ${invoice.linked_referral_name || invoice.linked_referral}`,
+    };
+  }
+
+  return {
+    className: "bg-secondary-100 text-secondary-700 border-secondary-200",
+    label: "No referral link",
+  };
 }
 
 export default function ReferralsPage() {
@@ -753,6 +775,13 @@ export default function ReferralsPage() {
                               <div className="text-xs text-secondary-500 mt-1">
                                 {selectedInvoice.customer_name || selectedInvoice.linked_customer || "Unknown customer"} • {formatDate(selectedInvoice.invoice_date)}
                               </div>
+                              <div className="mt-2">
+                                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                  getInvoiceReferralLinkBadge(selectedInvoice).className
+                                }`}>
+                                  {getInvoiceReferralLinkBadge(selectedInvoice).label}
+                                </span>
+                              </div>
                             </div>
                             <div className="flex items-center gap-3">
                               <span className="text-sm font-semibold text-secondary-800">{formatMoney(selectedInvoice.total_amount)}</span>
@@ -820,6 +849,7 @@ export default function ReferralsPage() {
                       ) : (
                         invoiceResults.map((invoice) => {
                           const isSelected = editingReferral.linked_invoice === invoice.bubble_id;
+                          const referralBadge = getInvoiceReferralLinkBadge(invoice);
                           return (
                             <button
                               key={invoice.id}
@@ -845,11 +875,6 @@ export default function ReferralsPage() {
                                         Linked
                                       </span>
                                     )}
-                                    {invoice.is_linked_elsewhere && (
-                                      <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
-                                        Already linked elsewhere
-                                      </span>
-                                    )}
                                   </div>
                                   <div className="mt-2 text-sm text-secondary-700">
                                     {invoice.customer_name || invoice.linked_customer || "Unknown customer"}
@@ -857,6 +882,11 @@ export default function ReferralsPage() {
                                   <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-secondary-500">
                                     <span>Date: {formatDate(invoice.invoice_date)}</span>
                                     <span>Customer ID: {invoice.linked_customer || "N/A"}</span>
+                                  </div>
+                                  <div className="mt-3">
+                                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${referralBadge.className}`}>
+                                      {referralBadge.label}
+                                    </span>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-3 shrink-0">

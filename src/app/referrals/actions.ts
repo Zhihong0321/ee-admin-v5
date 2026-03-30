@@ -40,6 +40,7 @@ type ReferralInvoiceSearchRow = {
   total_amount: string | null;
   invoice_date: Date | string | null;
   linked_referral: string | null;
+  linked_referral_name: string | null;
 };
 
 let referralPreferredAgentLogColumnPromise: Promise<boolean> | null = null;
@@ -390,9 +391,15 @@ export async function searchReferralInvoices(referralId: number, search?: string
         i.invoice_date,
         ${hasLinkedReferralColumn
           ? sql`i.linked_referral`
-          : sql`NULL::text`} AS linked_referral
+          : sql`NULL::text`} AS linked_referral,
+        ${hasLinkedReferralColumn
+          ? sql`r.name`
+          : sql`NULL::text`} AS linked_referral_name
       FROM invoice i
       LEFT JOIN customer c ON c.customer_id = i.linked_customer
+      ${hasLinkedReferralColumn
+        ? sql`LEFT JOIN referral r ON r.bubble_id = i.linked_referral OR CAST(r.id AS TEXT) = i.linked_referral`
+        : sql``}
       WHERE COALESCE(i.is_latest, true) = true
         AND COALESCE(i.is_deleted, false) = false
         ${whereClause}
@@ -415,6 +422,7 @@ export async function searchReferralInvoices(referralId: number, search?: string
           total_amount: row.total_amount,
           invoice_date: row.invoice_date instanceof Date ? row.invoice_date.toISOString() : row.invoice_date,
           linked_referral: row.linked_referral,
+          linked_referral_name: row.linked_referral_name,
           is_linked_elsewhere: isLinkedElsewhere,
           score: scoreInvoiceCandidate(row, referral, query),
         };
