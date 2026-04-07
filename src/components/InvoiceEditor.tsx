@@ -5,6 +5,7 @@ import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
 import { X, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info, Save, Edit2, Plus, Trash2, Check, X as XIcon, Clock, ArrowRight, Calculator, AlertCircle, RefreshCw, Search } from "lucide-react";
 import { generateInvoicePdf, updateInvoiceItem, createInvoiceItem, deleteInvoiceItem, updateInvoiceAgent, getAgentsForSelection, getInvoiceDetails, getInvoiceEditHistory, updateInvoiceWithEppFees, searchPackagesForSwitch, switchInvoiceItemPackage } from "@/app/invoices/actions";
 import { EPP_RATES, EPP_BANKS, getEppRate, FOREIGN_CARD_RATES, AMEX_RATE } from "@/lib/epp-rates";
+import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 
 interface InvoiceEditorProps {
   invoiceData: any;
@@ -493,6 +494,9 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
   const calculatedTotal = invoiceData?.items?.reduce((sum: number, item: any) => {
     return sum + (parseFloat(item.amount?.toString() || "0") || 0);
   }, 0) || 0;
+  const invoiceIdDisplay = getInvoiceIdDisplay(invoiceData);
+  const invoiceNumberDisplay = getInvoiceNumberDisplay(invoiceData);
+  const showSecondaryInvoiceNumber = Boolean(invoiceNumberDisplay && invoiceNumberDisplay !== invoiceIdDisplay);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4 md:p-8">
@@ -500,12 +504,15 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
         {/* Header Bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-secondary-200 bg-white">
           <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-secondary-100 rounded text-secondary-600">
+            <div className="p-2 bg-primary-50 rounded-lg text-primary-600">
               <FileText className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-secondary-900">Invoice Editor</h2>
-              <p className="text-[11px] text-secondary-500 font-medium">{invoiceData?.invoice_number || 'Draft'}</p>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary-600">Invoice ID</span>
+              <h2 className="text-xl font-black tracking-tight text-secondary-900">{invoiceIdDisplay}</h2>
+              <p className="text-[11px] font-medium text-secondary-500">
+                {showSecondaryInvoiceNumber ? `Invoice No. ${invoiceNumberDisplay}` : "Invoice Editor"}
+              </p>
             </div>
           </div>
 
@@ -868,10 +875,19 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                 <div className="p-6 border-b border-secondary-100 bg-secondary-50/20">
                   <h3 className="text-[11px] font-bold text-secondary-400 uppercase tracking-wider mb-6">General Information</h3>
                   <div className="grid grid-cols-2 gap-y-6 gap-x-8">
+                    <div className="col-span-2 rounded-xl border border-primary-200 bg-primary-50/60 p-4">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.24em] text-primary-700 block mb-2">Invoice ID</span>
+                      <p className="text-2xl font-black tracking-tight text-secondary-900">{invoiceIdDisplay}</p>
+                      {showSecondaryInvoiceNumber ? (
+                        <p className="mt-1 text-xs font-medium text-secondary-500">Invoice No. {invoiceNumberDisplay}</p>
+                      ) : null}
+                    </div>
+                    {showSecondaryInvoiceNumber ? (
                     <div>
                       <span className="text-[11px] font-medium text-secondary-500 block mb-1">Invoice Number</span>
-                      <p className="text-sm font-semibold text-secondary-900">{invoiceData?.invoice_number || 'N/A'}</p>
+                      <p className="text-sm font-semibold text-secondary-900">{invoiceNumberDisplay}</p>
                     </div>
+                    ) : null}
                     <div>
                       <span className="text-[11px] font-medium text-secondary-500 block mb-1">Date of Issue</span>
                       <p className="text-sm font-semibold text-secondary-900">

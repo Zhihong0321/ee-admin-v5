@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
 import { X, Printer, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info } from "lucide-react";
 import { generateInvoicePdf } from "@/app/invoices/actions";
+import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 
 interface InvoiceViewerProps {
   invoiceData: any;
@@ -17,6 +18,9 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [downloading, setDownloading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("preview");
+  const invoiceIdDisplay = getInvoiceIdDisplay(invoiceData);
+  const invoiceNumberDisplay = getInvoiceNumberDisplay(invoiceData);
+  const showSecondaryInvoiceNumber = Boolean(invoiceNumberDisplay && invoiceNumberDisplay !== invoiceIdDisplay);
 
   useEffect(() => {
     if (iframeRef.current && invoiceData && activeTab === "preview") {
@@ -62,9 +66,12 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
             <div className="p-2 bg-primary-100 rounded-lg">
               <FileText className="w-5 h-5 text-primary-600" />
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-secondary-900">Invoice Details</h2>
-              <p className="text-xs text-secondary-500">{invoiceData?.invoice_number || 'Draft'}</p>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary-600">Invoice ID</span>
+              <h2 className="text-xl font-black tracking-tight text-secondary-900">{invoiceIdDisplay}</h2>
+              <p className="text-xs text-secondary-500">
+                {showSecondaryInvoiceNumber ? `Invoice No. ${invoiceNumberDisplay}` : "Invoice Details"}
+              </p>
             </div>
           </div>
           
@@ -133,11 +140,26 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
                   <FileText className="w-5 h-5 text-primary-600" />
                   <h3 className="text-lg font-bold text-secondary-900">Invoice Summary</h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <div className="min-w-0 rounded-xl border border-primary-200 bg-primary-50/60 p-4">
+                    <label className="text-sm font-semibold uppercase tracking-wide text-primary-700">Invoice ID</label>
+                    <p className="mt-2 text-2xl font-black tracking-tight text-secondary-900">
+                      {invoiceIdDisplay}
+                    </p>
+                    {showSecondaryInvoiceNumber ? (
+                      <p className="mt-1 text-xs font-medium text-secondary-500">
+                        Invoice No. {invoiceNumberDisplay}
+                      </p>
+                    ) : null}
+                  </div>
+                  {showSecondaryInvoiceNumber ? (
                   <div className="min-w-0">
                     <label className="text-sm text-secondary-500">Invoice Number</label>
-                    <p className="font-semibold text-secondary-900 truncate" title={invoiceData?.invoice_number}>{invoiceData?.invoice_number || 'N/A'}</p>
+                    <p className="font-semibold text-secondary-900 truncate" title={invoiceNumberDisplay || undefined}>
+                      {invoiceNumberDisplay}
+                    </p>
                   </div>
+                  ) : null}
                   <div className="min-w-0">
                     <label className="text-sm text-secondary-500">Invoice Date</label>
                     <p className="font-semibold text-secondary-900 truncate">

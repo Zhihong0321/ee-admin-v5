@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, RefreshCw, Database, Trash2, RotateCcw, AlertTriangle } from "lucide-react";
 import { getInvoices, getInvoiceDetails, generateInvoicePdf, triggerInvoiceSync, deleteInvoice, recoverInvoice } from "./actions";
 import InvoiceEditor from "@/components/InvoiceEditor";
+import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 
 function InvoicesContent() {
   const searchParams = useSearchParams();
@@ -271,7 +272,7 @@ function InvoicesContent() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search by invoice ID, customer name, or agent..."
+                placeholder="Search by Invoice ID, invoice no., customer name, or agent..."
                 className="input pl-12 pr-4"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -303,7 +304,7 @@ function InvoicesContent() {
           <table className="table">
             <thead>
               <tr>
-                <th>Invoice No.</th>
+                <th>Invoice ID</th>
                 <th>Customer</th>
                 <th>Agent</th>
                 <th>Date</th>
@@ -340,17 +341,33 @@ function InvoicesContent() {
               ) : (
                 invoices.map((inv) => {
                   // Safety check: ensure we're rendering the correct version of data
-                  const isV1Data = 'invoice_id' in inv;
                   const currentViewIsV1 = version === 'v1';
+                  const matchesCurrentView = currentViewIsV1
+                    ? 'linked_customer' in inv
+                    : 'customer_name_snapshot' in inv;
 
                   // Skip if data doesn't match expected version structure (helps during state transitions)
-                  if (isV1Data !== currentViewIsV1) return null;
+                  if (!matchesCurrentView) return null;
 
                   return (
                     <tr key={inv.id}>
                       <td>
-                        <div className="font-semibold text-secondary-900">
-                          {version === "v1" ? `INV-${inv.invoice_id}` : inv.invoice_number || `ID-${inv.id}`}
+                        <div className="space-y-1">
+                          <div className="text-base font-bold tracking-tight text-secondary-900">
+                            {getInvoiceIdDisplay(inv)}
+                          </div>
+                          {(() => {
+                            const invoiceNumber = getInvoiceNumberDisplay(inv);
+                            const invoiceId = getInvoiceIdDisplay(inv);
+
+                            if (!invoiceNumber || invoiceNumber === invoiceId) return null;
+
+                            return (
+                              <div className="text-xs font-medium text-secondary-500">
+                                Invoice No. {invoiceNumber}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </td>
                       <td>

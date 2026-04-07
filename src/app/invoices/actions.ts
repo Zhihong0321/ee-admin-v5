@@ -48,6 +48,7 @@ export async function getInvoices(version: "v1" | "v2", search?: string, tab: "a
       const data = await db.execute(sql`
         SELECT
           i.id,
+          i.invoice_id,
           i.invoice_number,
           i.total_amount,
           i.invoice_date,
@@ -60,13 +61,19 @@ export async function getInvoices(version: "v1" | "v2", search?: string, tab: "a
         LEFT JOIN agent a ON a.bubble_id = i.linked_agent
         WHERE i.is_latest = true
         AND COALESCE(i.is_deleted, false) = ${tab === 'active' ? false : true}
-        ${search ? sql`AND (c.name ILIKE ${`%${search}%`} OR i.invoice_number ILIKE ${`%${search}%`} OR a.name ILIKE ${`%${search}%`})` : sql``}
+        ${search ? sql`AND (
+          c.name ILIKE ${`%${search}%`}
+          OR i.invoice_number ILIKE ${`%${search}%`}
+          OR CAST(i.invoice_id AS TEXT) ILIKE ${`%${search}%`}
+          OR a.name ILIKE ${`%${search}%`}
+        )` : sql``}
         ORDER BY i.created_at DESC
         LIMIT 50
       `);
 
       const processedData = data.rows.map((row: any) => ({
         id: row.id,
+        invoice_id: row.invoice_id,
         invoice_number: row.invoice_number,
         total_amount: row.total_amount,
         invoice_date: row.invoice_date,
@@ -151,6 +158,7 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
       // v1 legacy - limited detail support for now
       return {
         id: invoice.id,
+        invoice_id: invoice.invoice_id,
         invoice_number: `INV-${invoice.invoice_id}`,
         invoice_date: invoice.invoice_date instanceof Date ? invoice.invoice_date.toISOString().split('T')[0] : null,
         total_amount: invoice.amount,
