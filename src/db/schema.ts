@@ -138,7 +138,7 @@ export const referrals = pgTable('referral', {
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   linked_agent: text('linked_agent'),
-  preferred_agent_log: text('preferred_agent_log'),
+  // preferred_agent_log: text('preferred_agent_log'), // WARNING: Missing in PROD DB
   deal_value: numeric('deal_value', { precision: 10, scale: 2 }).default('0'),
   commission_earned: numeric('commission_earned', { precision: 10, scale: 2 }).default('0'),
   linked_invoice: text('linked_invoice'),

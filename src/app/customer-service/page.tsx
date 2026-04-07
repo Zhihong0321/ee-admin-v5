@@ -140,7 +140,9 @@ export default function CustomerServicePage() {
             {testingGroup ? "Testing..." : "Test Create WA Group"}
           </button>
         </div>
-        <p className="text-xs text-secondary-500 mt-2">Include country code without '+' sign (e.g. 60123456789).</p>
+        <p className="text-xs text-secondary-600 mt-2 font-medium bg-secondary-50 p-2 rounded inline-block border border-secondary-100">
+          <span className="text-primary-600 font-bold">Important:</span> Customer Service number <strong>must</strong> include the country code without the '+' sign (e.g. <strong>60123456789</strong>).
+        </p>
       </div>
 
       <div className="card">

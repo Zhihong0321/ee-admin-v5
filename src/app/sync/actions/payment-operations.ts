@@ -360,7 +360,7 @@ export async function syncPaymentsFromBubble() {
           created_by: bubblePayment["Created By"] || null,
           created_date: bubblePayment["Created Date"] ? new Date(bubblePayment["Created Date"]) : null,
           modified_date: new Date(bubblePayment["Modified Date"]),
-          attachment: bubblePayment.attachment || null,
+          attachment: bubblePayment.Attachment ? (Array.isArray(bubblePayment.Attachment) ? bubblePayment.Attachment : [bubblePayment.Attachment]) : null,
           verified_by: bubblePayment["Verified By"] || null,
           edit_history: bubblePayment["Edit History"] || null,
           issuer_bank: bubblePayment["Issuer Bank"] || null,
