@@ -177,6 +177,7 @@ export default function CatalogPage() {
                 package_name: editingItem?.package_name,
                 invoice_desc: editingItem?.invoice_desc,
                 price: editingItem?.price ? String(editingItem.price) : "0",
+                max_discount: editingItem?.max_discount ? Number(editingItem.max_discount) : 0,
                 type: editingItem?.type,
                 active: editingItem?.active === true || editingItem?.active === "true",
             };
@@ -405,6 +406,7 @@ export default function CatalogPage() {
                                         </th>
                                         <th>Package Name</th>
                                         <th>Price</th>
+                                        <th>Minimum Price</th>
                                         <th>Type</th>
                                         <th>Status</th>
                                         <th className="text-right">Actions</th>
@@ -412,9 +414,9 @@ export default function CatalogPage() {
                                 </thead>
                                 <tbody>
                                     {loadingPackages ? (
-                                        <tr><td colSpan={5} className="text-center py-8">Loading...</td></tr>
+                                        <tr><td colSpan={7} className="text-center py-8">Loading...</td></tr>
                                     ) : paginatedPackages.length === 0 ? (
-                                        <tr><td colSpan={5} className="text-center py-8 text-secondary-500">No packages found.</td></tr>
+                                        <tr><td colSpan={7} className="text-center py-8 text-secondary-500">No packages found.</td></tr>
                                     ) : (
                                         paginatedPackages.map(pkg => (
                                             <tr key={pkg.id}>
@@ -431,6 +433,10 @@ export default function CatalogPage() {
                                                     <div className="text-xs text-secondary-500 truncate max-w-[200px]">{pkg.invoice_desc || "No description"}</div>
                                                 </td>
                                                 <td>RM {pkg.price || "0.00"}</td>
+                                                <td>
+                                                    <div className="text-secondary-900 font-medium">RM {((Number(pkg.price) || 0) - (Number(pkg.max_discount) || 0)).toFixed(2)}</div>
+                                                    <div className="text-xs text-secondary-500">Max Discount: RM {pkg.max_discount || "0"}</div>
+                                                </td>
                                                 <td>
                                                     <span className="px-2 py-1 rounded bg-secondary-100 text-secondary-700 text-xs font-medium">
                                                         {pkg.type || "N/A"}
@@ -586,18 +592,22 @@ export default function CatalogPage() {
                                                 <input type="number" step="0.01" className="input" value={editingItem?.price || ""} onChange={(e) => setEditingItem({ ...editingItem, price: e.target.value })} />
                                             </div>
                                             <div className="space-y-2">
-                                                <label className="text-sm font-semibold text-secondary-700">Type</label>
-                                                <select
-                                                    className="input"
-                                                    value={editingItem?.type || ""}
-                                                    onChange={(e) => setEditingItem({ ...editingItem, type: e.target.value })}
-                                                >
-                                                    <option value="">None</option>
-                                                    <option value="Residential">Residential</option>
-                                                    <option value="Special / Roadshow">Special / Roadshow</option>
-                                                    <option value="Tariff B&D Low Voltage">Tariff B&D Low Voltage</option>
-                                                </select>
+                                                <label className="text-sm font-semibold text-secondary-700">Maximum Discount</label>
+                                                <input type="number" step="0.01" className="input" value={editingItem?.max_discount ?? ""} onChange={(e) => setEditingItem({ ...editingItem, max_discount: e.target.value ? Number(e.target.value) : null })} />
                                             </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-secondary-700">Type</label>
+                                            <select
+                                                className="input"
+                                                value={editingItem?.type || ""}
+                                                onChange={(e) => setEditingItem({ ...editingItem, type: e.target.value })}
+                                            >
+                                                <option value="">None</option>
+                                                <option value="Residential">Residential</option>
+                                                <option value="Special / Roadshow">Special / Roadshow</option>
+                                                <option value="Tariff B&D Low Voltage">Tariff B&D Low Voltage</option>
+                                            </select>
                                         </div>
                                         <div className="flex items-center gap-6 pt-2">
                                             <label className="flex items-center gap-2 cursor-pointer">
