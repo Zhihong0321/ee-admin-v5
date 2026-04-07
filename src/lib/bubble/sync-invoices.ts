@@ -393,7 +393,16 @@ async function syncInvoice(inv: BubbleInvoiceRaw): Promise<void> {
 
   // Convert invoice_id to number if present
   const invoiceIdValue = inv["Invoice ID"] || inv.invoice_id;
-  const invoiceIdNumber = invoiceIdValue ? (typeof invoiceIdValue === 'number' ? invoiceIdValue : parseInt(invoiceIdValue, 10)) : null;
+  let invoiceIdNumber: number | null = null;
+  if (invoiceIdValue != null && invoiceIdValue !== "") {
+    if (typeof invoiceIdValue === "number") {
+      invoiceIdNumber = invoiceIdValue;
+    } else {
+      // Robust parsing: extract digits from strings like "INV-1009038"
+      const match = String(invoiceIdValue).match(/\d+/);
+      invoiceIdNumber = match ? parseInt(match[0], 10) : null;
+    }
+  }
 
   // Convert total_amount to string
   const totalAmountValue = inv["Total Amount"] || inv.total_amount || inv.Amount;
