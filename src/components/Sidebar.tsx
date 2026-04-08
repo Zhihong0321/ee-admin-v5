@@ -77,7 +77,7 @@ export function Sidebar({ user }: SidebarProps) {
       <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto scrollbar-hide">
         {filteredMenuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}

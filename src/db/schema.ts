@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, numeric, boolean, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, serial, bigserial, text, integer, timestamp, numeric, boolean, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
@@ -505,6 +505,30 @@ export const packages = pgTable('package', {
   special: boolean('special'),
   type: text('type'),
   updated_at: timestamp('updated_at', { withTimezone: true }),
+});
+
+export const hybridInverterUpgradeRules = pgTable('hybrid_inverter_upgrade_rule', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  bubble_id: text('bubble_id').notNull().unique(),
+  rule_type: text('rule_type').notNull(),
+  phase_scope: text('phase_scope'),
+  from_model_code: text('from_model_code'),
+  from_product_bubble_id: text('from_product_bubble_id'),
+  from_product_name_snapshot: text('from_product_name_snapshot'),
+  to_model_code: text('to_model_code'),
+  to_product_bubble_id: text('to_product_bubble_id'),
+  to_product_name_snapshot: text('to_product_name_snapshot'),
+  addon_model_code: text('addon_model_code'),
+  addon_product_bubble_id: text('addon_product_bubble_id'),
+  addon_product_name_snapshot: text('addon_product_name_snapshot'),
+  price_amount: numeric('price_amount', { precision: 12, scale: 2 }).notNull(),
+  currency_code: text('currency_code').default('MYR').notNull(),
+  stock_ready: boolean('stock_ready').default(false).notNull(),
+  active: boolean('active').default(true).notNull(),
+  notes: text('notes'),
+  sort_order: integer('sort_order').default(0).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 // App Settings Table

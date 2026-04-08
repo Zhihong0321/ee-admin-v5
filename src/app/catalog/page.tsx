@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Search, Plus, Edit2, Layers, Package as PackageIcon, Filter, AlertCircle, X, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
+import { CatalogSubnav } from "@/components/catalog/CatalogSubnav";
 import {
     getProducts, updateProduct, createProduct, deleteProduct,
     getPackages, updatePackage, createPackage, deletePackage, bulkTogglePackagesActive
@@ -222,12 +223,14 @@ export default function CatalogPage() {
 
     return (
         <div className="space-y-6 animate-fade-in">
+            <CatalogSubnav />
+
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">
                     <h1 className="text-3xl font-bold text-secondary-900">Catalog Manager</h1>
                     <p className="text-secondary-600">
-                        Manage your products and packages inventory.
+                        Manage your products, packages, and related catalog records.
                     </p>
                 </div>
 
