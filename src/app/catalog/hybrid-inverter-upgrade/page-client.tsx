@@ -215,53 +215,133 @@ function ProductMappingSummary({
   );
 }
 
-function MappingInputField({
+function getProductDisplayName(product: HybridProductOption) {
+  return product.name ?? product.label ?? product.bubble_id;
+}
+
+function SearchableProductPicker({
   label,
-  value,
+  selectedBubbleId,
   snapshot,
-  onChange,
+  onSelect,
+  productOptions,
   productMap,
 }: {
   label: string;
-  value: string;
+  selectedBubbleId: string;
   snapshot: string | null;
-  onChange: (nextValue: string) => void;
+  onSelect: (bubbleId: string) => void;
+  productOptions: HybridProductOption[];
   productMap: Map<string, HybridProductOption>;
 }) {
-  const trimmedValue = value.trim();
-  const resolvedProduct = trimmedValue ? productMap.get(trimmedValue) : null;
+  const selectedProduct = selectedBubbleId ? productMap.get(selectedBubbleId) ?? null : null;
+  const [query, setQuery] = useState(selectedProduct ? getProductDisplayName(selectedProduct) : snapshot ?? "");
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    setQuery(selectedProduct ? getProductDisplayName(selectedProduct) : snapshot ?? "");
+  }, [selectedProduct, snapshot]);
+
+  const trimmedQuery = query.trim().toLowerCase();
+  const filteredProducts = trimmedQuery
+    ? productOptions
+        .filter((product) => {
+          const searchableText = [
+            product.name,
+            product.label,
+            product.bubble_id,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+
+          return searchableText.includes(trimmedQuery);
+        })
+        .slice(0, 8)
+    : [];
 
   return (
     <div className="space-y-2">
       <label className="text-sm font-semibold text-secondary-700">{label}</label>
-      <div className="flex items-center gap-2">
+      <div className="relative">
         <input
           type="text"
           className="input"
-          list="hybrid-product-options"
-          placeholder="Paste or search product bubble ID"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
+          placeholder="Search by product name or model"
+          value={query}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => {
+            window.setTimeout(() => setIsOpen(false), 120);
+          }}
+          onChange={(event) => {
+            const nextQuery = event.target.value;
+            setQuery(nextQuery);
+            setIsOpen(true);
+
+            if (selectedBubbleId) {
+              onSelect("");
+            }
+          }}
         />
+        {isOpen && trimmedQuery ? (
+          <div className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-secondary-200 bg-white shadow-lg">
+            {filteredProducts.length > 0 ? (
+              filteredProducts.map((product) => (
+                <button
+                  key={product.bubble_id}
+                  type="button"
+                  className="flex w-full items-start justify-between gap-3 border-b border-secondary-100 px-4 py-3 text-left last:border-b-0 hover:bg-secondary-50"
+                  onMouseDown={() => {
+                    onSelect(product.bubble_id);
+                    setQuery(getProductDisplayName(product));
+                    setIsOpen(false);
+                  }}
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium text-secondary-900 whitespace-normal break-words">
+                      {getProductDisplayName(product)}
+                    </div>
+                    <div className="text-xs text-secondary-500 break-all">{product.bubble_id}</div>
+                  </div>
+                  {product.active === false ? (
+                    <span className="badge-warning shrink-0">Inactive</span>
+                  ) : null}
+                </button>
+              ))
+            ) : (
+              <div className="px-4 py-3 text-sm text-secondary-500">
+                No matching product found. Keep the mapping empty if the product does not exist yet.
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-2">
         <button
           type="button"
           className="btn-secondary shrink-0"
-          onClick={() => onChange("")}
-          disabled={!value}
+          onClick={() => {
+            setQuery("");
+            onSelect("");
+          }}
+          disabled={!selectedBubbleId && !query}
         >
           Clear
         </button>
+        <span className="text-xs text-secondary-500">
+          Search and click a product to map this rule.
+        </span>
       </div>
       <div className="rounded-xl border border-secondary-200 bg-secondary-50/70 p-3 text-sm">
-        {!trimmedValue ? (
+        {!selectedBubbleId ? (
           <span className="badge-warning">Mapping missing</span>
-        ) : resolvedProduct ? (
+        ) : selectedProduct ? (
           <div className="space-y-1">
             <div className="font-medium text-secondary-900">
-              {resolvedProduct.name ?? resolvedProduct.label ?? trimmedValue}
+              {getProductDisplayName(selectedProduct)}
             </div>
-            <div className="text-xs text-secondary-500 break-all">{trimmedValue}</div>
-            {resolvedProduct.active === false ? (
+            <div className="text-xs text-secondary-500 break-all">{selectedProduct.bubble_id}</div>
+            {selectedProduct.active === false ? (
               <span className="badge-warning">Mapped product is inactive</span>
             ) : (
               <span className="badge-success">Mapped product resolved</span>
@@ -269,7 +349,6 @@ function MappingInputField({
           </div>
         ) : (
           <div className="space-y-1">
-            <div className="font-medium text-secondary-900 break-all">{trimmedValue}</div>
             {snapshot ? <div className="text-xs text-secondary-500">{snapshot}</div> : null}
             <span className="badge-danger">No matching product row found</span>
           </div>
@@ -883,16 +962,6 @@ export default function HybridInverterUpgradePageClient() {
         </div>
       )}
 
-      <datalist id="hybrid-product-options">
-        {productOptions.map((product) => (
-          <option
-            key={product.bubble_id}
-            value={product.bubble_id}
-            label={`${product.name ?? product.label ?? product.bubble_id}${product.active === false ? " (inactive)" : ""}`}
-          />
-        ))}
-      </datalist>
-
       {isModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-secondary-900/50 p-4 backdrop-blur-sm animate-fade-in">
           <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-elevation-xl">
@@ -987,16 +1056,17 @@ export default function HybridInverterUpgradePageClient() {
                         />
                       </div>
 
-                      <MappingInputField
-                        label="Source product mapping"
-                        value={formState.from_product_bubble_id}
+                      <SearchableProductPicker
+                        label="Source product search"
+                        selectedBubbleId={formState.from_product_bubble_id}
                         snapshot={fromSnapshotPreview}
-                        onChange={(nextValue) =>
+                        onSelect={(nextValue) =>
                           setFormState((currentState) => ({
                             ...currentState,
                             from_product_bubble_id: nextValue,
                           }))
                         }
+                        productOptions={productOptions}
                         productMap={productMap}
                       />
                     </div>
@@ -1017,16 +1087,17 @@ export default function HybridInverterUpgradePageClient() {
                         />
                       </div>
 
-                      <MappingInputField
-                        label="Target product mapping"
-                        value={formState.to_product_bubble_id}
+                      <SearchableProductPicker
+                        label="Target product search"
+                        selectedBubbleId={formState.to_product_bubble_id}
                         snapshot={toSnapshotPreview}
-                        onChange={(nextValue) =>
+                        onSelect={(nextValue) =>
                           setFormState((currentState) => ({
                             ...currentState,
                             to_product_bubble_id: nextValue,
                           }))
                         }
+                        productOptions={productOptions}
                         productMap={productMap}
                       />
                     </div>
@@ -1048,16 +1119,17 @@ export default function HybridInverterUpgradePageClient() {
                       />
                     </div>
 
-                    <MappingInputField
-                      label="Add-on product mapping"
-                      value={formState.addon_product_bubble_id}
+                    <SearchableProductPicker
+                      label="Add-on product search"
+                      selectedBubbleId={formState.addon_product_bubble_id}
                       snapshot={addonSnapshotPreview}
-                      onChange={(nextValue) =>
+                      onSelect={(nextValue) =>
                         setFormState((currentState) => ({
                           ...currentState,
                           addon_product_bubble_id: nextValue,
                         }))
                       }
+                      productOptions={productOptions}
                       productMap={productMap}
                     />
                   </div>
