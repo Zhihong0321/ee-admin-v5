@@ -4,9 +4,15 @@ import * as schema from '@/db/schema';
 
 // Prevent multiple pools in development
 const globalForDb = global as unknown as { pool: Pool | undefined };
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error('DATABASE_URL is not set. Railway must provide the Postgres connection string.');
+}
 
 const pool = globalForDb.pool ?? new Pool({
-  connectionString: "postgresql://postgres:tkaYtCcfkqfsWKjQguFMqIcANbJNcNZA@shinkansen.proxy.rlwy.net:34999/railway",
+  connectionString,
+  application_name: "ee-admin-v5",
   max: 10, // Limit connections for SME scale
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
