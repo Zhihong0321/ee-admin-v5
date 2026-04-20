@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, FileDigit, Layers, UserPlus, Headset } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, FileDigit, Layers, UserPlus, Headset, ScanSearch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 import { logoutAction } from "@/app/auth-actions";
@@ -21,6 +21,7 @@ const menuItems = [
   { name: "Customer Service", href: "/customer-service", icon: Headset },
   { name: "Sync Center", href: "/sync", icon: RefreshCw },
   { name: "Schema Manager", href: "/schema-manager", icon: Database },
+  { name: "Live DB Inspector", href: "/db-inspector", icon: ScanSearch },
   { name: "API Doc", href: "/api-doc", icon: Globe },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -54,6 +55,7 @@ export function Sidebar({ user }: SidebarProps) {
       case '/customer-service':
       case '/sync':
       case '/schema-manager':
+      case '/db-inspector':
       case '/api-doc':
         return userTags.includes('admin');
       default:
