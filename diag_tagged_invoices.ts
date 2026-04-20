@@ -7,11 +7,13 @@ async function main() {
         console.log(`Invoice: ${inv.invoice_number}`);
         console.log(`  seda_bubble_id: ${inv.seda_bubble_id}`);
         console.log(`  roofImageCount: ${inv.roofImageCount}`);
-        console.log(`  roof_images: ${inv.roof_images}`);
+        console.log(`  invoice_linked_roof_image: ${inv.invoice_linked_roof_image}`);
+        console.log(`  seda_roof_images: ${inv.seda_roof_images}`);
         console.log(`  systemDrawingCount: ${inv.systemDrawingCount}`);
-        console.log(`  drawing_pdf_system: ${inv.drawing_pdf_system}`);
+        console.log(`  invoice_pv_system_drawing: ${inv.invoice_pv_system_drawing}`);
+        console.log(`  seda_drawing_pdf_system: ${inv.seda_drawing_pdf_system}`);
         console.log(`  engineeringDrawingCount: ${inv.engineeringDrawingCount}`);
-        console.log(`  drawing_engineering_seda_pdf: ${inv.drawing_engineering_seda_pdf}`);
+        console.log(`  seda_drawing_engineering_seda_pdf: ${inv.seda_drawing_engineering_seda_pdf}`);
         console.log("-------------------");
     }
     process.exit(0);

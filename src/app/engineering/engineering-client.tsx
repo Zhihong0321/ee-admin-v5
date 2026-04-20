@@ -21,6 +21,8 @@ import { uploadEngineeringFile, deleteEngineeringFile, getEngineeringInvoices } 
 
 interface EngineeringInvoice {
   id: number;
+  bubble_id: string | null;
+  share_token: string | null;
   invoice_number: string | null;
   total_amount: string | null;
   invoice_date: Date | null;
@@ -29,9 +31,11 @@ interface EngineeringInvoice {
   agent_name: string | null;
   address: string | null;
   seda_bubble_id: string | null;
-  drawing_pdf_system: string[] | null;
-  drawing_engineering_seda_pdf: string[] | null;
-  roof_images: string[] | null;
+  invoice_linked_roof_image: string[] | null;
+  invoice_pv_system_drawing: string[] | null;
+  seda_roof_images: string[] | null;
+  seda_drawing_pdf_system: string[] | null;
+  seda_drawing_engineering_seda_pdf: string[] | null;
   systemDrawingCount: number;
   engineeringDrawingCount: number;
   roofImageCount: number;
@@ -125,15 +129,11 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
   }, [search, sourceInvoices, activeTab]);
 
   const handleViewInvoice = (invoice: EngineeringInvoice) => {
-    // We need to get the bubble_id or share_token for this invoice
-    // Since the EngineeringInvoice interface doesn't include these fields,
-    // we'll need to either fetch them or assume they exist
-    const targetId = invoice.seda_bubble_id; // Using seda_bubble_id as fallback
-    if (!targetId) {
-      alert("No valid Bubble ID found for this invoice.");
+    if (!invoice.share_token) {
+      alert("No share token found for this invoice.");
       return;
     }
-    window.open(`https://calculator.atap.solar/view/${targetId}`, '_blank');
+    window.open(`https://calculator.atap.solar/view/${invoice.share_token}`, '_blank');
   };
 
   const handleDelete = async (url: string, type: "system" | "engineering" | "roof") => {
@@ -148,13 +148,13 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
           if (selectedInvoice) {
             const updated = { ...selectedInvoice };
             if (type === "system") {
-              updated.drawing_pdf_system = updated.drawing_pdf_system?.filter(u => u !== url) || null;
+              updated.seda_drawing_pdf_system = updated.seda_drawing_pdf_system?.filter(u => u !== url) || null;
               updated.systemDrawingCount--;
             } else if (type === "engineering") {
-              updated.drawing_engineering_seda_pdf = updated.drawing_engineering_seda_pdf?.filter(u => u !== url) || null;
+              updated.seda_drawing_engineering_seda_pdf = updated.seda_drawing_engineering_seda_pdf?.filter(u => u !== url) || null;
               updated.engineeringDrawingCount--;
             } else {
-              updated.roof_images = updated.roof_images?.filter(u => u !== url) || null;
+              updated.seda_roof_images = updated.seda_roof_images?.filter(u => u !== url) || null;
               updated.roofImageCount--;
             }
             setSelectedInvoice(updated);
@@ -185,13 +185,13 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
           if (selectedInvoice) {
             const updated = { ...selectedInvoice };
             if (type === "system") {
-              updated.drawing_pdf_system = [...(updated.drawing_pdf_system || []), result.url!];
+              updated.seda_drawing_pdf_system = [...(updated.seda_drawing_pdf_system || []), result.url!];
               updated.systemDrawingCount++;
             } else if (type === "engineering") {
-              updated.drawing_engineering_seda_pdf = [...(updated.drawing_engineering_seda_pdf || []), result.url!];
+              updated.seda_drawing_engineering_seda_pdf = [...(updated.seda_drawing_engineering_seda_pdf || []), result.url!];
               updated.engineeringDrawingCount++;
             } else {
-              updated.roof_images = [...(updated.roof_images || []), result.url!];
+              updated.seda_roof_images = [...(updated.seda_roof_images || []), result.url!];
               updated.roofImageCount++;
             }
             setSelectedInvoice(updated);
@@ -403,15 +403,42 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                     />
                   </label>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {selectedInvoice.drawing_pdf_system?.map((url, i) => (
-                    <FileItem key={i} url={url} label={`System Drawing ${i + 1}`} onDelete={() => handleDelete(url, "system")} deleting={deletingFile === url} />
-                  ))}
-                  {(!selectedInvoice.drawing_pdf_system || selectedInvoice.drawing_pdf_system.length === 0) && (
-                    <div className="col-span-2 py-4 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
-                      No system drawings uploaded yet.
+                <div className="space-y-4">
+                  {selectedInvoice.invoice_pv_system_drawing && selectedInvoice.invoice_pv_system_drawing.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-secondary-700">Invoice Office uploads</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {selectedInvoice.invoice_pv_system_drawing.map((url, i) => (
+                          <FileItem
+                            key={`invoice-system-${i}`}
+                            url={url}
+                            label={`Invoice Office System ${i + 1}`}
+                            sourceLabel="Read only"
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-secondary-700">Admin / SEDA uploads</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {selectedInvoice.seda_drawing_pdf_system?.map((url, i) => (
+                        <FileItem
+                          key={i}
+                          url={url}
+                          label={`System Drawing ${i + 1}`}
+                          sourceLabel="Admin / SEDA"
+                          onDelete={() => handleDelete(url, "system")}
+                          deleting={deletingFile === url}
+                        />
+                      ))}
+                      {(!selectedInvoice.seda_drawing_pdf_system || selectedInvoice.seda_drawing_pdf_system.length === 0) && (
+                        <div className="col-span-2 py-4 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
+                          No admin system drawings uploaded yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </section>
 
@@ -434,29 +461,57 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                     />
                   </label>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {selectedInvoice.roof_images?.map((url, i) => (
-                    <div key={i} className="group relative aspect-square rounded-xl overflow-hidden bg-secondary-100 border border-secondary-200">
-                      <img src={url} alt={`Roof Image ${i+1}`} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 bg-white rounded-full text-secondary-900 hover:bg-secondary-100">
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                        <button
-                          onClick={() => handleDelete(url, "roof")}
-                          disabled={deletingFile === url}
-                          className="p-2 bg-white rounded-full text-red-600 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          {deletingFile === url ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                        </button>
+                <div className="space-y-4">
+                  {selectedInvoice.invoice_linked_roof_image && selectedInvoice.invoice_linked_roof_image.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-secondary-700">Invoice Office uploads</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {selectedInvoice.invoice_linked_roof_image.map((url, i) => (
+                          <div
+                            key={`invoice-roof-${i}`}
+                            className="group relative aspect-square rounded-xl overflow-hidden bg-secondary-100 border border-secondary-200"
+                          >
+                            <img src={url} alt={`Invoice Office Roof ${i + 1}`} className="w-full h-full object-cover" />
+                            <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary-700">
+                              Read only
+                            </div>
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 bg-white rounded-full text-secondary-900 hover:bg-secondary-100">
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                  {(!selectedInvoice.roof_images || selectedInvoice.roof_images.length === 0) && (
-                    <div className="col-span-4 py-8 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
-                      No roof images uploaded yet.
-                    </div>
                   )}
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-secondary-700">Admin / SEDA uploads</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {selectedInvoice.seda_roof_images?.map((url, i) => (
+                        <div key={i} className="group relative aspect-square rounded-xl overflow-hidden bg-secondary-100 border border-secondary-200">
+                          <img src={url} alt={`Roof Image ${i + 1}`} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 bg-white rounded-full text-secondary-900 hover:bg-secondary-100">
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                            <button
+                              onClick={() => handleDelete(url, "roof")}
+                              disabled={deletingFile === url}
+                              className="p-2 bg-white rounded-full text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              {deletingFile === url ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {(!selectedInvoice.seda_roof_images || selectedInvoice.seda_roof_images.length === 0) && (
+                        <div className="col-span-4 py-8 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
+                          No admin roof images uploaded yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </section>
 
@@ -480,10 +535,17 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                   </label>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {selectedInvoice.drawing_engineering_seda_pdf?.map((url, i) => (
-                    <FileItem key={i} url={url} label={`Engineering Drawing ${i + 1}`} onDelete={() => handleDelete(url, "engineering")} deleting={deletingFile === url} />
+                  {selectedInvoice.seda_drawing_engineering_seda_pdf?.map((url, i) => (
+                    <FileItem
+                      key={i}
+                      url={url}
+                      label={`Engineering Drawing ${i + 1}`}
+                      sourceLabel="Admin / SEDA"
+                      onDelete={() => handleDelete(url, "engineering")}
+                      deleting={deletingFile === url}
+                    />
                   ))}
-                  {(!selectedInvoice.drawing_engineering_seda_pdf || selectedInvoice.drawing_engineering_seda_pdf.length === 0) && (
+                  {(!selectedInvoice.seda_drawing_engineering_seda_pdf || selectedInvoice.seda_drawing_engineering_seda_pdf.length === 0) && (
                     <div className="col-span-2 py-4 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
                       No engineering drawings uploaded yet.
                     </div>
@@ -498,7 +560,19 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
   );
 }
 
-function FileItem({ url, label, onDelete, deleting }: { url: string; label: string; onDelete: () => void; deleting: boolean }) {
+function FileItem({
+  url,
+  label,
+  sourceLabel,
+  onDelete,
+  deleting,
+}: {
+  url: string;
+  label: string;
+  sourceLabel?: string;
+  onDelete?: () => void;
+  deleting?: boolean;
+}) {
   const filename = url.split("/").pop();
   return (
     <div className="flex items-center justify-between p-3 bg-secondary-50 border border-secondary-200 rounded-xl hover:border-primary-300 transition-colors">
@@ -508,6 +582,7 @@ function FileItem({ url, label, onDelete, deleting }: { url: string; label: stri
         </div>
         <div className="overflow-hidden">
           <p className="font-medium text-secondary-900 truncate">{label}</p>
+          {sourceLabel && <p className="text-[11px] uppercase tracking-wide text-secondary-400">{sourceLabel}</p>}
           <p className="text-xs text-secondary-500 truncate">{filename}</p>
         </div>
       </div>
@@ -529,14 +604,16 @@ function FileItem({ url, label, onDelete, deleting }: { url: string; label: stri
         >
           <Download className="w-4 h-4" />
         </a>
-        <button
-          onClick={onDelete}
-          disabled={deleting}
-          className="p-2 text-secondary-400 hover:text-red-600 transition-colors disabled:opacity-50"
-          title="Delete"
-        >
-          {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-        </button>
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            className="p-2 text-secondary-400 hover:text-red-600 transition-colors disabled:opacity-50"
+            title="Delete"
+          >
+            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+          </button>
+        )}
       </div>
     </div>
   );

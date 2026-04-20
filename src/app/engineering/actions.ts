@@ -12,6 +12,20 @@ import { Readable } from "stream";
 const STORAGE_ROOT = "/storage";
 const FILE_BASE_URL = process.env.FILE_BASE_URL || "https://admin.atap.solar";
 
+function normalizeUrlArray(values: string[] | null | undefined): string[] {
+  return (values || []).filter((value): value is string => Boolean(value));
+}
+
+function mergeUniqueUrls(...groups: Array<string[] | null | undefined>): string[] {
+  const seen = new Set<string>();
+  for (const group of groups) {
+    for (const url of normalizeUrlArray(group)) {
+      seen.add(url);
+    }
+  }
+  return [...seen];
+}
+
 /**
  * Fetch invoices with engineering-related data
  */
@@ -37,6 +51,8 @@ export async function getEngineeringInvoices(search?: string) {
     const results = await db
       .select({
         id: invoices.id,
+        bubble_id: invoices.bubble_id,
+        share_token: invoices.share_token,
         invoice_number: invoices.invoice_number,
         total_amount: invoices.total_amount,
         invoice_date: invoices.invoice_date,
@@ -45,9 +61,11 @@ export async function getEngineeringInvoices(search?: string) {
         agent_name: agents.name,
         address: sedaRegistration.installation_address,
         seda_bubble_id: sedaRegistration.bubble_id,
-        drawing_pdf_system: sedaRegistration.drawing_pdf_system,
-        drawing_engineering_seda_pdf: sedaRegistration.drawing_engineering_seda_pdf,
-        roof_images: sedaRegistration.roof_images,
+        invoice_linked_roof_image: invoices.linked_roof_image,
+        invoice_pv_system_drawing: invoices.pv_system_drawing,
+        seda_roof_images: sedaRegistration.roof_images,
+        seda_drawing_pdf_system: sedaRegistration.drawing_pdf_system,
+        seda_drawing_engineering_seda_pdf: sedaRegistration.drawing_engineering_seda_pdf,
       })
       .from(invoices)
       .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
@@ -59,9 +77,9 @@ export async function getEngineeringInvoices(search?: string) {
 
     return results.map((row) => ({
       ...row,
-      systemDrawingCount: row.drawing_pdf_system?.length || 0,
-      engineeringDrawingCount: row.drawing_engineering_seda_pdf?.length || 0,
-      roofImageCount: row.roof_images?.length || 0,
+      systemDrawingCount: mergeUniqueUrls(row.invoice_pv_system_drawing, row.seda_drawing_pdf_system).length,
+      engineeringDrawingCount: normalizeUrlArray(row.seda_drawing_engineering_seda_pdf).length,
+      roofImageCount: mergeUniqueUrls(row.invoice_linked_roof_image, row.seda_roof_images).length,
     }));
   } catch (error) {
     console.error("Error fetching engineering invoices:", error);
@@ -112,6 +130,8 @@ export async function getInvoicesWithDrawingTags(search?: string) {
     const results = await db
       .select({
         id: invoices.id,
+        bubble_id: invoices.bubble_id,
+        share_token: invoices.share_token,
         invoice_number: invoices.invoice_number,
         total_amount: invoices.total_amount,
         invoice_date: invoices.invoice_date,
@@ -120,9 +140,11 @@ export async function getInvoicesWithDrawingTags(search?: string) {
         agent_name: agents.name,
         address: sedaRegistration.installation_address,
         seda_bubble_id: sedaRegistration.bubble_id,
-        drawing_pdf_system: sedaRegistration.drawing_pdf_system,
-        drawing_engineering_seda_pdf: sedaRegistration.drawing_engineering_seda_pdf,
-        roof_images: sedaRegistration.roof_images,
+        invoice_linked_roof_image: invoices.linked_roof_image,
+        invoice_pv_system_drawing: invoices.pv_system_drawing,
+        seda_roof_images: sedaRegistration.roof_images,
+        seda_drawing_pdf_system: sedaRegistration.drawing_pdf_system,
+        seda_drawing_engineering_seda_pdf: sedaRegistration.drawing_engineering_seda_pdf,
       })
       .from(invoices)
       .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
@@ -134,9 +156,9 @@ export async function getInvoicesWithDrawingTags(search?: string) {
 
     return results.map((row) => ({
       ...row,
-      systemDrawingCount: row.drawing_pdf_system?.length || 0,
-      engineeringDrawingCount: row.drawing_engineering_seda_pdf?.length || 0,
-      roofImageCount: row.roof_images?.length || 0,
+      systemDrawingCount: mergeUniqueUrls(row.invoice_pv_system_drawing, row.seda_drawing_pdf_system).length,
+      engineeringDrawingCount: normalizeUrlArray(row.seda_drawing_engineering_seda_pdf).length,
+      roofImageCount: mergeUniqueUrls(row.invoice_linked_roof_image, row.seda_roof_images).length,
     }));
   } catch (error) {
     console.error("Error fetching invoices with drawing tags:", error);

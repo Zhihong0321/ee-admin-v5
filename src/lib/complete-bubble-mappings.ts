@@ -43,6 +43,7 @@ export const INVOICE_FIELD_MAPPING: Record<string, FieldMappingConfig> = {
   'Linked Agent': { column: 'linked_agent', type: 'string', relation: 'agent' },
   'Linked Payment': { column: 'linked_payment', type: 'array', relation: 'payment' },
   'Linked SEDA registration': { column: 'linked_seda_registration', type: 'string', relation: 'seda_registration' },
+  'Linked Roof Image': { column: 'linked_roof_image', type: 'array' },
   'Linked Invoice Item': { column: 'linked_invoice_item', type: 'array', relation: 'invoice_item' },
   'Created By': { column: 'created_by', type: 'string', relation: 'user' },
   'Linked Package': { column: 'linked_package', type: 'string', relation: 'package' },
