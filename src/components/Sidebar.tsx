@@ -11,8 +11,7 @@ const menuItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "SEDA Applications", href: "/seda", icon: FileCheck },
   { name: "Invoices", href: "/invoices", icon: FileText },
-  { name: "Engineering", href: "/engineering", icon: FileDigit },
-  { name: "Engineering V2", href: "/engineering-v2", icon: Hammer },
+  { name: "Engineering", href: "/engineering-v2", icon: Hammer }, // V2 replaces legacy
   { name: "Payments", href: "/payments", icon: CreditCard },
   { name: "Customers", href: "/customers", icon: Users },
   { name: "Referrals", href: "/referrals", icon: UserPlus },
