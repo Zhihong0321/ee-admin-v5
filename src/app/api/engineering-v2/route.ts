@@ -51,7 +51,7 @@ export async function GET(request: Request) {
         inv.percent_of_total_amount,
         inv.case_status,
         inv.installation_status,
-        inv.state,
+        COALESCE(sr.state, c.state) AS state,
 
         -- Attachments from invoice
         inv.linked_roof_image,
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
         sr.site_images       AS seda_site_images,
         sr.drawing_pdf_system AS seda_pv_drawing,
         sr.drawing_engineering_seda_pdf AS seda_eng_drawing,
-        sr.installation_address,
+        COALESCE(sr.installation_address, c.address) AS installation_address,
         sr.seda_status,
 
         -- Customer

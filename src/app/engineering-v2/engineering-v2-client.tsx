@@ -99,12 +99,30 @@ function PaymentBar({ pct }: { pct: number }) {
     const clamped = Math.min(100, Math.max(0, pct));
     const color = clamped >= 100 ? "bg-emerald-500" : clamped >= 50 ? "bg-amber-400" : "bg-red-400";
     return (
-        <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className="flex flex-col items-center gap-0.5">
+            <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
                 <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${clamped}%` }} />
             </div>
-            <span className="text-xs font-mono text-gray-500 w-8 text-right">{clamped.toFixed(0)}%</span>
+            <span className="text-[10px] font-mono text-gray-400 leading-none">{clamped.toFixed(0)}%</span>
         </div>
+    );
+}
+
+function PackageBadge({ caseStatus, installStatus }: { caseStatus: string | null; installStatus: string | null }) {
+    const raw = (caseStatus || installStatus || "").toLowerCase();
+    const isResidential = raw.includes("residential") || raw.includes("resi") || raw.includes("domestic") || raw.includes("home");
+    const isCommercial = raw.includes("commercial") || raw.includes("comm") || raw.includes("industrial");
+    const label = isResidential ? "Residential" : isCommercial ? "Commercial" : (caseStatus || installStatus || null);
+    const style = isResidential
+        ? "bg-sky-50 text-sky-700 border-sky-200"
+        : isCommercial
+        ? "bg-amber-50 text-amber-700 border-amber-200"
+        : "bg-gray-50 text-gray-500 border-gray-200";
+    if (!label) return <span className="text-xs text-gray-300">—</span>;
+    return (
+        <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold leading-tight truncate max-w-full ${style}`}>
+            {label}
+        </span>
     );
 }
 
@@ -665,11 +683,14 @@ export function EngineeringV2Client({ user }: { user: User }) {
                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
 
                         {/* Table Header */}
-                        <div className="grid grid-cols-[200px_160px_140px_auto_46px_46px_46px_46px_32px] gap-3 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        <div className="grid grid-cols-[200px_110px_80px_1fr_130px_110px_68px_46px_46px_46px_46px_32px] gap-2 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                             <div>Customer / Invoice</div>
+                            <div>Package Type</div>
+                            <div>State</div>
+                            <div>Address</div>
                             <div>Agent</div>
                             <div>Amount</div>
-                            <div>Payment Progress</div>
+                            <div className="text-center">Paid</div>
                             <div className="text-center text-sky-600" title="Roof Images"><ImageIcon className="h-3.5 w-3.5 mx-auto" /></div>
                             <div className="text-center text-emerald-600" title="Site Assessment"><Wrench className="h-3.5 w-3.5 mx-auto" /></div>
                             <div className="text-center text-violet-600" title="PV Drawing"><Layers className="h-3.5 w-3.5 mx-auto" /></div>
@@ -721,26 +742,53 @@ function InvoiceListRow({ invoice, onView }: { invoice: InvoiceRow; onView: () =
 
     return (
         <div
-            className="grid grid-cols-[200px_160px_140px_auto_46px_46px_46px_46px_32px] gap-3 px-5 py-3.5 items-center hover:bg-indigo-50/40 transition group cursor-pointer"
+            className="grid grid-cols-[200px_110px_80px_1fr_130px_110px_68px_46px_46px_46px_46px_32px] gap-2 px-5 py-3 items-center hover:bg-indigo-50/40 transition group cursor-pointer"
             onClick={onView}
         >
+            {/* Customer / Invoice */}
             <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{invoice.customer_name || "Unknown Customer"}</p>
                 <p className="text-xs text-gray-400 font-mono truncate">{invoice.invoice_number || invoice.bubble_id}</p>
                 <p className="text-xs text-gray-400 truncate mt-0.5">{fmtDate(invoice.created_at)}</p>
             </div>
+
+            {/* Package Type */}
+            <div className="min-w-0">
+                <PackageBadge caseStatus={invoice.case_status} installStatus={invoice.installation_status} />
+            </div>
+
+            {/* State */}
+            <div className="min-w-0">
+                {invoice.state
+                    ? <span className="inline-block text-xs font-semibold text-gray-700 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 truncate max-w-full">{invoice.state}</span>
+                    : <span className="text-xs text-gray-300">—</span>
+                }
+            </div>
+
+            {/* Address */}
+            <div className="min-w-0">
+                {invoice.installation_address
+                    ? <p className="text-xs text-gray-500 truncate" title={invoice.installation_address}>{invoice.installation_address}</p>
+                    : <span className="text-xs text-gray-300">—</span>
+                }
+            </div>
+
+            {/* Agent */}
             <div className="min-w-0">
                 <p className="text-xs text-indigo-600 font-medium truncate">{invoice.agent_name || "—"}</p>
-                {invoice.state && <p className="text-xs text-gray-400 truncate">{invoice.state}</p>}
             </div>
-            <div>
-                <p className="text-sm font-bold text-gray-800">{fmtAmount(invoice.total_amount || invoice.amount)}</p>
-                {invoice.case_status && (
-                    <span className="inline-block text-xs px-1.5 py-0 rounded bg-gray-100 text-gray-500 mt-0.5">{invoice.case_status}</span>
-                )}
-            </div>
-            <div className="min-w-0"><PaymentBar pct={invoice.percent_paid} /></div>
 
+            {/* Amount */}
+            <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-800 truncate">{fmtAmount(invoice.total_amount || invoice.amount)}</p>
+            </div>
+
+            {/* Payment Progress (mini) */}
+            <div className="min-w-0 px-1">
+                <PaymentBar pct={invoice.percent_paid} />
+            </div>
+
+            {/* Attachment counts */}
             {(["roof", "site", "pv", "eng"] as AttachmentKey[]).map(key => {
                 const count = key === "roof" ? invoice.roof_count : key === "site" ? invoice.site_count : key === "pv" ? invoice.pv_count : invoice.eng_count;
                 const { color, bg } = ATTACHMENT_META[key];
