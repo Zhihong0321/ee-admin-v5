@@ -7,38 +7,38 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 function safeArray(val: unknown): string[] {
-    if (!val) return [];
-    if (Array.isArray(val)) return (val as string[]).filter(Boolean);
-    return [];
+  if (!val) return [];
+  if (Array.isArray(val)) return (val as string[]).filter(Boolean);
+  return [];
 }
 
 function mergeUnique(...arrays: string[][]): string[] {
-    return [...new Set(arrays.flat().filter(Boolean))];
+  return [...new Set(arrays.flat().filter(Boolean))];
 }
 
 export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search')?.trim() || '';
-    const minPct = parseFloat(searchParams.get('minPct') || '0');
-    const maxPct = parseFloat(searchParams.get('maxPct') || '100');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 300);
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get('search')?.trim() || '';
+  const minPct = parseFloat(searchParams.get('minPct') || '0');
+  const maxPct = parseFloat(searchParams.get('maxPct') || '100');
+  const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 300);
 
-    try {
-        // Build search conditions
-        const searchCondition = search
-            ? sql`AND (
+  try {
+    // Build search conditions
+    const searchCondition = search
+      ? sql`AND (
           inv.invoice_number ILIKE ${'%' + search + '%'}
           OR c.name ILIKE ${'%' + search + '%'}
           OR a.name ILIKE ${'%' + search + '%'}
           OR sr.installation_address ILIKE ${'%' + search + '%'}
         )`
-            : sql``;
+      : sql``;
 
-        const pctCondition = (minPct > 0 || maxPct < 100)
-            ? sql`AND COALESCE(inv.percent_of_total_amount::numeric, 0) BETWEEN ${minPct} AND ${maxPct}`
-            : sql``;
+    const pctCondition = (minPct > 0 || maxPct < 100)
+      ? sql`AND COALESCE(inv.percent_of_total_amount::numeric, 0) BETWEEN ${minPct} AND ${maxPct}`
+      : sql``;
 
-        const result = await db.execute(sql`
+    const result = await db.execute(sql`
       SELECT
         inv.id,
         inv.bubble_id,
@@ -53,13 +53,17 @@ export async function GET(request: Request) {
         inv.installation_status,
         COALESCE(sr.state, c.state) AS state,
 
-        -- Package type: grab from the first package-type invoice item linked to this invoice
+        -- Package type: grab from the first invoice item that has a linked_package
+        -- NOTE: is_a_package is NULL for many older records (not just false), so we
+        -- use linked_package IS NOT NULL as the reliable signal instead.
         (
           SELECT p.type
           FROM invoice_item ii
           JOIN package p ON ii.linked_package = p.bubble_id
           WHERE ii.linked_invoice = inv.bubble_id
-            AND ii.is_a_package = true
+            AND ii.linked_package IS NOT NULL
+            AND ii.linked_package != ''
+          ORDER BY ii.sort ASC NULLS LAST
           LIMIT 1
         ) AS package_type,
 
@@ -99,68 +103,68 @@ export async function GET(request: Request) {
       LIMIT ${limit}
     `);
 
-        const rows = (result.rows as any[]).map((row) => {
-            const roofImages = mergeUnique(
-                safeArray(row.linked_roof_image),
-                safeArray(row.seda_roof_images)
-            );
-            const siteAssessment = mergeUnique(
-                safeArray(row.site_assessment_image),
-                safeArray(row.seda_site_images)
-            );
-            const pvDrawing = mergeUnique(
-                safeArray(row.pv_system_drawing),
-                safeArray(row.seda_pv_drawing)
-            );
-            const engDrawing = safeArray(row.seda_eng_drawing);
+    const rows = (result.rows as any[]).map((row) => {
+      const roofImages = mergeUnique(
+        safeArray(row.linked_roof_image),
+        safeArray(row.seda_roof_images)
+      );
+      const siteAssessment = mergeUnique(
+        safeArray(row.site_assessment_image),
+        safeArray(row.seda_site_images)
+      );
+      const pvDrawing = mergeUnique(
+        safeArray(row.pv_system_drawing),
+        safeArray(row.seda_pv_drawing)
+      );
+      const engDrawing = safeArray(row.seda_eng_drawing);
 
-            return {
-                id: row.id,
-                bubble_id: row.bubble_id,
-                invoice_number: row.invoice_number,
-                invoice_date: row.invoice_date,
-                created_at: row.created_at,
-                status: row.status,
-                case_status: row.case_status,
-                installation_status: row.installation_status,
-                package_type: row.package_type || null,
-                state: row.state,
-                total_amount: row.total_amount ? parseFloat(row.total_amount) : null,
-                amount: row.amount ? parseFloat(row.amount) : null,
-                percent_paid: row.percent_of_total_amount
-                    ? parseFloat(row.percent_of_total_amount)
-                    : 0,
-                customer_name: row.customer_name || null,
-                customer_phone: row.customer_phone || null,
-                agent_name: row.agent_name || null,
-                installation_address: row.installation_address || null,
-                seda_bubble_id: row.seda_bubble_id || null,
-                seda_status: row.seda_status || null,
-                // Attachment arrays
-                roof_images: roofImages,
-                site_assessment: siteAssessment,
-                pv_drawing: pvDrawing,
-                eng_drawing: engDrawing,
-                // Quick-view counts
-                roof_count: roofImages.length,
-                site_count: siteAssessment.length,
-                pv_count: pvDrawing.length,
-                eng_count: engDrawing.length,
-                total_attachments: roofImages.length + siteAssessment.length + pvDrawing.length + engDrawing.length,
-            };
-        });
+      return {
+        id: row.id,
+        bubble_id: row.bubble_id,
+        invoice_number: row.invoice_number,
+        invoice_date: row.invoice_date,
+        created_at: row.created_at,
+        status: row.status,
+        case_status: row.case_status,
+        installation_status: row.installation_status,
+        package_type: row.package_type || null,
+        state: row.state,
+        total_amount: row.total_amount ? parseFloat(row.total_amount) : null,
+        amount: row.amount ? parseFloat(row.amount) : null,
+        percent_paid: row.percent_of_total_amount
+          ? parseFloat(row.percent_of_total_amount)
+          : 0,
+        customer_name: row.customer_name || null,
+        customer_phone: row.customer_phone || null,
+        agent_name: row.agent_name || null,
+        installation_address: row.installation_address || null,
+        seda_bubble_id: row.seda_bubble_id || null,
+        seda_status: row.seda_status || null,
+        // Attachment arrays
+        roof_images: roofImages,
+        site_assessment: siteAssessment,
+        pv_drawing: pvDrawing,
+        eng_drawing: engDrawing,
+        // Quick-view counts
+        roof_count: roofImages.length,
+        site_count: siteAssessment.length,
+        pv_count: pvDrawing.length,
+        eng_count: engDrawing.length,
+        total_attachments: roofImages.length + siteAssessment.length + pvDrawing.length + engDrawing.length,
+      };
+    });
 
-        return NextResponse.json({
-            success: true,
-            fetchedAt: new Date().toISOString(),
-            total: rows.length,
-            invoices: rows,
-        });
-    } catch (error: any) {
-        console.error('[engineering-v2]', error);
-        return NextResponse.json(
-            { success: false, error: error?.message ?? String(error) },
-            { status: 500 }
-        );
-    }
+    return NextResponse.json({
+      success: true,
+      fetchedAt: new Date().toISOString(),
+      total: rows.length,
+      invoices: rows,
+    });
+  } catch (error: any) {
+    console.error('[engineering-v2]', error);
+    return NextResponse.json(
+      { success: false, error: error?.message ?? String(error) },
+      { status: 500 }
+    );
+  }
 }
