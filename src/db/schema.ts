@@ -66,6 +66,9 @@ export const invoices = pgTable('invoice', {
   linked_agent: text('linked_agent'), // Agent bubble_id
   linked_payment: text('linked_payment').array(), // ARRAY of payment bubble_ids
   linked_seda_registration: text('linked_seda_registration'), // SEDA registration bubble_id
+  linked_roof_image: text('linked_roof_image').array(), // Invoice Office roof images
+  pv_system_drawing: text('pv_system_drawing').array(), // Invoice Office PV system drawings
+  site_assessment_image: text('site_assessment_image').array(), // Site assessment images (live DB col 144)
 
   // Commission Eligibility Fields
   amount_eligible_for_comm: numeric('amount_eligible_for_comm'),

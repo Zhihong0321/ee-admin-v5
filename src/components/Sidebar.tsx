@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, FileDigit, Layers, UserPlus, Headset, ScanSearch } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, FileDigit, Layers, UserPlus, Headset, ScanSearch, Hammer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 import { logoutAction } from "@/app/auth-actions";
@@ -12,6 +12,7 @@ const menuItems = [
   { name: "SEDA Applications", href: "/seda", icon: FileCheck },
   { name: "Invoices", href: "/invoices", icon: FileText },
   { name: "Engineering", href: "/engineering", icon: FileDigit },
+  { name: "Engineering V2", href: "/engineering-v2", icon: Hammer },
   { name: "Payments", href: "/payments", icon: CreditCard },
   { name: "Customers", href: "/customers", icon: Users },
   { name: "Referrals", href: "/referrals", icon: UserPlus },
@@ -43,6 +44,7 @@ export function Sidebar({ user }: SidebarProps) {
       case '/seda':
       case '/invoices':
       case '/engineering':
+      case '/engineering-v2':
         return userTags.includes('admin') || userTags.includes('finance');
       case '/payments':
         return userTags.includes('finance');
