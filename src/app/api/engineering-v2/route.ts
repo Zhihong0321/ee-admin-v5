@@ -53,6 +53,16 @@ export async function GET(request: Request) {
         inv.installation_status,
         COALESCE(sr.state, c.state) AS state,
 
+        -- Package type: grab from the first package-type invoice item linked to this invoice
+        (
+          SELECT p.type
+          FROM invoice_item ii
+          JOIN package p ON ii.linked_package = p.bubble_id
+          WHERE ii.linked_invoice = inv.bubble_id
+            AND ii.is_a_package = true
+          LIMIT 1
+        ) AS package_type,
+
         -- Attachments from invoice
         inv.linked_roof_image,
         inv.pv_system_drawing,
@@ -113,6 +123,7 @@ export async function GET(request: Request) {
                 status: row.status,
                 case_status: row.case_status,
                 installation_status: row.installation_status,
+                package_type: row.package_type || null,
                 state: row.state,
                 total_amount: row.total_amount ? parseFloat(row.total_amount) : null,
                 amount: row.amount ? parseFloat(row.amount) : null,

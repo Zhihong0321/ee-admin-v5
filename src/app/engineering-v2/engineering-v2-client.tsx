@@ -21,6 +21,7 @@ interface InvoiceRow {
     status: string | null;
     case_status: string | null;
     installation_status: string | null;
+    package_type: string | null;
     state: string | null;
     total_amount: number | null;
     amount: number | null;
@@ -108,20 +109,19 @@ function PaymentBar({ pct }: { pct: number }) {
     );
 }
 
-function PackageBadge({ caseStatus, installStatus }: { caseStatus: string | null; installStatus: string | null }) {
-    const raw = (caseStatus || installStatus || "").toLowerCase();
+function PackageBadge({ packageType }: { packageType: string | null }) {
+    const raw = (packageType || "").toLowerCase();
     const isResidential = raw.includes("residential") || raw.includes("resi") || raw.includes("domestic") || raw.includes("home");
     const isCommercial = raw.includes("commercial") || raw.includes("comm") || raw.includes("industrial");
-    const label = isResidential ? "Residential" : isCommercial ? "Commercial" : (caseStatus || installStatus || null);
     const style = isResidential
         ? "bg-sky-50 text-sky-700 border-sky-200"
         : isCommercial
-        ? "bg-amber-50 text-amber-700 border-amber-200"
-        : "bg-gray-50 text-gray-500 border-gray-200";
-    if (!label) return <span className="text-xs text-gray-300">—</span>;
+            ? "bg-amber-50 text-amber-700 border-amber-200"
+            : "bg-gray-50 text-gray-500 border-gray-200";
+    if (!packageType) return <span className="text-xs text-gray-300">—</span>;
     return (
         <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold leading-tight truncate max-w-full ${style}`}>
-            {label}
+            {packageType}
         </span>
     );
 }
@@ -754,7 +754,7 @@ function InvoiceListRow({ invoice, onView }: { invoice: InvoiceRow; onView: () =
 
             {/* Package Type */}
             <div className="min-w-0">
-                <PackageBadge caseStatus={invoice.case_status} installStatus={invoice.installation_status} />
+                <PackageBadge packageType={invoice.package_type} />
             </div>
 
             {/* State */}
