@@ -65,6 +65,8 @@ export async function syncProfilesFromBubble() {
     await syncTable('user', users, users.bubble_id, (b) => ({
       email: b.authentication?.email?.email, linked_agent_profile: b["Linked Agent Profile"],
       agent_code: b.agent_code, dealership: b.Dealership, profile_picture: b["Profile Picture"],
+      offer_letter: b["Offer Letter"] || b.offer_letter || null,
+      employment_letter: b["Employment Letter"] || b.employment_letter || null,
       user_signed_up: b.user_signed_up, access_level: b["Access Level"] || [],
       updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
     }), results);
@@ -126,6 +128,8 @@ export async function syncSingleProfileFromBubble(bubbleId: string, type: 'user'
       const vals = {
         email: b.authentication?.email?.email, linked_agent_profile: b["Linked Agent Profile"],
         agent_code: b.agent_code, dealership: b.Dealership, profile_picture: b["Profile Picture"],
+        offer_letter: b["Offer Letter"] || b.offer_letter || null,
+        employment_letter: b["Employment Letter"] || b.employment_letter || null,
         user_signed_up: b.user_signed_up, access_level: b["Access Level"] || [],
         updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
       };

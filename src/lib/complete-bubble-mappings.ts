@@ -145,6 +145,8 @@ export const USER_FIELD_MAPPING: Record<string, FieldMappingConfig> = {
   'user_signed_up': { column: 'user_signed_up', type: 'boolean' },
   'Dealership': { column: 'dealership', type: 'string' },
   'Profile Picture': { column: 'profile_picture', type: 'string' },
+  'Offer Letter': { column: 'offer_letter', type: 'string' },
+  'Employment Letter': { column: 'employment_letter', type: 'string' },
   'Access Level': { column: 'access_level', type: 'array' },
   'Linked Agent Profile': { column: 'linked_agent_profile', type: 'string', relation: 'agent' },
   'check in report today': { column: 'check_in_report_today', type: 'string' },

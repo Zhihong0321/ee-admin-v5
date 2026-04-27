@@ -29,6 +29,8 @@ export const users = pgTable('user', {
   agent_code: text('agent_code'),
   dealership: text('dealership'),
   profile_picture: text('profile_picture'),
+  offer_letter: text('offer_letter'),
+  employment_letter: text('employment_letter'),
   user_signed_up: boolean('user_signed_up'),
   access_level: text('access_level').array(),
   outsource_role: text('outsource_role'),

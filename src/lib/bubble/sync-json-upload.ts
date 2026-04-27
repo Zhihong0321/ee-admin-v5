@@ -475,6 +475,8 @@ async function syncUser(user: any): Promise<{ updated: boolean; reason?: string 
       agent_code: user["Agent Code"] || null,
       dealership: user["Dealership"] || null,
       profile_picture: user["Profile Picture"] || null,
+      offer_letter: user["Offer Letter"] || user["offer_letter"] || null,
+      employment_letter: user["Employment Letter"] || user["employment_letter"] || null,
       user_signed_up: user["User Signed Up"] || false,
       access_level: accessLevel,
       created_date: parseBubbleDate(user["Created Date"]),

@@ -108,6 +108,9 @@ export default function DepartmentManagementPage() {
       setDepartments(data.departments);
       setUsers(data.users);
       setStats(data.stats);
+      if (data.error) {
+        setError(data.error);
+      }
     } catch (loadError) {
       console.error("Failed to load department management data", loadError);
       setError(loadError instanceof Error ? loadError.message : String(loadError));
