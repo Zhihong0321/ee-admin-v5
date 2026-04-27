@@ -5,6 +5,17 @@ import { users, agents } from "@/db/schema";
 import { ilike, or, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { pushUserUpdateToBubble, pushAgentUpdateToBubble, syncProfilesFromBubble, syncSingleProfileFromBubble } from "@/lib/bubble";
+import fs from "fs";
+import path from "path";
+
+const STORAGE_ROOT = process.env.STORAGE_ROOT || "/storage";
+const FILE_BASE_URL = process.env.FILE_BASE_URL || "https://admin.atap.solar";
+
+type UserLetterType = "offer_letter" | "employment_letter";
+
+function sanitizeUploadName(filename: string) {
+  return filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
 
 export async function triggerProfileSync() {
   const result = await syncProfilesFromBubble();
@@ -78,6 +89,8 @@ export async function getUsers({ search, page = 1, pageSize = 50 }: GetUsersPara
       agent_code: u.agent_code,
       dealership: u.dealership,
       profile_picture: u.profile_picture,
+      offer_letter: u.offer_letter,
+      employment_letter: u.employment_letter,
       user_signed_up: u.user_signed_up,
       access_level: u.access_level || [],
       joined_date: u.created_date,
@@ -106,6 +119,63 @@ export async function getUsers({ search, page = 1, pageSize = 50 }: GetUsersPara
   } catch (error) {
     console.error("Database error in getUsers:", error);
     throw error;
+  }
+}
+
+export async function uploadUserLetter(userId: number, letterType: UserLetterType, formData: FormData) {
+  try {
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return { success: false, error: "Invalid user selected" };
+    }
+
+    if (letterType !== "offer_letter" && letterType !== "employment_letter") {
+      return { success: false, error: "Invalid letter type" };
+    }
+
+    const file = formData.get("file") as File | null;
+    if (!file || file.size === 0) {
+      return { success: false, error: "No file uploaded" };
+    }
+
+    const maxSize = 15 * 1024 * 1024;
+    if (file.size > maxSize) {
+      return { success: false, error: "File is too large. Maximum size is 15MB." };
+    }
+
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!user) {
+      return { success: false, error: "User not found" };
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const subfolder = `users/letters/${letterType}`;
+    const targetDir = path.join(STORAGE_ROOT, subfolder);
+
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+
+    const sanitizedFilename = `${userId}-${Date.now()}-${sanitizeUploadName(file.name)}`;
+    fs.writeFileSync(path.join(targetDir, sanitizedFilename), buffer);
+
+    const fileUrl = `${FILE_BASE_URL}/api/files/${subfolder}/${sanitizedFilename}`;
+
+    await db
+      .update(users)
+      .set({
+        [letterType]: fileUrl,
+        updated_at: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    revalidatePath("/users");
+    return { success: true, url: fileUrl };
+  } catch (error) {
+    console.error("uploadUserLetter error:", error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 

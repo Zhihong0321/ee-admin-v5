@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, User, Mail, Phone, MapPin, Edit2, Shield, Briefcase, Building2, Calendar, X, PlusCircle, RefreshCw, GitBranch } from "lucide-react";
-import { getUsers, updateUserProfile, getAllUniqueTags, triggerProfileSync, syncUserFromBubble, createAgentForUser } from "./actions";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, User, Mail, Phone, MapPin, Edit2, Shield, Briefcase, Building2, Calendar, X, PlusCircle, RefreshCw, GitBranch, FileText, ExternalLink, UploadCloud, Loader2 } from "lucide-react";
+import { getUsers, updateUserProfile, getAllUniqueTags, triggerProfileSync, syncUserFromBubble, createAgentForUser, uploadUserLetter } from "./actions";
+
+type UserLetterField = "offer_letter" | "employment_letter";
 
 export default function UsersPage() {
   const [search, setSearch] = useState("");
@@ -18,7 +20,8 @@ export default function UsersPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [newTagInput, setNewTagInput] = useState("");
-  const [activeTab, setActiveTab] = useState<'profile' | 'mykad'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'mykad' | 'letters'>('profile');
+  const [letterUploading, setLetterUploading] = useState<UserLetterField | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -98,6 +101,7 @@ export default function UsersPage() {
   const handleEditClick = (user: any) => {
     setEditingUser({ ...user });
     setActiveTab('profile'); // Reset to profile tab when opening modal
+    setLetterUploading(null);
     setIsEditModalOpen(true);
   };
 
@@ -153,6 +157,101 @@ export default function UsersPage() {
     }
     setNewTagInput("");
   };
+
+  const fileNameFromUrl = (url?: string | null) => {
+    if (!url) return "";
+    try {
+      const parsed = new URL(url);
+      return decodeURIComponent(parsed.pathname.split("/").pop() || url);
+    } catch {
+      return decodeURIComponent(url.split("/").pop() || url);
+    }
+  };
+
+  async function handleLetterUpload(field: UserLetterField, files: FileList | null) {
+    if (!editingUser || !files?.[0]) return;
+
+    const formData = new FormData();
+    formData.append("file", files[0]);
+    setLetterUploading(field);
+
+    try {
+      const result = await uploadUserLetter(editingUser.id, field, formData);
+      if (!result.success || !result.url) {
+        alert(result.error || "Upload failed");
+        return;
+      }
+
+      setEditingUser({ ...editingUser, [field]: result.url });
+      setUsers((currentUsers) =>
+        currentUsers.map((user) =>
+          user.id === editingUser.id ? { ...user, [field]: result.url } : user
+        )
+      );
+    } catch (error) {
+      alert(`Upload failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setLetterUploading(null);
+    }
+  }
+
+  function renderLetterUpload(label: string, field: UserLetterField) {
+    const url = editingUser?.[field] as string | null | undefined;
+    const uploading = letterUploading === field;
+    const inputId = `${field}-upload`;
+
+    return (
+      <div className="rounded-xl border border-secondary-200 bg-white p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary-600" />
+              <h3 className="font-semibold text-secondary-900">{label}</h3>
+              {url && <span className="badge-success text-[10px]">Uploaded</span>}
+            </div>
+            {url ? (
+              <p className="mt-2 truncate text-sm text-secondary-500" title={fileNameFromUrl(url)}>
+                {fileNameFromUrl(url)}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-secondary-500">No file uploaded yet.</p>
+            )}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            {url && (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary flex items-center gap-2 px-3 py-2"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open
+              </a>
+            )}
+            <input
+              id={inputId}
+              type="file"
+              accept=".pdf,.doc,.docx,image/*"
+              className="hidden"
+              onChange={(event) => {
+                void handleLetterUpload(field, event.target.files);
+                event.target.value = "";
+              }}
+            />
+            <label
+              htmlFor={inputId}
+              className={`btn-primary flex cursor-pointer items-center gap-2 px-3 py-2 ${uploading ? "pointer-events-none opacity-60" : ""}`}
+            >
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+              {uploading ? "Uploading..." : url ? "Replace" : "Upload"}
+            </label>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const startResult = totalUsers === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endResult = totalUsers === 0 ? 0 : Math.min(currentPage * pageSize, totalUsers);
@@ -486,6 +585,17 @@ export default function UsersPage() {
                   >
                     MyKad Documents
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('letters')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      activeTab === 'letters'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-secondary-100 text-secondary-600 hover:bg-secondary-200'
+                    }`}
+                  >
+                    Letters
+                  </button>
                 </div>
               </div>
               <button 
@@ -714,7 +824,7 @@ export default function UsersPage() {
                 </button>
               </div>
               </>
-              ) : (
+              ) : activeTab === 'mykad' ? (
                 <>
                 {/* MyKad Documents Tab - EMPLOYEE IC for User/Agent */}
                 <div className="space-y-6">
@@ -818,6 +928,22 @@ export default function UsersPage() {
                     </div>
                   </div>
                 </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-6">
+                    <div className="rounded-xl border border-primary-200 bg-primary-50 p-5">
+                      <h3 className="text-lg font-bold text-primary-900">Employment Documents</h3>
+                      <p className="mt-1 text-sm text-primary-800">
+                        Upload or replace this user's offer letter and employment letter.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      {renderLetterUpload("Offer Letter", "offer_letter")}
+                      {renderLetterUpload("Employment Letter", "employment_letter")}
+                    </div>
+                  </div>
                 </>
               )}
             </form>
