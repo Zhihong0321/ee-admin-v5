@@ -31,6 +31,9 @@ export const users = pgTable('user', {
   profile_picture: text('profile_picture'),
   user_signed_up: boolean('user_signed_up'),
   access_level: text('access_level').array(),
+  outsource_role: text('outsource_role'),
+  outsource_parent_user_id: integer('outsource_parent_user_id'),
+  outsource_notes: text('outsource_notes'),
   created_date: timestamp('created_date'),
   created_at: timestamp('created_at').defaultNow(),
   updated_at: timestamp('updated_at').defaultNow(),
@@ -47,6 +50,24 @@ export const usersRelations = relations(users, ({ one }) => ({
 export const agentsRelations = relations(agents, ({ many }) => ({
   users: many(users),
 }));
+
+// Department management tables
+export const departments = pgTable('department', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+export const departmentMembers = pgTable('department_member', {
+  id: serial('id').primaryKey(),
+  department_id: integer('department_id').notNull(),
+  user_id: integer('user_id').notNull(),
+  role: text('role').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
 
 // Consolidated Invoice Table
 export const invoices = pgTable('invoice', {

@@ -2,12 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, FileDigit, Layers, UserPlus, Headset, ScanSearch, Hammer } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, Layers, UserPlus, Headset, ScanSearch, Hammer, GitBranch, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 import { logoutAction } from "@/app/auth-actions";
 
-const menuItems = [
+type MenuItem = {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  children?: MenuItem[];
+};
+
+const menuItems: MenuItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "SEDA Applications", href: "/seda", icon: FileCheck },
   { name: "Invoices", href: "/invoices", icon: FileText },
@@ -16,7 +23,15 @@ const menuItems = [
   { name: "Customers", href: "/customers", icon: Users },
   { name: "Referrals", href: "/referrals", icon: UserPlus },
   { name: "Catalog", href: "/catalog", icon: Layers },
-  { name: "Users", href: "/users", icon: UserCircle },
+  {
+    name: "Users",
+    href: "/users",
+    icon: UserCircle,
+    children: [
+      { name: "Outsource Management", href: "/users/outsource-management", icon: GitBranch },
+      { name: "Department Management", href: "/users/department-management", icon: Building2 },
+    ],
+  },
   { name: "Manage Company", href: "/manage-company", icon: Building2 },
   { name: "Customer Service", href: "/customer-service", icon: Headset },
   { name: "Sync Center", href: "/sync", icon: RefreshCw },
@@ -82,27 +97,57 @@ export function Sidebar({ user }: SidebarProps) {
           const Icon = item.icon;
           const isActive = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 relative",
-                isActive
-                  ? "bg-primary-50 text-primary-700 shadow-sm"
-                  : "text-secondary-600 hover:bg-secondary-50 hover:text-secondary-900"
-              )}
-            >
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary-600 rounded-r-full" />
-              )}
-              <Icon
+            <div key={item.href}>
+              <Link
+                href={item.href}
                 className={cn(
-                  "mr-3 h-5 w-5 transition-transform duration-200",
-                  isActive ? "text-primary-600" : "text-secondary-400 group-hover:text-secondary-600"
+                  "group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 relative",
+                  isActive
+                    ? "bg-primary-50 text-primary-700 shadow-sm"
+                    : "text-secondary-600 hover:bg-secondary-50 hover:text-secondary-900"
                 )}
-              />
-              <span className="relative">{item.name}</span>
-            </Link>
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary-600 rounded-r-full" />
+                )}
+                <Icon
+                  className={cn(
+                    "mr-3 h-5 w-5 transition-transform duration-200",
+                    isActive ? "text-primary-600" : "text-secondary-400 group-hover:text-secondary-600"
+                  )}
+                />
+                <span className="relative">{item.name}</span>
+              </Link>
+
+              {item.children && isActive && (
+                <div className="ml-6 mt-1 space-y-1 border-l border-secondary-200 pl-3">
+                  {item.children.map((child) => {
+                    const ChildIcon = child.icon;
+                    const childActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
+                    return (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className={cn(
+                          "group flex items-center rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200",
+                          childActive
+                            ? "bg-primary-100 text-primary-700"
+                            : "text-secondary-500 hover:bg-secondary-50 hover:text-secondary-900"
+                        )}
+                      >
+                        <ChildIcon
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            childActive ? "text-primary-600" : "text-secondary-400 group-hover:text-secondary-600"
+                          )}
+                        />
+                        <span className="truncate">{child.name}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>

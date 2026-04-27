@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, User, Mail, Phone, MapPin, Edit2, Shield, Briefcase, Building2, Calendar, X, PlusCircle, RefreshCw } from "lucide-react";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, User, Mail, Phone, MapPin, Edit2, Shield, Briefcase, Building2, Calendar, X, PlusCircle, RefreshCw, GitBranch } from "lucide-react";
 import { getUsers, updateUserProfile, getAllUniqueTags, triggerProfileSync, syncUserFromBubble, createAgentForUser } from "./actions";
 
 export default function UsersPage() {
@@ -166,9 +167,17 @@ export default function UsersPage() {
             Manage your application users and their linked agent profiles.
           </p>
         </div>
-        
+
         <div className="flex items-center gap-3">
-          <button 
+          <Link href="/users/outsource-management" className="btn-secondary flex items-center gap-2">
+            <GitBranch className="h-4 w-4" />
+            Outsource
+          </Link>
+          <Link href="/users/department-management" className="btn-secondary flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            Department
+          </Link>
+          <button
             onClick={handleSync}
             disabled={syncing}
             className="btn-secondary flex items-center gap-2 disabled:opacity-50"
