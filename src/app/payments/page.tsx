@@ -494,10 +494,10 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
     if (viewMode === "by-agent" && groupedInvoices.length > 0) {
       // Build CSV content
       // Header
-      let csvContent = "Agent Name,Invoice Number,Customer Name,First Payment Date,Full Payment Date,Total Amount (RM),Amount Eligible for Comm (RM),Commission Description\n";
+      let csvContent = "User Name,Invoice Number,Customer Name,First Payment Date,Full Payment Date,Total Amount (RM),Amount Eligible for Comm (RM),Commission Description\n";
 
       groupedInvoices.forEach((group: any) => {
-        // Agent Header Rows (optional, or just repeat name)
+        // User Header Rows (optional, or just repeat name)
 
         group.invoices.forEach((inv: any) => {
           const firstDate = inv.first_payment_date ? formatDate(inv.first_payment_date) : "N/A";
@@ -530,7 +530,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
       link.click();
       document.body.removeChild(link);
     } else {
-      alert("No data to export or not in 'By Agent' view.");
+      alert("No data to export or not in 'By User' view.");
     }
   };
 
@@ -538,7 +538,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
   const handleCopyForSheets = () => {
     if (viewMode === "by-agent" && groupedInvoices.length > 0) {
       // Build TSV content (Tab Separated Values) - pastes perfectly into Google Sheets
-      let tsvContent = "Agent Name\tInvoice Number\tCustomer Name\tFirst Payment Date\tFull Payment Date\tTotal Amount (RM)\tAmount Eligible for Comm (RM)\tCommission Description\n";
+      let tsvContent = "User Name\tInvoice Number\tCustomer Name\tFirst Payment Date\tFull Payment Date\tTotal Amount (RM)\tAmount Eligible for Comm (RM)\tCommission Description\n";
 
       // Helper to clean strings for TSV
       const clean = (str: any) => (str ? String(str).replace(/[\t\n\r]/g, " ").trim() : "");
@@ -573,7 +573,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
         alert("Failed to copy to clipboard.");
       });
     } else {
-      alert("No data to copy or not in 'By Agent' view.");
+      alert("No data to copy or not in 'By User' view.");
     }
   };
 
@@ -723,7 +723,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary-400 w-5 h-5" />
                 <input
                   type="text"
-                  placeholder="Search by customer, agent, or invoice number..."
+                  placeholder="Search by customer, user, or invoice number..."
                   className="input pl-12 pr-4"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -752,12 +752,12 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         }}
                         className={`px-3 py-1.5 text-sm rounded-md transition-all ${viewMode === "by-agent" ? "bg-white text-primary-600 shadow-sm" : "text-secondary-600 hover:text-secondary-900"}`}
                       >
-                        By Agent
+                        By User
                       </button>
                     </div>
                   </div>
 
-                  {/* Month/Year Filters for By Agent View */}
+                  {/* Month/Year Filters for By User View */}
                   {viewMode === "by-agent" && (
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-secondary-600">Period:</span>
@@ -923,7 +923,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
         {/* Table or Grouped View */}
         <div className="overflow-x-auto">
           {activeTab === "fully-paid" && viewMode === "by-agent" ? (
-            // Grouped View by Agent
+            // Grouped View by User
             <div className="space-y-4 p-6">
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
@@ -937,7 +937,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   <div className="p-4 bg-secondary-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                     <User className="h-8 w-8 text-secondary-400" />
                   </div>
-                  <p className="text-secondary-600">No agents found with fully paid invoices in {new Date(selectedYear, selectedMonth - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
+                  <p className="text-secondary-600">No users found with fully paid invoices in {new Date(selectedYear, selectedMonth - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
                 </div>
               ) : (
                 groupedInvoices.map((group, index) => (
@@ -1068,7 +1068,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                               {payment.customer_name || "N/A"}
                             </div>
                             <div className="text-xs text-secondary-500">
-                              {payment.agent_name || ""}
+                              {payment.created_by_user_name || payment.agent_name || ""}
                             </div>
                           </td>
                           <td>
@@ -1226,7 +1226,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                       />
                     </th>
                     <th>Date</th>
-                    <th>Agent / Customer</th>
+                    <th>User / Customer</th>
                     <th>Amount</th>
                     <th>Attachment</th>
                     <th>Remark</th>
@@ -1291,7 +1291,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                             <div className="flex flex-col gap-1">
                               <div className="flex items-center gap-1.5 text-sm font-semibold text-secondary-900">
                                 <User className="h-3.5 w-3.5 text-primary-500" />
-                                {payment.agent_name || "Unknown Agent"}
+                                {payment.created_by_user_name || payment.agent_name || "Unknown User"}
                               </div>
                               <div className="text-xs text-secondary-500 pl-5">
                                 Cust: {payment.customer_name || "N/A"}
@@ -1356,7 +1356,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
               <thead>
                 <tr>
                   <th>Full Payment Date</th>
-                  <th>Customer / Agent</th>
+                  <th>Customer / User</th>
                   <th>Total Amount</th>
                   <th>Status</th>
                   <th>Invoice # / Remark</th>
@@ -1410,7 +1410,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                             {invoice.customer_name || "Unknown Customer"}
                           </div>
                           <div className="text-xs text-secondary-500 pl-5">
-                            Agent: {invoice.agent_name || "N/A"}
+                            User: {invoice.created_by_user_name || invoice.agent_name || "N/A"}
                           </div>
                         </div>
                       </td>
@@ -1475,7 +1475,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         ? "Created On"
                         : "Date"}
                   </th>
-                  <th>Agent / Customer</th>
+                  <th>User / Customer</th>
                   <th>Amount</th>
                   <th>Method</th>
                   <th>Status / Remark</th>
@@ -1535,7 +1535,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-1.5 text-sm font-semibold text-secondary-900">
                             <User className="h-3.5 w-3.5 text-primary-500" />
-                            {payment.agent_name || "Unknown Agent"}
+                            {payment.created_by_user_name || payment.agent_name || "Unknown User"}
                           </div>
                           <div className="text-xs text-secondary-500 pl-5">
                             Cust: {payment.customer_name || "N/A"}
@@ -1644,7 +1644,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   <h2 className="text-xl font-bold text-secondary-900">Payment Details</h2>
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-sm text-secondary-500">
-                      Agent: <span className="font-semibold text-secondary-900">{viewingPayment.agent_name}</span>
+                            User: <span className="font-semibold text-secondary-900">{viewingPayment.created_by_user_name || viewingPayment.agent_name}</span>
                     </span>
                     <span className="text-secondary-300">|</span>
                     <span className="text-sm text-secondary-500">

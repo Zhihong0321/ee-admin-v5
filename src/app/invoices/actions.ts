@@ -21,6 +21,8 @@ export async function getInvoices(version: "v1" | "v2", search?: string, tab: "a
       if (search) {
         filters.push(or(
           ilike(invoices.linked_customer, `%${search}%`),
+          ilike(users.name, `%${search}%`),
+          ilike(users.email, `%${search}%`),
           ilike(agents.name, `%${search}%`),
           ilike(invoices.dealercode, `%${search}%`),
           sql`CAST(${invoices.invoice_id} AS TEXT) ILIKE ${`%${search}%`}`
@@ -33,10 +35,13 @@ export async function getInvoices(version: "v1" | "v2", search?: string, tab: "a
         amount: invoices.amount,
         invoice_date: invoices.invoice_date,
         linked_customer: invoices.linked_customer,
+        invoice_by_user_name: users.name,
+        invoice_by_user_email: users.email,
         agent_name: agents.name,
         dealercode: invoices.dealercode,
       })
         .from(invoices)
+        .leftJoin(users, eq(invoices.created_by, users.bubble_id))
         .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
         .where(and(...filters))
         .orderBy(desc(invoices.id))
@@ -55,9 +60,11 @@ export async function getInvoices(version: "v1" | "v2", search?: string, tab: "a
           i.percent_of_total_amount,
           i.is_deleted,
           c.name as customer_name,
+          COALESCE(u.name, u.email, a.name, a.email, i.created_by, i.linked_agent) as invoice_by_user_name,
           COALESCE(a.name, i.linked_agent) as agent_name
         FROM invoice i
         LEFT JOIN customer c ON c.customer_id = i.linked_customer
+        LEFT JOIN "user" u ON u.bubble_id = i.created_by
         LEFT JOIN agent a ON a.bubble_id = i.linked_agent
         WHERE i.is_latest = true
         AND COALESCE(i.is_deleted, false) = ${tab === 'active' ? false : true}
@@ -65,7 +72,11 @@ export async function getInvoices(version: "v1" | "v2", search?: string, tab: "a
           c.name ILIKE ${`%${search}%`}
           OR i.invoice_number ILIKE ${`%${search}%`}
           OR CAST(i.invoice_id AS TEXT) ILIKE ${`%${search}%`}
+          OR u.name ILIKE ${`%${search}%`}
+          OR u.email ILIKE ${`%${search}%`}
           OR a.name ILIKE ${`%${search}%`}
+          OR a.email ILIKE ${`%${search}%`}
+          OR CAST(i.created_by AS TEXT) ILIKE ${`%${search}%`}
         )` : sql``}
         ORDER BY i.created_at DESC
         LIMIT 50
@@ -80,6 +91,7 @@ export async function getInvoices(version: "v1" | "v2", search?: string, tab: "a
         percent_of_total_amount: row.percent_of_total_amount,
         is_deleted: row.is_deleted,
         customer_name_snapshot: row.customer_name || "N/A",
+        invoice_by_user_name: row.invoice_by_user_name || "N/A",
         agent_name: row.agent_name || "N/A"
       }));
 
@@ -121,7 +133,7 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
           where: eq(users.bubble_id, invoice.created_by),
         });
         if (creator) {
-          created_by_user_name = creator.email || "User";
+          created_by_user_name = creator.name || creator.email || creator.bubble_id || "User";
         }
       }
 

@@ -24,6 +24,7 @@ export const agents = pgTable('agent', {
 export const users = pgTable('user', {
   id: serial('id').primaryKey(),
   bubble_id: text('bubble_id'),
+  name: text('name'),
   email: text('email'), // Added to match Bubble authentication.email
   linked_agent_profile: text('linked_agent_profile'), // Links to agents.bubble_id
   agent_code: text('agent_code'),

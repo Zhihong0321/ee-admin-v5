@@ -272,7 +272,7 @@ function InvoicesContent() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search by Invoice ID, invoice no., customer name, or agent..."
+                placeholder="Search by Invoice ID, invoice no., customer name, or invoice by user..."
                 className="input pl-12 pr-4"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -306,7 +306,7 @@ function InvoicesContent() {
               <tr>
                 <th>Invoice ID</th>
                 <th>Customer</th>
-                <th>Agent</th>
+                <th>Invoice By</th>
                 <th>Date</th>
                 <th className="text-right">Amount</th>
                 {version === "v2" ? <th className="text-right">% Paid</th> : null}
@@ -377,7 +377,7 @@ function InvoicesContent() {
                       </td>
                       <td>
                         <div className="text-secondary-600">
-                          {inv.agent_name || (version === "v1" ? inv.dealercode : "N/A")}
+                          {inv.invoice_by_user_name || inv.agent_name || (version === "v1" ? inv.dealercode : "N/A")}
                         </div>
                       </td>
                       <td>
