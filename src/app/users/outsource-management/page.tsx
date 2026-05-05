@@ -103,6 +103,16 @@ function downlineSummary(member: OutsourceMember) {
   return "None";
 }
 
+function reportsToSummary(member: OutsourceMember) {
+  if (member.parent_name) return member.parent_name;
+  if (member.role === "OGM" || member.role === "OUM") return "Top level";
+  return "Not assigned";
+}
+
+function memberSubtitle(member: OutsourceMember) {
+  return [member.agent_code, member.email, member.contact].filter(Boolean).join(" | ") || "No agent details";
+}
+
 export default function OutsourceManagementPage() {
   const [members, setMembers] = useState<OutsourceMember[]>([]);
   const [stats, setStats] = useState<OutsourceStats>(EMPTY_STATS);
@@ -292,8 +302,8 @@ export default function OutsourceManagementPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <section className="card">
+      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[420px_minmax(0,1fr)]">
+        <section className="card min-w-0">
           <div className="border-b border-secondary-200 p-5">
             <div className="flex items-center gap-2">
               <GitBranch className="h-5 w-5 text-primary-600" />
@@ -405,14 +415,16 @@ export default function OutsourceManagementPage() {
           </div>
         </section>
 
-        <section className="card">
+        <section className="card min-w-0">
           <div className="border-b border-secondary-200 p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 className="text-xl font-bold text-secondary-900">Relationship List</h2>
-                <p className="text-sm text-secondary-500">{filteredMembers.length} users shown</p>
+                <h2 className="text-xl font-bold text-secondary-900">People</h2>
+                <p className="text-sm text-secondary-500">
+                  {filteredMembers.length} of {members.length} users shown
+                </p>
               </div>
-              <div className="relative w-full lg:w-80">
+              <div className="relative w-full lg:max-w-md">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary-400" />
                 <input
                   type="text"
@@ -440,75 +452,70 @@ export default function OutsourceManagementPage() {
               ))}
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>User</th>
-                  <th>Role</th>
-                  <th>Reports To</th>
-                  <th>Downline</th>
-                  <th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  Array.from({ length: 6 }).map((_, index) => (
-                    <tr key={index} className="animate-pulse">
-                      <td colSpan={5} className="px-6 py-5">
-                        <div className="h-4 w-3/4 rounded bg-secondary-200" />
-                      </td>
-                    </tr>
-                  ))
-                ) : filteredMembers.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-sm text-secondary-500">
-                      No matching users.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredMembers.map((member) => (
-                    <tr key={member.id}>
-                      <td className="whitespace-normal">
-                        <div className="flex min-w-[240px] items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-secondary-100">
-                            {member.profile_picture ? (
-                              <img src={member.profile_picture} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                              <UserCircle className="h-5 w-5 text-secondary-400" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-secondary-900">{member.name}</p>
-                            <p className="truncate text-xs text-secondary-500">{member.agent_code || member.email || "No agent code"}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{roleBadge(member.role)}</td>
-                      <td className="whitespace-normal">
-                        {member.parent_name ? (
-                          <div className="min-w-[180px]">
-                            <p className="truncate font-semibold text-secondary-800">{member.parent_name}</p>
-                            <div className="mt-1">{roleBadge(member.parent_role)}</div>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-secondary-500">{member.role === "OGM" ? "Top level" : "Not assigned"}</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className="text-sm font-semibold text-secondary-700">{downlineSummary(member)}</span>
-                      </td>
-                      <td className="text-right">
-                        <button type="button" onClick={() => openEdit(member)} className="btn-ghost text-primary-700">
-                          <Edit2 className="h-4 w-4" />
-                          Edit
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="divide-y divide-secondary-100">
+            {loading ? (
+              Array.from({ length: 7 }).map((_, index) => (
+                <div key={index} className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1.5fr)_120px_minmax(0,1fr)_120px_88px] lg:items-center">
+                  <div className="flex items-center gap-3">
+                    <div className="h-11 w-11 animate-pulse rounded-lg bg-secondary-100" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="h-4 w-2/3 animate-pulse rounded bg-secondary-100" />
+                      <div className="h-3 w-1/2 animate-pulse rounded bg-secondary-100" />
+                    </div>
+                  </div>
+                  <div className="h-7 w-24 animate-pulse rounded bg-secondary-100" />
+                  <div className="h-4 w-32 animate-pulse rounded bg-secondary-100" />
+                  <div className="h-4 w-20 animate-pulse rounded bg-secondary-100" />
+                  <div className="h-9 w-20 animate-pulse rounded bg-secondary-100" />
+                </div>
+              ))
+            ) : filteredMembers.length === 0 ? (
+              <div className="px-6 py-14 text-center text-sm text-secondary-500">No matching users.</div>
+            ) : (
+              filteredMembers.map((member) => (
+                <div
+                  key={member.id}
+                  className="grid min-w-0 gap-4 px-5 py-4 transition-colors hover:bg-secondary-50/70 lg:grid-cols-[minmax(0,1.5fr)_120px_minmax(0,1fr)_120px_88px] lg:items-center"
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-secondary-100">
+                      {member.profile_picture ? (
+                        <img src={member.profile_picture} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <UserCircle className="h-5 w-5 text-secondary-400" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-semibold leading-5 text-secondary-900">{member.name}</p>
+                      <p className="mt-1 break-words text-xs leading-5 text-secondary-500">{memberSubtitle(member)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 lg:block">
+                    <span className="w-20 shrink-0 text-xs font-semibold uppercase text-secondary-400 lg:hidden">Role</span>
+                    {roleBadge(member.role)}
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase text-secondary-400">Reports to</p>
+                    <p className="mt-1 break-words text-sm font-semibold text-secondary-800">{reportsToSummary(member)}</p>
+                    {member.parent_role && <div className="mt-2">{roleBadge(member.parent_role)}</div>}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-secondary-400">Downline</p>
+                    <p className="mt-1 text-sm font-semibold text-secondary-800">{downlineSummary(member)}</p>
+                  </div>
+
+                  <div className="flex justify-start lg:justify-end">
+                    <button type="button" onClick={() => openEdit(member)} className="btn-secondary h-9 px-3 text-primary-700">
+                      <Edit2 className="h-4 w-4" />
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </section>
       </div>
