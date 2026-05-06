@@ -2,8 +2,8 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, RefreshCw, Database, Trash2, RotateCcw, AlertTriangle } from "lucide-react";
-import { getInvoices, getInvoiceDetails, generateInvoicePdf, triggerInvoiceSync, deleteInvoice, recoverInvoice } from "./actions";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, RefreshCw, Database, Trash2, RotateCcw, AlertTriangle, X } from "lucide-react";
+import { getInvoices, getInvoiceDetails, generateInvoicePdf, triggerInvoiceSync, deleteInvoice, recoverInvoice, getUsersForFilter } from "./actions";
 import InvoiceEditor from "@/components/InvoiceEditor";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 
@@ -20,6 +20,13 @@ function InvoicesContent() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [paidPercentMin, setPaidPercentMin] = useState("");
+  const [paidPercentMax, setPaidPercentMax] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [createdBy, setCreatedBy] = useState("");
+  const [userList, setUserList] = useState<{ bubble_id: string | null; name: string | null; email: string | null }[]>([]);
 
   // Warning Popup State based on expiry date (Apr 20, 2026)
   // [ NOTICE TO NEXT AI AGENT / DEVELOPER ]
@@ -37,6 +44,10 @@ function InvoicesContent() {
     fetchData();
   }, [version, tab]);
 
+  useEffect(() => {
+    getUsersForFilter().then(setUserList).catch(console.error);
+  }, []);
+
   // Handle auto-opening invoice from query param
   useEffect(() => {
     const id = searchParams.get("id");
@@ -49,7 +60,14 @@ function InvoicesContent() {
     const currentPage = p ?? page;
     setLoading(true);
     try {
-      const result = await getInvoices(version, search, tab, currentPage, pageSize);
+      const filters = {
+        paidPercentMin: paidPercentMin ? parseFloat(paidPercentMin) : undefined,
+        paidPercentMax: paidPercentMax ? parseFloat(paidPercentMax) : undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        createdBy: createdBy || undefined,
+      };
+      const result = await getInvoices(version, search, tab, currentPage, pageSize, filters);
       setInvoices(result.data);
       setTotal(result.total);
       setPage(result.page);
@@ -121,7 +139,7 @@ function InvoicesContent() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchData();
+    fetchData(1);
   };
 
   const handleSync = async () => {
@@ -288,11 +306,11 @@ function InvoicesContent() {
             <div className="flex items-center gap-2 w-full md:w-auto">
               <button
                 type="button"
-                onClick={() => fetchData()}
-                className="btn-secondary flex items-center gap-2"
+                onClick={() => setShowFilters(!showFilters)}
+                className={`btn-secondary flex items-center gap-2 ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-700' : ''}`}
               >
                 <Filter className="w-4 h-4" />
-                Filter
+                Filters
               </button>
               <button
                 type="button"
@@ -304,6 +322,106 @@ function InvoicesContent() {
             </div>
           </form>
         </div>
+
+        {/* Filter Panel */}
+        {showFilters && (
+          <div className="p-6 border-b border-secondary-200 bg-secondary-50/60">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-secondary-700 flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                Filter Options
+              </h3>
+              <button
+                onClick={() => setShowFilters(false)}
+                className="p-1 rounded hover:bg-secondary-200 text-secondary-400 hover:text-secondary-600 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-xs font-semibold text-secondary-500 mb-2 uppercase tracking-wide">Invoice Date Range</label>
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="input text-sm"
+                    placeholder="From"
+                  />
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="input text-sm"
+                    placeholder="To"
+                  />
+                </div>
+              </div>
+              {version === "v2" && (
+                <div>
+                  <label className="block text-xs font-semibold text-secondary-500 mb-2 uppercase tracking-wide">Paid Amount %</label>
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={paidPercentMin}
+                      onChange={(e) => setPaidPercentMin(e.target.value)}
+                      className="input text-sm"
+                      placeholder="Min % (e.g. 0)"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={paidPercentMax}
+                      onChange={(e) => setPaidPercentMax(e.target.value)}
+                      className="input text-sm"
+                      placeholder="Max % (e.g. 100)"
+                    />
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-secondary-500 mb-2 uppercase tracking-wide">Created By (User)</label>
+                <select
+                  value={createdBy}
+                  onChange={(e) => setCreatedBy(e.target.value)}
+                  className="input text-sm"
+                >
+                  <option value="">All Users</option>
+                  {userList.map((u) => (
+                    <option key={u.bubble_id} value={u.bubble_id}>
+                      {u.name || u.email || u.bubble_id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 mt-5">
+              <button
+                onClick={() => { setPage(1); fetchData(1); }}
+                className="btn-primary text-sm"
+              >
+                Apply Filters
+              </button>
+              <button
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                  setPaidPercentMin("");
+                  setPaidPercentMax("");
+                  setCreatedBy("");
+                  setTimeout(() => fetchData(1), 0);
+                }}
+                className="btn-secondary text-sm"
+              >
+                Clear Filters
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Table */}
         <div className="overflow-x-auto">

@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { invoices, agents, users, invoice_templates, customers, payments, invoice_items, invoice_edit_history, packages } from "@/db/schema";
-import { ilike, or, sql, desc, eq, and, inArray } from "drizzle-orm";
+import { ilike, or, sql, desc, eq, and, inArray, gte, lte } from "drizzle-orm";
 import { getInvoiceHtml } from "@/lib/invoice-renderer";
 import { revalidatePath } from "next/cache";
 import { syncCompleteInvoicePackage } from "@/lib/bubble";
@@ -10,16 +10,29 @@ import { logInvoiceEdit } from "@/lib/invoice-edit-logger";
 
 const PDF_API_URL = "https://pdf-gen-production-6c81.up.railway.app";
 
-export async function getInvoices(version: "v1" | "v2", search?: string, tab: "active" | "deleted" = "active", page: number = 1, pageSize: number = 50) {
+export async function getInvoices(
+  version: "v1" | "v2",
+  search?: string,
+  tab: "active" | "deleted" = "active",
+  page: number = 1,
+  pageSize: number = 50,
+  filters?: {
+    paidPercentMin?: number;
+    paidPercentMax?: number;
+    dateFrom?: string;
+    dateTo?: string;
+    createdBy?: string;
+  }
+) {
   try {
     if (version === "v1") {
-      const filters = [
+      const conditions = [
         sql`(${invoices.invoice_number} IS NULL OR ${invoices.invoice_number} = '')`,
         tab === "active" ? sql`COALESCE(${invoices.is_deleted}, false) = false` : sql`COALESCE(${invoices.is_deleted}, false) = true`
       ];
 
       if (search) {
-        filters.push(or(
+        conditions.push(or(
           ilike(invoices.linked_customer, `%${search}%`),
           ilike(users.name, `%${search}%`),
           ilike(users.email, `%${search}%`),
@@ -29,7 +42,17 @@ export async function getInvoices(version: "v1" | "v2", search?: string, tab: "a
         ) as any);
       }
 
-      const whereClause = and(...filters);
+      if (filters?.dateFrom) {
+        conditions.push(gte(invoices.invoice_date, new Date(filters.dateFrom)));
+      }
+      if (filters?.dateTo) {
+        conditions.push(lte(invoices.invoice_date, new Date(filters.dateTo)));
+      }
+      if (filters?.createdBy) {
+        conditions.push(eq(invoices.created_by, filters.createdBy));
+      }
+
+      const whereClause = and(...conditions);
 
       const [{ count }] = await db.select({ count: sql<number>`count(*)` })
         .from(invoices)
@@ -72,6 +95,23 @@ export async function getInvoices(version: "v1" | "v2", search?: string, tab: "a
         OR CAST(i.created_by AS TEXT) ILIKE ${`%${search}%`}
       )` : sql``;
 
+      const filterConditions: any[] = [];
+      if (filters?.paidPercentMin !== undefined) {
+        filterConditions.push(sql`AND CAST(i.percent_of_total_amount AS numeric) >= ${filters.paidPercentMin}`);
+      }
+      if (filters?.paidPercentMax !== undefined) {
+        filterConditions.push(sql`AND CAST(i.percent_of_total_amount AS numeric) <= ${filters.paidPercentMax}`);
+      }
+      if (filters?.dateFrom) {
+        filterConditions.push(sql`AND i.invoice_date >= ${new Date(filters.dateFrom).toISOString()}`);
+      }
+      if (filters?.dateTo) {
+        filterConditions.push(sql`AND i.invoice_date <= ${new Date(filters.dateTo).toISOString()}`);
+      }
+      if (filters?.createdBy) {
+        filterConditions.push(sql`AND i.created_by = ${filters.createdBy}`);
+      }
+
       const countResult = await db.execute(sql`
         SELECT COUNT(*) as count
         FROM invoice i
@@ -81,6 +121,7 @@ export async function getInvoices(version: "v1" | "v2", search?: string, tab: "a
         WHERE i.is_latest = true
         AND COALESCE(i.is_deleted, false) = ${tab === 'active' ? false : true}
         ${searchCondition}
+        ${sql.join(filterConditions, sql` `)}
       `);
       const total = Number(countResult.rows[0].count);
 
@@ -104,6 +145,7 @@ export async function getInvoices(version: "v1" | "v2", search?: string, tab: "a
         WHERE i.is_latest = true
         AND COALESCE(i.is_deleted, false) = ${tab === 'active' ? false : true}
         ${searchCondition}
+        ${sql.join(filterConditions, sql` `)}
         ORDER BY i.created_at DESC
         LIMIT ${pageSize}
         OFFSET ${offset}
@@ -974,5 +1016,23 @@ export async function switchInvoiceItemPackage(
   } catch (error) {
     console.error("Error switching invoice item package:", error);
     return { success: false, error: String(error) };
+  }
+}
+
+export async function getUsersForFilter() {
+  try {
+    const usersList = await db
+      .select({
+        bubble_id: users.bubble_id,
+        name: users.name,
+        email: users.email,
+      })
+      .from(users)
+      .orderBy(users.name);
+
+    return usersList.filter((u) => u.bubble_id);
+  } catch (error) {
+    console.error("Error fetching users for filter:", error);
+    return [];
   }
 }
