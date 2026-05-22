@@ -267,6 +267,7 @@ export const sedaRegistration = pgTable('seda_registration', {
   nem_application_no: text('nem_application_no'),
   e_contact_relationship: text('e_contact_relationship'),
   ic_no: text('ic_no'),
+  tin_number: text('tin_number'),
   request_drawing_date: timestamp('request_drawing_date', { withTimezone: true }),
   phase_type: text('phase_type'),
   special_remark: text('special_remark'),

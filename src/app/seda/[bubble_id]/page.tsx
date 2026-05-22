@@ -13,6 +13,7 @@ const SEDA_FIELD_CONFIG: Record<string, { label: string; type: 'text' | 'textare
   // Customer Information
   email: { label: "Email", type: "text", section: "customer" },
   ic_no: { label: "IC Number", type: "text", section: "customer" },
+  tin_number: { label: "TIN Number", type: "text", section: "customer" },
 
   // Emergency Contact
   e_contact_name: { label: "Emergency Contact Name", type: "text", section: "emergency" },

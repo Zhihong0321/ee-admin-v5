@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
           latitude: sedaRegistration.latitude,
           longitude: sedaRegistration.longitude,
           ic_no: sedaRegistration.ic_no,
+          tin_number: sedaRegistration.tin_number,
           email: sedaRegistration.email,
           customer_name: customers.name,
           agent_user_id: sedaRegistration.agent,
@@ -140,6 +141,7 @@ export async function GET(request: NextRequest) {
       filtered = filtered.filter(s =>
         (s.installation_address?.toLowerCase().includes(searchQuery)) ||
         (s.ic_no?.toLowerCase().includes(searchQuery)) ||
+        (s.tin_number?.toLowerCase().includes(searchQuery)) ||
         (s.email?.toLowerCase().includes(searchQuery)) ||
         (s.customer_name?.toLowerCase().includes(searchQuery)) ||
         (s.agent_user_id?.toLowerCase().includes(searchQuery)) ||

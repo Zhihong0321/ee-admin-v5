@@ -11,6 +11,7 @@ interface SedaRegistration {
   city: string | null;
   state: string | null;
   ic_no: string | null;
+  tin_number: string | null;
   email: string | null;
   customer_name: string | null;
   agent_user_id: string | null;
@@ -222,7 +223,7 @@ export default function SedaListPage() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search by customer, address, IC number, user ID, user email..."
+              placeholder="Search by customer, address, IC number, TIN number, user ID, user email..."
               className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -338,6 +339,7 @@ export default function SedaListPage() {
                                 </div>
                                 <div className="text-xs text-slate-400 mt-1">
                                   {seda.ic_no || "No IC"}
+                                  {seda.tin_number && <span className="ml-2">| TIN: {seda.tin_number}</span>}
                                 </div>
                               </td>
 
