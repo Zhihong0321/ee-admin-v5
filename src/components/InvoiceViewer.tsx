@@ -245,10 +245,13 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
                   <table className="table w-full">
                     <thead>
                       <tr>
-                        <th className="w-[40%]">Description</th>
+                        <th className="w-[35%]">Description</th>
                         <th className="text-center w-[10%]">Qty</th>
-                        <th className="text-right w-[25%]">Unit Price</th>
-                        <th className="text-right w-[25%]">Amount</th>
+                        <th className="text-right w-[18%]">Unit Price</th>
+                        {version === "v2" && (
+                          <th className="text-right w-[17%]">Nett Price</th>
+                        )}
+                        <th className="text-right w-[20%]">Amount</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -265,10 +268,24 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
                               {item.qty || 0}
                             </span>
                           </td>
-                          <td className="text-right text-secondary-700">
+                          <td className="text-right text-secondary-700 font-mono">
                             {item.unit_price ? `MYR ${parseFloat(item.unit_price).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '-'}
                           </td>
-                          <td className="text-right font-semibold text-secondary-900">
+                          {version === "v2" && (
+                            <td className="text-right">
+                              {item.pkg_nett_price != null ? (
+                                <div>
+                                  <div className="text-sm font-medium text-secondary-500 font-mono">
+                                    MYR {parseFloat(item.pkg_nett_price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </div>
+                                  <div className="text-[10px] text-secondary-400 mt-0.5">Package NETT</div>
+                                </div>
+                              ) : (
+                                <span className="text-sm text-secondary-300 font-mono">—</span>
+                              )}
+                            </td>
+                          )}
+                          <td className="text-right font-semibold text-secondary-900 font-mono">
                             MYR {parseFloat(item.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                           </td>
                         </tr>
@@ -276,10 +293,10 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
                     </tbody>
                     <tfoot>
                       <tr className="bg-secondary-50">
-                        <td colSpan={3} className="text-right font-bold text-secondary-900">
+                        <td colSpan={version === "v2" ? 4 : 3} className="text-right font-bold text-secondary-900">
                           Total
                         </td>
-                        <td className="text-right font-bold text-primary-600 text-lg">
+                        <td className="text-right font-bold text-primary-600 text-lg font-mono">
                           MYR {parseFloat(invoiceData.total_amount || invoiceData.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>

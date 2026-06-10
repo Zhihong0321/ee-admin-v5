@@ -1163,7 +1163,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                             </td>
                             {version === "v2" && (
                               <td className="px-6 py-4 text-right">
-                                {item.pkg_type === "Residential" && item.pkg_nett_price != null ? (
+                                {item.pkg_nett_price != null ? (
                                   <div>
                                     <div className="text-sm font-medium text-secondary-500 font-mono">
                                       MYR {parseFloat(item.pkg_nett_price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

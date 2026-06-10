@@ -189,6 +189,36 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
         });
       }
 
+      // Enrich items with NETT price + package type from the linked package.
+      // Residential packages carry a nett_price; non-residential are all NULL.
+      const linkedPackageIds = Array.from(
+        new Set(items.map((i) => i.linked_package).filter((id): id is string => !!id))
+      );
+      const packageMeta = new Map<string, { nett_price: string | null; type: string | null }>();
+      if (linkedPackageIds.length > 0) {
+        const pkgs = await db
+          .select({
+            bubble_id: packages.bubble_id,
+            nett_price: packages.nett_price,
+            type: packages.type,
+          })
+          .from(packages)
+          .where(inArray(packages.bubble_id, linkedPackageIds));
+        for (const p of pkgs) {
+          if (p.bubble_id) {
+            packageMeta.set(p.bubble_id, { nett_price: p.nett_price, type: p.type });
+          }
+        }
+      }
+      const enrichedItems = items.map((item) => {
+        const meta = item.linked_package ? packageMeta.get(item.linked_package) : undefined;
+        return {
+          ...item,
+          pkg_nett_price: meta?.nett_price ?? null,
+          pkg_type: meta?.type ?? null,
+        };
+      });
+
       const template = await db.query.invoice_templates.findFirst({
         where: invoice.template_id
           ? eq(invoice_templates.bubble_id, invoice.template_id)
@@ -224,7 +254,7 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
 
       return {
         ...invoice,
-        items,
+        items: enrichedItems,
         template,
         created_by_user_name,
         customer_data: customerData,
