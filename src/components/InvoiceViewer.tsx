@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
 import { X, Printer, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info } from "lucide-react";
-import { generateInvoicePdf } from "@/app/invoices/actions";
+import { generateInvoicePdf } from "@/app/(app)/invoices/actions";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 
 interface InvoiceViewerProps {

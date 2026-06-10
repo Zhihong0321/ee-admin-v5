@@ -391,9 +391,9 @@ function InvoicesContent() {
                   className="input text-sm"
                 >
                   <option value="">All Users</option>
-                  {userList.map((u) => (
-                    <option key={u.bubble_id} value={u.bubble_id}>
-                      {u.name || u.email || u.bubble_id}
+                  {userList.map((u, index) => (
+                    <option key={u.bubble_id ?? index} value={u.bubble_id ?? ""}>
+                      {u.name || u.email || u.bubble_id || "Unknown User"}
                     </option>
                   ))}
                 </select>

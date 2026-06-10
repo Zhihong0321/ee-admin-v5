@@ -18,7 +18,7 @@ import {
   ChevronLeft
 } from "lucide-react";
 import Link from "next/link";
-import { listAllFiles, shrinkImage, StorageFile } from "../manage-company/storage-actions";
+import { listAllFiles, shrinkImage, StorageFile } from "../(app)/manage-company/storage-actions";
 
 export default function StorageManagerPage() {
   const [files, setFiles] = useState<StorageFile[]>([]);

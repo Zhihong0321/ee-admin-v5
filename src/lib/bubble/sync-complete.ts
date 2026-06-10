@@ -11,7 +11,7 @@
 
 import { db } from "@/lib/db";
 import { users, agents, payments, submitted_payments, customers, invoices, sedaRegistration, invoice_templates } from "@/db/schema";
-import { syncFilesByCategory } from "@/app/manage-company/storage-actions";
+import { syncFilesByCategory } from "@/app/(app)/manage-company/storage-actions";
 import { logSyncActivity } from "@/lib/logger";
 import { createProgressSession, updateProgress, getProgress } from "@/lib/progress-tracker";
 import { BUBBLE_BASE_URL, BUBBLE_API_HEADERS } from "./client";
