@@ -255,6 +255,7 @@ export const SEDA_REGISTRATION_FIELD_MAPPING: Record<string, FieldMappingConfig>
   'Email': { column: 'email', type: 'string' },
   'IC No': { column: 'ic_no', type: 'string' },
   'TIN Number': { column: 'tin_number', type: 'string' },
+  'Tax Document': { column: 'tax_document', type: 'string' },
   'E Contact Name': { column: 'e_contact_name', type: 'string' },
   'E Contact No': { column: 'e_contact_no', type: 'string' },
   'E Contact Relationship': { column: 'e_contact_relationship', type: 'string' },

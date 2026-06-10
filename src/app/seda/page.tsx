@@ -12,6 +12,7 @@ interface SedaRegistration {
   state: string | null;
   ic_no: string | null;
   tin_number: string | null;
+  tax_document: string | null;
   email: string | null;
   customer_name: string | null;
   agent_user_id: string | null;
@@ -340,6 +341,7 @@ export default function SedaListPage() {
                                 <div className="text-xs text-slate-400 mt-1">
                                   {seda.ic_no || "No IC"}
                                   {seda.tin_number && <span className="ml-2">| TIN: {seda.tin_number}</span>}
+                                  {seda.tax_document && <span className="ml-2 text-emerald-600">✓ Tax Doc</span>}
                                 </div>
                               </td>
 

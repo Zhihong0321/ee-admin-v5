@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
           longitude: sedaRegistration.longitude,
           ic_no: sedaRegistration.ic_no,
           tin_number: sedaRegistration.tin_number,
+          tax_document: sedaRegistration.tax_document,
           email: sedaRegistration.email,
           customer_name: customers.name,
           agent_user_id: sedaRegistration.agent,

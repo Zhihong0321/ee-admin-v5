@@ -14,6 +14,7 @@ const SEDA_FIELD_CONFIG: Record<string, { label: string; type: 'text' | 'textare
   email: { label: "Email", type: "text", section: "customer" },
   ic_no: { label: "IC Number", type: "text", section: "customer" },
   tin_number: { label: "TIN Number", type: "text", section: "customer" },
+  tax_document: { label: "Tax Document", type: "url", section: "customer" },
 
   // Emergency Contact
   e_contact_name: { label: "Emergency Contact Name", type: "text", section: "emergency" },
