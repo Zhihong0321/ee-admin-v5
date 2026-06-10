@@ -1077,6 +1077,9 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                         <th className="px-6 py-3 text-left text-[11px] font-bold text-secondary-400 uppercase tracking-wider">Description</th>
                         <th className="px-6 py-3 text-center text-[11px] font-bold text-secondary-400 uppercase tracking-wider w-24">Qty</th>
                         <th className="px-6 py-3 text-right text-[11px] font-bold text-secondary-400 uppercase tracking-wider w-40">Unit Rate</th>
+                        {version === "v2" && (
+                          <th className="px-6 py-3 text-right text-[11px] font-bold text-secondary-400 uppercase tracking-wider w-40">NETT Price</th>
+                        )}
                         <th className="px-6 py-3 text-right text-[11px] font-bold text-secondary-400 uppercase tracking-wider w-40">Amount</th>
                         <th className="px-6 py-3 text-right text-[11px] font-bold text-secondary-400 uppercase tracking-wider w-32">Actions</th>
                       </tr>
@@ -1158,6 +1161,20 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                                 </span>
                               )}
                             </td>
+                            {version === "v2" && (
+                              <td className="px-6 py-4 text-right">
+                                {item.pkg_type === "Residential" && item.pkg_nett_price != null ? (
+                                  <div>
+                                    <div className="text-sm font-medium text-secondary-500 font-mono">
+                                      MYR {parseFloat(item.pkg_nett_price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </div>
+                                    <div className="text-[10px] text-secondary-400 mt-0.5">Package NETT</div>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-secondary-300 font-mono">—</span>
+                                )}
+                              </td>
+                            )}
                             <td className="px-6 py-4 text-right font-bold text-secondary-900 font-mono">
                               {parseFloat(itemData.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </td>
@@ -1205,7 +1222,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                         );
                       })}
                       <tr className="bg-secondary-50/50 border-t border-secondary-200">
-                        <td colSpan={3} className="px-6 py-6 text-right font-bold uppercase tracking-wider text-secondary-400 text-[10px]">Total Amount (RM)</td>
+                        <td colSpan={version === "v2" ? 4 : 3} className="px-6 py-6 text-right font-bold uppercase tracking-wider text-secondary-400 text-[10px]">Total Amount (RM)</td>
                         <td className="px-6 py-6 text-right font-bold text-lg font-mono text-secondary-900">
                           {parseFloat(invoiceData.total_amount || calculatedTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>

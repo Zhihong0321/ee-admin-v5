@@ -533,6 +533,7 @@ export const packages = pgTable('package', {
   special: boolean('special'),
   type: text('type'),
   updated_at: timestamp('updated_at', { withTimezone: true }),
+  nett_price: numeric('nett_price'),
 });
 
 export const hybridInverterUpgradeRules = pgTable('hybrid_inverter_upgrade_rule', {
