@@ -219,11 +219,21 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
         };
       });
 
-      const template = await db.query.invoice_templates.findFirst({
-        where: invoice.template_id
-          ? eq(invoice_templates.bubble_id, invoice.template_id)
-          : eq(invoice_templates.is_default, true),
-      });
+      // Resolve the template by its bubble_id. Many invoices carry a
+      // placeholder template_id (e.g. the literal string "default") that does
+      // not match any template bubble_id, so fall back to the default template
+      // instead of returning nothing (which would blank out all company/legal
+      // info: name, address, SST reg no, bank details, terms).
+      let template = invoice.template_id
+        ? await db.query.invoice_templates.findFirst({
+            where: eq(invoice_templates.bubble_id, invoice.template_id),
+          })
+        : undefined;
+      if (!template) {
+        template = await db.query.invoice_templates.findFirst({
+          where: eq(invoice_templates.is_default, true),
+        });
+      }
 
       // Get creator name
       let created_by_user_name = "System";
