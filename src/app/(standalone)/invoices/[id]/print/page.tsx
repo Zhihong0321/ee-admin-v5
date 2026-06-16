@@ -56,6 +56,10 @@ export default async function InvoicePrintPage({
   const companyName = template.company_name || "Atap Solar";
   const customerName = invoice.customer_name_snapshot || invoice.customer_data?.name || "—";
 
+  // Document type: any payment received => INVOICE, otherwise => QUOTATION.
+  const docType = paid > 0 ? "INVOICE" : "QUOTATION";
+  const docLabel = docType === "INVOICE" ? "Invoice" : "Quotation";
+
   return (
     <>
       <style>{css}</style>
@@ -81,7 +85,7 @@ export default async function InvoicePrintPage({
           </div>
 
           <div className="head-doc">
-            <div className="doc-title">INVOICE</div>
+            <div className="doc-title">{docType}</div>
             <div className="doc-no">{invoiceNo}</div>
             <div className="doc-status">{status}</div>
           </div>
@@ -103,11 +107,11 @@ export default async function InvoicePrintPage({
 
           <div className="meta-dates">
             <div className="meta-row">
-              <span className="label">Invoice Date</span>
+              <span className="label">{docLabel} Date</span>
               <span className="meta-val">{formatDate(invoice.invoice_date)}</span>
             </div>
             <div className="meta-row">
-              <span className="label">Invoice No.</span>
+              <span className="label">{docLabel} No.</span>
               <span className="meta-val">{invoiceNo}</span>
             </div>
           </div>
@@ -201,7 +205,7 @@ export default async function InvoicePrintPage({
           ) : null}
 
           <div className="foot-sign">
-            <span className="muted">Invoice created by {invoice.created_by_user_name || "System"}</span>
+            <span className="muted">{docLabel} created by {invoice.created_by_user_name || "System"}</span>
             <span className="thanks">Thank you for your business</span>
           </div>
         </footer>
