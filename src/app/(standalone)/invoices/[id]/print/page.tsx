@@ -74,8 +74,9 @@ export default async function InvoicePrintPage({
             <div className="company-meta">
               <div className="company-name-sm">{companyName}</div>
               {template.company_address ? <div>{template.company_address}</div> : null}
-              {template.company_phone ? <div>Tel: {template.company_phone}</div> : null}
-              {template.company_email ? <div>{template.company_email}</div> : null}
+              <div>Tel: {template.company_phone || "—"}</div>
+              <div>Email: {template.company_email || "—"}</div>
+              {template.sst_registration_no ? <div>SST Reg. No: {template.sst_registration_no}</div> : null}
             </div>
           </div>
 
@@ -96,11 +97,8 @@ export default async function InvoicePrintPage({
             {invoice.customer_address_snapshot ? (
               <div className="muted">{invoice.customer_address_snapshot}</div>
             ) : null}
-            <div className="muted">
-              {invoice.customer_phone_snapshot ? <span>Tel: {invoice.customer_phone_snapshot}</span> : null}
-              {invoice.customer_phone_snapshot && invoice.customer_email_snapshot ? <span> · </span> : null}
-              {invoice.customer_email_snapshot ? <span>{invoice.customer_email_snapshot}</span> : null}
-            </div>
+            <div className="muted">Tel: {invoice.customer_phone_snapshot || "—"}</div>
+            <div className="muted">Email: {invoice.customer_email_snapshot || "—"}</div>
           </div>
 
           <div className="meta-dates">
@@ -181,21 +179,24 @@ export default async function InvoicePrintPage({
           </div>
         </section>
 
-        {/* Footer: bank + terms */}
+        {/* Footer: bank + terms (always rendered — legal sections) */}
         <footer className="foot">
-          {(template.bank_name || template.bank_account_no || template.bank_account_name) && (
-            <div className="foot-block">
-              <div className="label">Payment Details</div>
-              {template.bank_name ? <div className="muted">Bank: {template.bank_name}</div> : null}
-              {template.bank_account_no ? <div className="muted">Account No: {template.bank_account_no}</div> : null}
-              {template.bank_account_name ? <div className="muted">Account Name: {template.bank_account_name}</div> : null}
-            </div>
-          )}
+          <div className="foot-block">
+            <div className="label">Payment Details</div>
+            <div className="muted">Bank: {template.bank_name || "—"}</div>
+            <div className="muted">Account No: {template.bank_account_no || "—"}</div>
+            <div className="muted">Account Name: {template.bank_account_name || "—"}</div>
+          </div>
 
-          {template.terms_and_conditions ? (
+          <div className="foot-block">
+            <div className="label">Terms &amp; Conditions</div>
+            <div className="terms">{template.terms_and_conditions || "—"}</div>
+          </div>
+
+          {template.disclaimer ? (
             <div className="foot-block">
-              <div className="label">Terms &amp; Conditions</div>
-              <div className="terms">{template.terms_and_conditions}</div>
+              <div className="label">Disclaimer</div>
+              <div className="terms">{template.disclaimer}</div>
             </div>
           ) : null}
 
