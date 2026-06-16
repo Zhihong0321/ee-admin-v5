@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, RefreshCw, Database, Trash2, RotateCcw, AlertTriangle, X } from "lucide-react";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, RefreshCw, Database, Trash2, RotateCcw, AlertTriangle, X, Printer } from "lucide-react";
 import { getInvoices, getInvoiceDetails, generateInvoicePdf, triggerInvoiceSync, deleteInvoice, recoverInvoice, getUsersForFilter } from "./actions";
 import InvoiceEditor from "@/components/InvoiceEditor";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
@@ -532,6 +532,13 @@ function InvoicesContent() {
                       ) : null}
                       <td className="text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => window.open(`/invoices/${inv.id}/print?v=${version}`, "_blank")}
+                            className="btn-ghost text-secondary-600 hover:text-secondary-900 p-2"
+                            title="Printable A4 Invoice"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </button>
                           <button
                             onClick={() => handleDownloadPdf(inv.id)}
                             disabled={downloadingId === inv.id}
