@@ -32,7 +32,9 @@ export async function GET(request: NextRequest) {
           latitude: sedaRegistration.latitude,
           longitude: sedaRegistration.longitude,
           ic_no: sedaRegistration.ic_no,
-          tin_number: sedaRegistration.tin_number,
+          // The live EE Admin database does not currently have this column.
+          // Keep the response shape stable for the UI without selecting it.
+          tin_number: sql<string | null>`NULL`,
           tax_document: sedaRegistration.tax_document,
           email: sedaRegistration.email,
           customer_name: customers.name,
