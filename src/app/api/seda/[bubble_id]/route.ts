@@ -55,6 +55,19 @@ export async function GET(
 
     // Calculate checkpoints
     const hasRequiredPayment = parseFloat(invoice_percent_paid || "0") >= 4;
+    const applicationType = String(seda.application_type || "").toLowerCase();
+    const nemType = String(seda.nem_type || "").toLowerCase();
+    const isCommercial =
+      applicationType === "commercial" ||
+      nemType.includes("commercial") ||
+      nemType.includes("nova") ||
+      !!seda.company_registration_no;
+    const hasCommercialDocs = !!(
+      seda.ssm_form_9 &&
+      seda.ssm_form_49 &&
+      seda.director_ic_front &&
+      seda.director_ic_back
+    );
 
     const checkpoints = {
       name: !!customer_name,
@@ -64,10 +77,12 @@ export async function GET(
       tnb_meter: !!seda.tnb_meter,
       emergency_contact: !!(seda.e_contact_name && seda.e_contact_no && seda.e_contact_relationship),
       payment_required: hasRequiredPayment,
+      ...(isCommercial ? { commercial_docs: hasCommercialDocs } : {}),
     };
 
     const completed_count = Object.values(checkpoints).filter(Boolean).length;
-    const progress_percentage = Math.round((completed_count / 7) * 100);
+    const total_checkpoints = Object.keys(checkpoints).length;
+    const progress_percentage = Math.round((completed_count / total_checkpoints) * 100);
 
     // Return response with customer data
     return NextResponse.json({
@@ -92,6 +107,7 @@ export async function GET(
       payments: [],
       checkpoints,
       completed_count,
+      total_checkpoints,
       progress_percentage,
     });
   } catch (error: any) {
@@ -148,6 +164,21 @@ export async function PATCH(
       // Avoid common DB cast errors when a user clears a numeric/timestamp field.
       // Empty-string is almost never a valid value in Postgres for these types.
       updateData[key] = value === "" ? null : value;
+    }
+
+    const commercialDocKeys = [
+      "application_type",
+      "ssm_form_9",
+      "ssm_form_49",
+      "director_ic_front",
+      "director_ic_back",
+    ];
+    if (commercialDocKeys.some((key) => key in updateData)) {
+      const merged = { ...(current || {}), ...updateData } as any;
+      const isCommercial = String(merged.application_type || "").toLowerCase() === "commercial";
+      updateData.commercial_docs_completed = isCommercial
+        ? !!(merged.ssm_form_9 && merged.ssm_form_49 && merged.director_ic_front && merged.director_ic_back)
+        : false;
     }
 
     // Always bump updated_at server-side, never from the client.

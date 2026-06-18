@@ -47,6 +47,7 @@ const SEDA_FIELD_CONFIG: Record<string, { label: string; type: 'text' | 'textare
   tnb_bill_1: { label: "TNB Bill 1 URL", type: "url", section: "tnb" },
   tnb_bill_2: { label: "TNB Bill 2 URL", type: "url", section: "tnb" },
   tnb_bill_3: { label: "TNB Bill 3 URL", type: "url", section: "tnb" },
+  tnb_bills_12_months_note: { label: "12-Month TNB Bill Note", type: "textarea", section: "tnb" },
   average_tnb: { label: "Average TNB", type: "number", section: "tnb" },
 
   // Financial Information
@@ -56,6 +57,7 @@ const SEDA_FIELD_CONFIG: Record<string, { label: string; type: 'text' | 'textare
 
   // NEM / SEDA
   nem_application_no: { label: "NEM Application No", type: "text", section: "nem" },
+  application_type: { label: "Application Type", type: "text", section: "nem" },
   nem_type: { label: "NEM Type", type: "text", section: "nem" },
   nem_cert: { label: "NEM Certificate URL", type: "url", section: "nem" },
   seda_status: { label: "SEDA Status", type: "text", section: "nem" },
@@ -75,6 +77,10 @@ const SEDA_FIELD_CONFIG: Record<string, { label: string; type: 'text' | 'textare
   agent: { label: "Agent User ID", type: "text", section: "agent" },
   special_remark: { label: "Special Remark", type: "textarea", section: "remarks" },
   company_registration_no: { label: "Company Registration No", type: "text", section: "other" },
+  ssm_form_9: { label: "SSM Form 9 URL", type: "url", section: "commercial" },
+  ssm_form_49: { label: "SSM Form 49 URL", type: "url", section: "commercial" },
+  director_ic_front: { label: "Director IC Front URL", type: "url", section: "commercial" },
+  director_ic_back: { label: "Director IC Back URL", type: "url", section: "commercial" },
   slug: { label: "Slug", type: "text", section: "other" },
 
   // Folder Links
@@ -198,6 +204,138 @@ function EditableField({ fieldKey, value, config, onSave, saving }: EditableFiel
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ApplicationTypeField({
+  value,
+  onSave,
+  saving,
+}: {
+  value: string | null;
+  onSave: (key: string, value: any) => Promise<void>;
+  saving: boolean;
+}) {
+  const normalized = value || "";
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-500 mb-1">
+        Application Type
+      </label>
+      <select
+        value={normalized}
+        disabled={saving}
+        onChange={(event) => onSave("application_type", event.target.value || null)}
+        className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 text-sm disabled:opacity-60"
+      >
+        <option value="">Not set</option>
+        <option value="residential">Residential</option>
+        <option value="commercial">Commercial</option>
+        <option value="selco">SELCO</option>
+      </select>
+    </div>
+  );
+}
+
+function UrlListField({
+  fieldKey,
+  value,
+  label,
+  onSave,
+  saving,
+}: {
+  fieldKey: string;
+  value: string[] | null;
+  label: string;
+  onSave: (key: string, value: any) => Promise<void>;
+  saving: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState((value || []).join("\n"));
+  const urls = Array.isArray(value) ? value.filter(Boolean) : [];
+
+  useEffect(() => {
+    if (!isEditing) setDraft(urls.join("\n"));
+  }, [isEditing, urls.join("\n")]);
+
+  const handleSave = async () => {
+    const nextValue = draft
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    await onSave(fieldKey, nextValue.length > 0 ? nextValue : null);
+    setIsEditing(false);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div>
+          <div className="text-sm font-medium text-gray-500">{label}</div>
+          <div className="text-xs text-gray-400">Paste one bill URL per line, up to 12.</div>
+        </div>
+        {!isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+          >
+            <Pencil className="w-3 h-3" />
+            Edit
+          </button>
+        )}
+      </div>
+
+      {isEditing ? (
+        <div className="space-y-2">
+          <textarea
+            rows={8}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 text-sm"
+            placeholder="https://..."
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md disabled:opacity-60 transition-colors"
+            >
+              <Check className="w-3 h-3" />
+              Save
+            </button>
+            <button
+              onClick={() => {
+                setDraft(urls.join("\n"));
+                setIsEditing(false);
+              }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+            >
+              <X className="w-3 h-3" />
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : urls.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {urls.slice(0, 12).map((url, index) => (
+            <a
+              key={`${url}-${index}`}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-3 py-2 bg-white border border-slate-300 text-primary-600 text-sm font-medium rounded hover:bg-primary-50 transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              Bill {index + 1}
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          ))}
+        </div>
+      ) : (
+        <div className="text-sm text-slate-400 italic py-2">No 12-month bill URLs added</div>
+      )}
     </div>
   );
 }
@@ -527,7 +665,11 @@ export default function SedaDetailPage() {
     const seda = data.seda;
 
     const fields = Object.entries(SEDA_FIELD_CONFIG)
-      .filter(([_, config]) => config.section === sectionKey);
+      .filter(([key, config]) =>
+        config.section === sectionKey &&
+        key !== "application_type" &&
+        key !== "company_registration_no"
+      );
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -568,6 +710,18 @@ export default function SedaDetailPage() {
   }
 
   const { seda, customer, checkpoints, completed_count, progress_percentage } = data;
+  const totalCheckpoints = data.total_checkpoints || 7;
+  const applicationType = String(seda.application_type || "").toLowerCase();
+  const nemType = String(seda.nem_type || "").toLowerCase();
+  const shouldShowCommercialDocs =
+    applicationType === "commercial" ||
+    nemType.includes("commercial") ||
+    nemType.includes("nova") ||
+    !!seda.company_registration_no ||
+    !!seda.ssm_form_9 ||
+    !!seda.ssm_form_49 ||
+    !!seda.director_ic_front ||
+    !!seda.director_ic_back;
 
   return (
     <div className="p-8 space-y-6">
@@ -688,12 +842,12 @@ export default function SedaDetailPage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Form Progress</h2>
           <span className="text-lg font-bold text-gray-900">
-            {completed_count}/7 ({progress_percentage}%)
+            {completed_count}/{totalCheckpoints} ({progress_percentage}%)
           </span>
         </div>
         <ProgressBar
           completed={completed_count}
-          total={7}
+          total={totalCheckpoints}
           checkpoints={checkpoints}
           size="lg"
         />
@@ -831,6 +985,11 @@ export default function SedaDetailPage() {
               onUpdate={handleUpdateStatus}
             />
           </div>
+          <ApplicationTypeField
+            value={seda.application_type}
+            onSave={handleFieldSave}
+            saving={saving}
+          />
         </div>
       </Section>
 
@@ -964,6 +1123,7 @@ export default function SedaDetailPage() {
             <EditableField fieldKey="tnb_account_no" value={seda.tnb_account_no} config={SEDA_FIELD_CONFIG.tnb_account_no} onSave={handleFieldSave} saving={saving} />
             <EditableField fieldKey="tnb_meter_status" value={seda.tnb_meter_status} config={SEDA_FIELD_CONFIG.tnb_meter_status} onSave={handleFieldSave} saving={saving} />
             <EditableField fieldKey="average_tnb" value={seda.average_tnb} config={SEDA_FIELD_CONFIG.average_tnb} onSave={handleFieldSave} saving={saving} />
+            <EditableField fieldKey="tnb_bills_12_months_requested_at" value={seda.tnb_bills_12_months_requested_at} config={{ label: "12-Month Bills Requested At", type: "date" }} onSave={handleFieldSave} saving={saving} />
           </div>
 
           <div className="border-t border-gray-100 pt-4">
@@ -1054,6 +1214,26 @@ export default function SedaDetailPage() {
               </div>
             </div>
           </div>
+
+          <div className="border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">12-Month TNB Bills</h3>
+            <div className="space-y-4">
+              <UrlListField
+                fieldKey="tnb_bills_12_months"
+                value={seda.tnb_bills_12_months}
+                label="TNB Bills Up To 12 Months"
+                onSave={handleFieldSave}
+                saving={saving}
+              />
+              <EditableField
+                fieldKey="tnb_bills_12_months_note"
+                value={seda.tnb_bills_12_months_note}
+                config={SEDA_FIELD_CONFIG.tnb_bills_12_months_note}
+                onSave={handleFieldSave}
+                saving={saving}
+              />
+            </div>
+          </div>
         </div>
       </Section>
 
@@ -1128,6 +1308,58 @@ export default function SedaDetailPage() {
       <Section title="Documents & Files">
         {renderFieldsForSection("documents")}
       </Section>
+
+      {shouldShowCommercialDocs && (
+        <Section title="Commercial Documents">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <EditableField
+              fieldKey="company_registration_no"
+              value={seda.company_registration_no}
+              config={SEDA_FIELD_CONFIG.company_registration_no}
+              onSave={handleFieldSave}
+              saving={saving}
+            />
+            <EditableField
+              fieldKey="ssm_form_9"
+              value={seda.ssm_form_9}
+              config={SEDA_FIELD_CONFIG.ssm_form_9}
+              onSave={handleFieldSave}
+              saving={saving}
+            />
+            <EditableField
+              fieldKey="ssm_form_49"
+              value={seda.ssm_form_49}
+              config={SEDA_FIELD_CONFIG.ssm_form_49}
+              onSave={handleFieldSave}
+              saving={saving}
+            />
+            <EditableField
+              fieldKey="director_ic_front"
+              value={seda.director_ic_front}
+              config={SEDA_FIELD_CONFIG.director_ic_front}
+              onSave={handleFieldSave}
+              saving={saving}
+            />
+            <EditableField
+              fieldKey="director_ic_back"
+              value={seda.director_ic_back}
+              config={SEDA_FIELD_CONFIG.director_ic_back}
+              onSave={handleFieldSave}
+              saving={saving}
+            />
+            <div>
+              <div className="text-sm font-medium text-gray-500 mb-1">Commercial Docs Complete</div>
+              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                seda.commercial_docs_completed
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-amber-100 text-amber-700"
+              }`}>
+                {seda.commercial_docs_completed ? "Complete" : "Pending"}
+              </div>
+            </div>
+          </div>
+        </Section>
+      )}
 
       {/* Folder Links */}
       <Section title="Google Drive Folders">

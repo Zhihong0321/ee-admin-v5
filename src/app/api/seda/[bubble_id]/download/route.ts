@@ -69,6 +69,7 @@ export async function GET(
           tnb_bill_1: sedaRegistration.tnb_bill_1,
           tnb_bill_2: sedaRegistration.tnb_bill_2,
           tnb_bill_3: sedaRegistration.tnb_bill_3,
+          tnb_bills_12_months: sedaRegistration.tnb_bills_12_months,
           tnb_meter: sedaRegistration.tnb_meter,
           customer_signature: sedaRegistration.customer_signature,
           property_ownership_prove: sedaRegistration.property_ownership_prove,
@@ -82,6 +83,10 @@ export async function GET(
           drawing_pdf_system: sedaRegistration.drawing_pdf_system,
           drawing_system_actual: sedaRegistration.drawing_system_actual,
           drawing_engineering_seda_pdf: sedaRegistration.drawing_engineering_seda_pdf,
+          ssm_form_9: sedaRegistration.ssm_form_9,
+          ssm_form_49: sedaRegistration.ssm_form_49,
+          director_ic_front: sedaRegistration.director_ic_front,
+          director_ic_back: sedaRegistration.director_ic_back,
           customer_name: customers.name,
         })
         .from(sedaRegistration)

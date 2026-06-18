@@ -13,6 +13,7 @@ interface ProgressBarProps {
     tnb_meter: boolean;
     emergency_contact: boolean;
     payment_required: boolean;
+    commercial_docs?: boolean;
   };
   showLabel?: boolean;
   size?: "sm" | "md" | "lg";
@@ -66,7 +67,7 @@ export function ProgressBar({
 
       {/* Checkpoint tooltip (optional) */}
       {checkpoints && (
-        <div className="mt-2 grid grid-cols-7 gap-1 text-xs">
+        <div className={`mt-2 grid ${checkpoints.commercial_docs === undefined ? "grid-cols-7" : "grid-cols-8"} gap-1 text-xs`}>
           <CheckpointIcon label="Name" complete={checkpoints.name} />
           <CheckpointIcon label="Address" complete={checkpoints.address} />
           <CheckpointIcon label="MyKad" complete={checkpoints.mykad} />
@@ -74,6 +75,9 @@ export function ProgressBar({
           <CheckpointIcon label="Meter" complete={checkpoints.tnb_meter} />
           <CheckpointIcon label="Emergency" complete={checkpoints.emergency_contact} />
           <CheckpointIcon label="Payment" complete={checkpoints.payment_required} />
+          {checkpoints.commercial_docs !== undefined && (
+            <CheckpointIcon label="Commercial Docs" complete={checkpoints.commercial_docs} />
+          )}
         </div>
       )}
     </div>

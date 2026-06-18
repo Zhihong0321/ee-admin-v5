@@ -25,8 +25,10 @@ interface SedaRegistration {
   share_token: string | null;
   percent_of_total_amount: number;
   completed_count: number;
+  total_checkpoints?: number;
   is_form_completed: boolean;
   has_required_payment: boolean;
+  application_type: string | null;
   seda_profile_status: string | null;
   seda_profile_id: string | null;
 }
@@ -317,6 +319,7 @@ export default function SedaListPage() {
                         {group.registrations.map((seda) => {
                           const percent = seda.percent_of_total_amount;
                           const isReady = seda.is_form_completed && seda.has_required_payment;
+                          const totalCheckpoints = seda.total_checkpoints || 7;
 
                           return (
                             <tr key={seda.bubble_id} className="hover:bg-slate-50 transition-colors">
@@ -342,6 +345,7 @@ export default function SedaListPage() {
                                   {seda.ic_no || "No IC"}
                                   {seda.tin_number && <span className="ml-2">| TIN: {seda.tin_number}</span>}
                                   {seda.tax_document && <span className="ml-2 text-emerald-600">✓ Tax Doc</span>}
+                                  {seda.application_type && <span className="ml-2 uppercase">{seda.application_type}</span>}
                                 </div>
                               </td>
 
@@ -359,13 +363,13 @@ export default function SedaListPage() {
                               <td className="px-6 py-4">
                                 <div className="flex flex-col gap-1">
                                   <div className="text-xs font-semibold text-slate-700">
-                                    {seda.completed_count}/7 Complete
+                                    {seda.completed_count}/{totalCheckpoints} Complete
                                   </div>
                                   <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                     <div
-                                      className={`h-full transition-all ${seda.completed_count === 7 ? "bg-emerald-500" : "bg-blue-400"
+                                      className={`h-full transition-all ${seda.completed_count === totalCheckpoints ? "bg-emerald-500" : "bg-blue-400"
                                         }`}
-                                      style={{ width: `${(seda.completed_count / 7) * 100}%` }}
+                                      style={{ width: `${(seda.completed_count / totalCheckpoints) * 100}%` }}
                                     />
                                   </div>
                                 </div>

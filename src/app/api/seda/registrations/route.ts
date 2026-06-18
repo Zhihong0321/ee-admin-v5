@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
         .select({
           id: sedaRegistration.id,
           bubble_id: sedaRegistration.bubble_id,
+          application_type: sedaRegistration.application_type,
           seda_status: sedaRegistration.seda_status,
+          nem_type: sedaRegistration.nem_type,
           installation_address: sedaRegistration.installation_address,
           installation_address_1: sedaRegistration.installation_address_1,
           installation_address_2: sedaRegistration.installation_address_2,
@@ -52,7 +54,13 @@ export async function GET(request: NextRequest) {
           tnb_bill_1: sedaRegistration.tnb_bill_1,
           tnb_bill_2: sedaRegistration.tnb_bill_2,
           tnb_bill_3: sedaRegistration.tnb_bill_3,
+          tnb_bills_12_months: sedaRegistration.tnb_bills_12_months,
           tnb_meter: sedaRegistration.tnb_meter,
+          ssm_form_9: sedaRegistration.ssm_form_9,
+          ssm_form_49: sedaRegistration.ssm_form_49,
+          director_ic_front: sedaRegistration.director_ic_front,
+          director_ic_back: sedaRegistration.director_ic_back,
+          company_registration_no: sedaRegistration.company_registration_no,
           e_contact_name: sedaRegistration.e_contact_name,
           e_contact_no: sedaRegistration.e_contact_no,
           e_contact_relationship: sedaRegistration.e_contact_relationship,
@@ -115,15 +123,26 @@ export async function GET(request: NextRequest) {
       const hasMeter = !!seda.tnb_meter;
       const hasEmergency = !!(seda.e_contact_name && seda.e_contact_no && seda.e_contact_relationship);
       const hasRequiredPayment = parseFloat(seda.percent_of_total_amount || "0") >= 4;
+      const applicationType = String(seda.application_type || "").toLowerCase();
+      const nemType = String(seda.nem_type || "").toLowerCase();
+      const isCommercial =
+        applicationType === "commercial" ||
+        nemType.includes("commercial") ||
+        nemType.includes("nova") ||
+        !!seda.company_registration_no;
+      const hasCommercialDocs = !!(seda.ssm_form_9 && seda.ssm_form_49 && seda.director_ic_front && seda.director_ic_back);
 
-      const completed_count = [hasName, hasAddress, hasMykad, hasBills, hasMeter, hasEmergency, hasRequiredPayment].filter(Boolean).length;
-      const is_form_completed = completed_count === 7;
+      const checklist = [hasName, hasAddress, hasMykad, hasBills, hasMeter, hasEmergency, hasRequiredPayment];
+      if (isCommercial) checklist.push(hasCommercialDocs);
+      const completed_count = checklist.filter(Boolean).length;
+      const is_form_completed = completed_count === checklist.length;
 
       return {
         ...seda,
         seda_status: seda.seda_status || "Pending", // Treat null as Pending
         percent_of_total_amount: parseFloat(seda.percent_of_total_amount || "0"),
         completed_count,
+        total_checkpoints: checklist.length,
         is_form_completed,
         has_required_payment: hasRequiredPayment
       };

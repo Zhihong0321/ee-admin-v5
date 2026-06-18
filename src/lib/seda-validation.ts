@@ -11,6 +11,7 @@ export interface SedaCheckpointResult {
   tnb_meter: boolean;
   emergency_contact: boolean;
   payment_required: boolean;
+  commercial_docs?: boolean;
 }
 
 export interface SedaCheckpointDetails {
@@ -38,9 +39,12 @@ export async function validateSedaCheckpoints(
     emergency_contact: validateEmergencyContact(sedaData),
     payment_required: validatePaymentRequired(invoiceData, paymentsData),
   };
+  if (isCommercialApplication(sedaData)) {
+    checkpoints.commercial_docs = validateCommercialDocs(sedaData);
+  }
 
   const completed_count = Object.values(checkpoints).filter(Boolean).length;
-  const total_checkpoints = 7;
+  const total_checkpoints = Object.keys(checkpoints).length;
   const progress_percentage = Math.round((completed_count / total_checkpoints) * 100);
 
   return {
@@ -93,12 +97,16 @@ function validateTnbBill(seda: any): boolean {
   const bill1 = seda.tnb_bill_1;
   const bill2 = seda.tnb_bill_2;
   const bill3 = seda.tnb_bill_3;
+  const twelveMonthBills = Array.isArray(seda.tnb_bills_12_months)
+    ? seda.tnb_bills_12_months
+    : [];
 
   const hasBill1 = bill1 !== null && bill1 !== undefined && bill1 !== "";
   const hasBill2 = bill2 !== null && bill2 !== undefined && bill2 !== "";
   const hasBill3 = bill3 !== null && bill3 !== undefined && bill3 !== "";
+  const hasTwelveMonthBills = twelveMonthBills.some((url: string) => url && url.trim() !== "");
 
-  return hasBill1 || hasBill2 || hasBill3;
+  return hasBill1 || hasBill2 || hasBill3 || hasTwelveMonthBills;
 }
 
 /**
@@ -149,6 +157,26 @@ function validatePaymentRequired(invoice: any, payments: any[]): boolean {
   return paymentPercentage >= 4;
 }
 
+function isCommercialApplication(seda: any): boolean {
+  const applicationType = String(seda?.application_type || "").toLowerCase();
+  const nemType = String(seda?.nem_type || "").toLowerCase();
+  return (
+    applicationType === "commercial" ||
+    nemType.includes("commercial") ||
+    nemType.includes("nova") ||
+    !!seda?.company_registration_no
+  );
+}
+
+function validateCommercialDocs(seda: any): boolean {
+  return !!(
+    seda?.ssm_form_9 &&
+    seda?.ssm_form_49 &&
+    seda?.director_ic_front &&
+    seda?.director_ic_back
+  );
+}
+
 /**
  * Get checkpoint display labels
  */
@@ -160,6 +188,7 @@ export const CHECKPOINT_LABELS = {
   tnb_meter: "TNB Meter",
   emergency_contact: "Emergency Contact",
   payment_required: "Payment ≥4%",
+  commercial_docs: "Commercial Docs",
 };
 
 /**
@@ -173,4 +202,5 @@ export const CHECKPOINT_ICONS = {
   tnb_meter: "⚡",
   emergency_contact: "📞",
   payment_required: "💰",
+  commercial_docs: "🏢",
 };
