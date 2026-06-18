@@ -18,6 +18,12 @@ const formatDate = (value: unknown) => {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+// Collapse all whitespace/newlines into single spaces -> one continuous paragraph.
+const flatten = (text: unknown) =>
+  String(text || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
 const isDeduction = (item: any) =>
   item?.inv_item_type === "discount" ||
   item?.inv_item_type === "voucher" ||
@@ -245,14 +251,14 @@ export default async function InvoicePrintPage({
           {template.terms_and_conditions ? (
             <div className="foot-block">
               <div className="label">Policies</div>
-              <div className="terms">{template.terms_and_conditions}</div>
+              <div className="terms">{flatten(template.terms_and_conditions)}</div>
             </div>
           ) : null}
 
           {template.disclaimer ? (
             <div className="foot-block">
               <div className="label">Disclaimer</div>
-              <div className="terms">{template.disclaimer}</div>
+              <div className="terms">{flatten(template.disclaimer)}</div>
             </div>
           ) : null}
 
@@ -360,7 +366,7 @@ const css = `
   ol.tnc { margin: 4px 0 0; padding-left: 16px; font-size: 9.5px; line-height: 1.5; color: var(--ink); }
   ol.tnc > li { margin-bottom: 3px; }
   ol.tnc-sub { margin: 2px 0 2px; padding-left: 16px; color: var(--muted); }
-  .terms { font-size: 8px; line-height: 1.35; color: var(--muted); text-align: justify; white-space: pre-line; }
+  .terms { font-size: 6px; line-height: 1.3; color: var(--muted); text-align: justify; white-space: normal; }
 
   .sign-row { display:flex; gap: 48px; margin-top: 28px; break-inside: avoid; }
   .sign-col { flex: 1; }
