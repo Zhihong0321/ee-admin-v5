@@ -193,19 +193,61 @@ export default async function InvoicePrintPage({
           </div>
         </section>
 
-        {/* Footer: bank + terms (always rendered — legal sections) */}
+        {/* Footer: payment term, note, terms, policies, signatures */}
         <footer className="foot">
+          {/* Payment Term */}
           <div className="foot-block">
-            <div className="label">Payment Details</div>
-            <div className="muted">Bank: {template.bank_name || "—"}</div>
-            <div className="muted">Account No: {template.bank_account_no || "—"}</div>
-            <div className="muted">Account Name: {template.bank_account_name || "—"}</div>
+            <div className="label">Payment Term</div>
+            <div className="muted sublabel">(For Residents Package Only)</div>
+            <div className="pay-term">
+              <div className="pt-row"><span className="pt-k">1st Payment</span><span className="pt-v">Initial Payment 5%</span></div>
+              <div className="pt-row"><span className="pt-k">2nd Payment</span><span className="pt-v">SEDA Approval 60%</span></div>
+              <div className="pt-row"><span className="pt-k">3rd Payment</span><span className="pt-v">Completion of Installation 35%</span></div>
+            </div>
           </div>
 
+          {/* Note */}
+          <div className="foot-block">
+            <div className="label">Note</div>
+            <div className="muted note-text">
+              Prices are subjected to change without prior notice. We hope that our quotation is
+              favorable to you and looking forward to receiving your valued orders in due course.
+              Thanks and regards.
+            </div>
+          </div>
+
+          {/* Terms & Conditions (commercial) */}
           <div className="foot-block">
             <div className="label">Terms &amp; Conditions</div>
-            <div className="terms">{template.terms_and_conditions || "—"}</div>
+            <ol className="tnc">
+              <li>Any discrepancies in the invoice must be reported in writing within 7 days of the invoice date.</li>
+              <li>Goods will only be sold upon full payment of the invoice (no consignment or outstanding balances permitted).</li>
+              <li>
+                All cheques should be crossed and made payable to{" "}
+                <strong>{companyName}</strong>
+                {template.bank_name ? `, ${template.bank_name} account` : " account"}:{" "}
+                <strong>[{template.bank_account_no || "—"}]</strong>.
+              </li>
+              <li>Goods sold are non-returnable and non-refundable.</li>
+              <li>
+                Cancellation
+                <ol className="tnc-sub" type="a">
+                  <li>5% Downpayment Refund (Before SEDA/SELCO Application) - non-refundable administrative fee of RM600.</li>
+                  <li>5% + 60% Refund (After SEDA/SELCO Application) - non-refundable charges (RM1,500).</li>
+                  <li>35% Payment After Installation Complete (Non-Refundable).</li>
+                </ol>
+              </li>
+              <li>Please provide us with the bank deposit slip. Goods will be dispatched once the cheque has cleared.</li>
+            </ol>
           </div>
+
+          {/* Long policies from template (Privacy / Warranty / Refund) */}
+          {template.terms_and_conditions ? (
+            <div className="foot-block">
+              <div className="label">Policies</div>
+              <div className="terms">{template.terms_and_conditions}</div>
+            </div>
+          ) : null}
 
           {template.disclaimer ? (
             <div className="foot-block">
@@ -214,9 +256,30 @@ export default async function InvoicePrintPage({
             </div>
           ) : null}
 
+          {/* Signatures */}
+          <div className="sign-row">
+            <div className="sign-col">
+              <div className="sign-for">For {companyName}</div>
+              <div className="sign-line"></div>
+              <div className="sign-cap">Authorized Signature</div>
+              <div className="sign-name">Name: {invoice.created_by_user_name || ""}</div>
+            </div>
+            <div className="sign-col">
+              <div className="sign-for">Accepted &amp; Confirmed By</div>
+              <div className="sign-line"></div>
+              <div className="sign-cap">Customer Signature</div>
+              <div className="sign-name">Name: {customerName !== "—" ? customerName : ""}</div>
+              <div className="sign-name">Date:</div>
+            </div>
+          </div>
+
           <div className="foot-sign">
             <span className="muted">{docLabel} created by {invoice.created_by_user_name || "System"}</span>
-            <span className="thanks">Thank you for your business</span>
+            <span className="thanks">
+              {docType === "INVOICE"
+                ? "Thank you for your business"
+                : `Thank you for considering ${companyName}`}
+            </span>
           </div>
         </footer>
       </main>
@@ -286,10 +349,27 @@ const css = `
   .t-balance { font-weight: 700; color: var(--ink); }
   .t-balance span:last-child { font-weight: 700; }
 
-  .foot { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); display:flex; flex-direction: column; gap: 14px; }
+  .foot { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); display:flex; flex-direction: column; gap: 16px; }
   .foot-block .muted { font-size: 10px; line-height: 1.5; }
+  .sublabel { margin-top: -2px; margin-bottom: 4px; font-weight: 600; }
+  .pay-term { margin-top: 2px; }
+  .pt-row { display:flex; gap: 14px; padding: 2px 0; font-size: 10px; }
+  .pt-k { width: 120px; font-weight: 700; color: var(--ink); }
+  .pt-v { color: var(--muted); }
+  .note-text { font-size: 10px; }
+  ol.tnc { margin: 4px 0 0; padding-left: 16px; font-size: 9.5px; line-height: 1.5; color: var(--ink); }
+  ol.tnc > li { margin-bottom: 3px; }
+  ol.tnc-sub { margin: 2px 0 2px; padding-left: 16px; color: var(--muted); }
   .terms { font-size: 8px; line-height: 1.35; color: var(--muted); text-align: justify; white-space: pre-line; }
-  .foot-sign { display:flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 9px; }
+
+  .sign-row { display:flex; gap: 48px; margin-top: 28px; break-inside: avoid; }
+  .sign-col { flex: 1; }
+  .sign-for { font-size: 11px; font-weight: 700; color: var(--ink); margin-bottom: 44px; }
+  .sign-line { border-top: 1px solid var(--ink); margin-bottom: 6px; }
+  .sign-cap { font-size: 10px; font-weight: 600; color: var(--ink); }
+  .sign-name { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+  .foot-sign { display:flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 9px; }
   .thanks { text-transform: uppercase; letter-spacing: .14em; color: var(--muted); }
 
   .print-bar { position: fixed; top: 16px; right: 16px; z-index: 50; }
