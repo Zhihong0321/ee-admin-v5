@@ -19,7 +19,9 @@ const formatDate = (value: unknown) => {
 };
 
 const isDeduction = (item: any) =>
-  item?.inv_item_type === "discount" || item?.inv_item_type === "voucher";
+  item?.inv_item_type === "discount" ||
+  item?.inv_item_type === "voucher" ||
+  (Number(item?.amount) || 0) < 0;
 
 export default async function InvoicePrintPage({
   params,
@@ -133,20 +135,28 @@ export default async function InvoicePrintPage({
                 <td colSpan={4} className="empty">No items</td>
               </tr>
             ) : (
-              items.map((item, idx) => {
-                const deduct = isDeduction(item);
-                const amount = Number(item.amount) || 0;
-                return (
-                  <tr key={item.id ?? idx} className={deduct ? "deduct" : ""}>
-                    <td className="col-desc">{item.description || "—"}</td>
-                    <td className="col-qty">{deduct ? "" : item.qty ? Number(item.qty) : ""}</td>
-                    <td className="col-price">{deduct ? "" : item.unit_price ? money(item.unit_price) : ""}</td>
-                    <td className="col-amt">
-                      {deduct ? `- ${money(Math.abs(amount))}` : money(amount)}
-                    </td>
+              <>
+                {lineItems.map((item, idx) => {
+                  const amount = Number(item.amount) || 0;
+                  return (
+                    <tr key={item.id ?? idx}>
+                      <td className="col-desc">{item.description || "—"}</td>
+                      <td className="col-qty">{item.qty ? Number(item.qty) : ""}</td>
+                      <td className="col-price">{item.unit_price ? money(item.unit_price) : ""}</td>
+                      <td className="col-amt">{money(amount)}</td>
+                    </tr>
+                  );
+                })}
+                {/* All negative / discount / voucher items combined into one line */}
+                {deductionTotal > 0 ? (
+                  <tr className="deduct">
+                    <td className="col-desc">SPECIAL DISCOUNT</td>
+                    <td className="col-qty"></td>
+                    <td className="col-price"></td>
+                    <td className="col-amt">- {money(deductionTotal)}</td>
                   </tr>
-                );
-              })
+                ) : null}
+              </>
             )}
           </tbody>
         </table>
@@ -160,7 +170,7 @@ export default async function InvoicePrintPage({
             </div>
             {deductionTotal > 0 ? (
               <div className="t-row deduct">
-                <span>Discount</span>
+                <span>Special Discount</span>
                 <span>- {money(deductionTotal)}</span>
               </div>
             ) : null}
