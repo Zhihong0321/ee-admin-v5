@@ -320,9 +320,25 @@ export default function SedaListPage() {
                           const percent = seda.percent_of_total_amount;
                           const isReady = seda.is_form_completed && seda.has_required_payment;
                           const totalCheckpoints = seda.total_checkpoints || 7;
+                          const openSedaForm = () => {
+                            window.location.href = `/seda/${seda.bubble_id}`;
+                          };
 
                           return (
-                            <tr key={seda.bubble_id} className="hover:bg-slate-50 transition-colors">
+                            <tr
+                              key={seda.bubble_id}
+                              onClick={openSedaForm}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  openSedaForm();
+                                }
+                              }}
+                              role="button"
+                              tabIndex={0}
+                              title="Open SEDA form"
+                              className="cursor-pointer hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors"
+                            >
                               {/* Submission Ready */}
                               <td className="px-6 py-4">
                                 {isReady ? (
@@ -401,6 +417,7 @@ export default function SedaListPage() {
                                       href={`https://atap.seda.gov.my/profiles/individuals/${seda.seda_profile_id}/edit`}
                                       target="_blank"
                                       rel="noopener noreferrer"
+                                      onClick={(event) => event.stopPropagation()}
                                       className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200 transition-colors"
                                     >
                                       <CheckCircle className="w-3 h-3" />
@@ -445,6 +462,7 @@ export default function SedaListPage() {
                                       href={seda.share_token ? `https://calculator.atap.solar/view/${seda.share_token}` : `/invoice/${seda.linked_invoice[0]}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
+                                      onClick={(event) => event.stopPropagation()}
                                       className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                       title="View Invoice"
                                     >
@@ -453,6 +471,7 @@ export default function SedaListPage() {
                                   )}
                                   <a
                                     href={`/seda/${seda.bubble_id}`}
+                                    onClick={(event) => event.stopPropagation()}
                                     className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                                     title="View SEDA Details"
                                   >
