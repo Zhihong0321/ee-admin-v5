@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, Layers, UserPlus, Headset, ScanSearch, Hammer, GitBranch, type LucideIcon } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, Layers, UserPlus, Headset, ScanSearch, Hammer, GitBranch, FileClock, ExternalLink, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 import { logoutAction } from "@/app/auth-actions";
@@ -18,6 +18,7 @@ const menuItems: MenuItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "SEDA Applications", href: "/seda", icon: FileCheck },
   { name: "Invoices", href: "/invoices", icon: FileText },
+  { name: "Invoice Audit", href: "https://ee-invoice-history-production.up.railway.app/", icon: FileClock },
   { name: "Engineering", href: "/engineering-v2", icon: Hammer }, // V2 replaces legacy
   { name: "Payments", href: "/payments", icon: CreditCard },
   { name: "Customers", href: "/customers", icon: Users },
@@ -57,6 +58,7 @@ export function Sidebar({ user }: SidebarProps) {
     switch (item.href) {
       case '/seda':
       case '/invoices':
+      case 'https://ee-invoice-history-production.up.railway.app/':
         return userTags.includes('admin') || userTags.includes('finance');
       case '/engineering':
       case '/engineering-v2':
@@ -96,11 +98,14 @@ export function Sidebar({ user }: SidebarProps) {
       <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto scrollbar-hide">
         {filteredMenuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const isExternal = item.href.startsWith("http");
+          const isActive = !isExternal && (item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`));
           return (
             <div key={item.href}>
               <Link
                 href={item.href}
+                target={isExternal ? "_blank" : undefined}
+                rel={isExternal ? "noopener noreferrer" : undefined}
                 className={cn(
                   "group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 relative",
                   isActive
@@ -117,7 +122,12 @@ export function Sidebar({ user }: SidebarProps) {
                     isActive ? "text-primary-600" : "text-secondary-400 group-hover:text-secondary-600"
                   )}
                 />
-                <span className="relative">{item.name}</span>
+                <span className="relative flex items-center gap-1.5">
+                  {item.name}
+                  {isExternal && (
+                    <ExternalLink className="h-3.5 w-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  )}
+                </span>
               </Link>
 
               {item.children && isActive && (

@@ -29,7 +29,9 @@ import {
   Terminal,
   Calculator,
   Download,
-  Copy
+  Copy,
+  Phone,
+  MessageCircle
 } from "lucide-react";
 import {
   getSubmittedPayments,
@@ -69,6 +71,41 @@ function formatTime(dateInput: string | Date | null | undefined): string {
   const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
   if (isNaN(date.getTime())) return '';
   return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Normalize a Malaysian phone number to E.164 (+60...) and return display + WhatsApp URL.
+ */
+function formatPhoneE164(raw: string | null | undefined): { display: string; waUrl: string } | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length < 8) return null; // too short to be a real number
+
+  let e164: string;
+  if (digits.startsWith('0')) {
+    e164 = '+6' + digits; // 0123456789 → +60123456789
+  } else if (digits.startsWith('60')) {
+    e164 = '+' + digits;
+  } else if (digits.startsWith('6') && !digits.startsWith('60')) {
+    e164 = '+' + digits; // already +6...
+  } else {
+    e164 = '+60' + digits; // fallback: prepend +60
+  }
+
+  // Display format: 60 12-345 6789 (no + prefix)
+  const local = e164.slice(3); // strip +60
+  let display: string;
+  if (local.length >= 9) {
+    display = `60 ${local.slice(0, 2)}-${local.slice(2, 5)} ${local.slice(5)}`;
+  } else {
+    display = e164.replace('+', '');
+  }
+
+  // WhatsApp wa.me link (digits only, no +)
+  const waDigits = e164.replace(/\D/g, '');
+  const waUrl = `https://wa.me/${waDigits}`;
+
+  return { display, waUrl };
 }
 
 export default function PaymentsPage() {
@@ -1539,6 +1576,24 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           </div>
                           <div className="text-xs text-secondary-500 pl-5">
                             Cust: {payment.customer_name || "N/A"}
+                            {(() => {
+                              const phone = formatPhoneE164(payment.customer_phone);
+                              return phone ? (
+                                <span className="ml-1.5 inline-flex items-center gap-1">
+                                  <Phone className="h-3 w-3 text-secondary-400" />
+                                  <span>{phone.display}</span>
+                                  <a
+                                    href={phone.waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-green-600 hover:text-green-700"
+                                    title="Open WhatsApp"
+                                  >
+                                    <MessageCircle className="h-3 w-3" />
+                                  </a>
+                                </span>
+                              ) : null;
+                            })()}
                           </div>
                         </div>
                       </td>
@@ -1642,7 +1697,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
               <div className="p-6 border-b border-secondary-200 flex items-center justify-between bg-white">
                 <div>
                   <h2 className="text-xl font-bold text-secondary-900">Payment Details</h2>
-                  <div className="flex items-center gap-3 mt-1">
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
                     <span className="text-sm text-secondary-500">
                             User: <span className="font-semibold text-secondary-900">{viewingPayment.created_by_user_name || viewingPayment.agent_name}</span>
                     </span>
@@ -1650,6 +1705,30 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                     <span className="text-sm text-secondary-500">
                       Amount: <span className="font-bold text-primary-600">RM {parseFloat(viewingPayment.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </span>
+                    {(viewingPayment.customer_name || viewingPayment.customer_phone) && (() => {
+                      const phone = formatPhoneE164(viewingPayment.customer_phone);
+                      return (
+                        <>
+                          <span className="text-secondary-300">|</span>
+                          <span className="text-sm text-secondary-500">
+                            Cust: <span className="font-semibold text-secondary-900">{viewingPayment.customer_name || "N/A"}</span>
+                            {phone && (
+                              <a
+                                href={phone.waUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ml-1.5 inline-flex items-center gap-1 text-green-600 hover:text-green-700"
+                                title="Open WhatsApp"
+                              >
+                                <Phone className="h-3.5 w-3.5" />
+                                <span className="font-medium">{phone.display}</span>
+                                <MessageCircle className="h-3.5 w-3.5" />
+                              </a>
+                            )}
+                          </span>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1831,6 +1910,33 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                             <p className="text-sm font-bold text-secondary-900">RM {parseFloat(viewingPayment.amount).toLocaleString()}</p>
                           </div>
                         </div>
+
+                        {/* Customer Info with WhatsApp */}
+                        {(viewingPayment.customer_name || viewingPayment.customer_phone) && (() => {
+                          const phone = formatPhoneE164(viewingPayment.customer_phone);
+                          return (
+                            <div className="flex items-start gap-3">
+                              <Phone className="h-4 w-4 text-secondary-400 mt-0.5" />
+                              <div>
+                                <p className="text-xs text-secondary-500">Customer</p>
+                                <p className="text-sm font-medium text-secondary-900">{viewingPayment.customer_name || "N/A"}</p>
+                                {phone ? (
+                                  <a
+                                    href={phone.waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-1 inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 border border-green-200 rounded-lg text-green-700 hover:bg-green-100 transition-colors text-xs font-medium"
+                                  >
+                                    <MessageCircle className="h-3.5 w-3.5" />
+                                    {phone.display}
+                                  </a>
+                                ) : (
+                                  <p className="text-xs text-secondary-400 mt-0.5">No phone number</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Detailed info for verified payments */}
                         {activeTab === "verified" && (

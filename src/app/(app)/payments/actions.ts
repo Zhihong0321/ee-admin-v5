@@ -104,6 +104,7 @@ export async function getSubmittedPayments(search?: string, status: string = 'pe
         created_by_user_email: users.email,
         agent_name: agents.name,
         customer_name: customers.name,
+        customer_phone: customers.phone,
         created_at: submitted_payments.created_at,
         linked_invoice: submitted_payments.linked_invoice, // This might be numeric or bubble ID
         invoice_bubble_id: invoices.bubble_id, // REAL bubble ID from join
@@ -158,6 +159,7 @@ export async function getVerifiedPayments(search?: string) {
         created_by_user_email: users.email,
         agent_name: agents.name,
         customer_name: customers.name,
+        customer_phone: customers.phone,
         created_at: payments.created_at,
         linked_invoice: payments.linked_invoice,
         invoice_bubble_id: invoices.bubble_id, // REAL bubble ID from join
