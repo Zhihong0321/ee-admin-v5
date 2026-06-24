@@ -57,9 +57,10 @@ export function Sidebar({ user }: SidebarProps) {
     switch (item.href) {
       case '/seda':
       case '/invoices':
+        return userTags.includes('admin') || userTags.includes('finance');
       case '/engineering':
       case '/engineering-v2':
-        return userTags.includes('admin') || userTags.includes('finance');
+        return userTags.includes('admin') || userTags.includes('finance') || userTags.includes('engineer');
       case '/payments':
         return userTags.includes('finance');
       case '/catalog':
