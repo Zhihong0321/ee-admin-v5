@@ -621,7 +621,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-fade-in px-4 sm:px-6 lg:px-8">
+    <div className="space-y-6 animate-fade-in w-full">
       {/* Invoice Viewer Modal (only for standalone view if ever needed, but now we have inline) */}
       {selectedInvoice && !isViewModalOpen && (
         <InvoiceViewer
