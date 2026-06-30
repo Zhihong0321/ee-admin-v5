@@ -1053,15 +1053,15 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Customer</th>
-                    <th>Bank</th>
-                    <th>Tenure</th>
-                    <th>Rate</th>
-                    <th className="text-right">Amount</th>
-                    <th className="text-right">EPP Cost</th>
-                    <th>Attachment</th>
-                    <th className="text-right">Actions</th>
+                    <th className="w-[150px] min-w-[120px]">Date</th>
+                    <th className="w-[250px] min-w-[200px]">Customer</th>
+                    <th className="w-[150px] min-w-[120px]">Bank</th>
+                    <th className="w-[100px] min-w-[100px]">Tenure</th>
+                    <th className="w-[100px] min-w-[100px]">Rate</th>
+                    <th className="w-[150px] min-w-[120px] text-right">Amount</th>
+                    <th className="w-[150px] min-w-[120px] text-right">EPP Cost</th>
+                    <th className="w-auto">Attachment</th>
+                    <th className="w-[120px] min-w-[100px] text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1398,12 +1398,12 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
             <table className="table">
               <thead>
                 <tr>
-                  <th>Full Payment Date</th>
-                  <th>Customer / User</th>
-                  <th>Total Amount</th>
-                  <th>Status</th>
-                  <th>Invoice # / Remark</th>
-                  <th className="text-right">Actions</th>
+                  <th className="w-[150px] min-w-[150px]">Full Payment Date</th>
+                  <th className="w-[300px] min-w-[250px]">Customer / User</th>
+                  <th className="w-[150px] min-w-[150px]">Total Amount</th>
+                  <th className="w-[150px] min-w-[150px]">Status</th>
+                  <th className="w-auto">Invoice # / Remark</th>
+                  <th className="w-[150px] min-w-[120px] text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1511,18 +1511,18 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
               {/* Only show headers relevant to payments, no invoice stuff mixed in */}
               <thead>
                 <tr>
-                  <th>
+                  <th className="w-[150px] min-w-[150px]">
                     {activeTab === "verified"
                       ? "Payment Date"
                       : activeTab === "pending"
                         ? "Created On"
                         : "Date"}
                   </th>
-                  <th>User / Customer</th>
-                  <th>Amount</th>
-                  <th>Method</th>
-                  <th>Status / Remark</th>
-                  <th className="text-right">Actions</th>
+                  <th className="w-[300px] min-w-[250px]">User / Customer</th>
+                  <th className="w-[150px] min-w-[150px]">Amount</th>
+                  <th className="w-[200px] min-w-[150px]">Method</th>
+                  <th className="w-auto">Status / Remark</th>
+                  <th className="w-[150px] min-w-[120px] text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
