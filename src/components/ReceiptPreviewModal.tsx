@@ -1,6 +1,6 @@
 "use client";
 
-import { Send, Loader2, AlertCircle, X } from "lucide-react";
+import { Send, Loader2, AlertCircle, X, CheckCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getPaymentReceiptPreview, manualSendReceipt } from "@/app/(app)/payments/actions";
 
@@ -15,6 +15,7 @@ export function ReceiptPreviewModal({ paymentId, onClose }: ReceiptPreviewModalP
   const [error, setError] = useState<string | null>(null);
   const [html, setHtml] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
+  const [logs, setLogs] = useState<any[]>([]);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export function ReceiptPreviewModal({ paymentId, onClose }: ReceiptPreviewModalP
       setHtml("");
       setError(null);
       setSuccessMsg(null);
+      setLogs([]);
     }
   }, [paymentId]);
 
@@ -36,6 +38,7 @@ export function ReceiptPreviewModal({ paymentId, onClose }: ReceiptPreviewModalP
       if (res.success && res.html) {
         setHtml(res.html);
         setPhone(res.phone || "Unknown Phone");
+        setLogs(res.logs || []);
       } else {
         setError(res.error || "Failed to load preview");
       }
@@ -134,12 +137,41 @@ export function ReceiptPreviewModal({ paymentId, onClose }: ReceiptPreviewModalP
           )}
 
           {html && !error && (
-            <div className="w-full h-full bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
-              <iframe 
-                srcDoc={html} 
-                className="w-full h-full border-0"
-                title="Receipt Preview"
-              />
+            <div className="flex flex-col h-full gap-4">
+              {/* Audit Logs */}
+              {!loading && (
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm shrink-0">
+                  <div className="p-3 border-b border-gray-100 bg-gray-50/50">
+                    <h4 className="text-sm font-medium text-gray-700">Receipt Dispatch History</h4>
+                  </div>
+                  <div className="p-3">
+                    {logs.length > 0 ? (
+                      <ul className="space-y-2">
+                        {logs.map((log, i) => (
+                          <li key={i} className="text-xs flex items-center justify-between text-gray-600">
+                            <span className="flex items-center gap-2">
+                              <CheckCircle className="h-3 w-3 text-green-500" />
+                              {log.action_type === 'receipt_sent_auto' ? 'Automated send' : 'Manual send'} by <span className="font-medium text-gray-900">{log.actor_name || 'System'}</span>
+                            </span>
+                            <span>{new Date(log.edited_at).toLocaleString()}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-gray-500 italic">No receipt has been sent for this payment yet.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Receipt Iframe */}
+              <div className="w-full flex-1 bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
+                <iframe 
+                  srcDoc={html} 
+                  className="w-full h-full border-0"
+                  title="Receipt Preview"
+                />
+              </div>
             </div>
           )}
         </div>

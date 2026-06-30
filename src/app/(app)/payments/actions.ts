@@ -1625,7 +1625,22 @@ export async function getPaymentReceiptPreview(paymentId: number) {
       description: `PAYMENT FOR - ${invoiceRef || 'INVOICE'}`
     });
 
-    return { success: true, html: receiptHtml, phone };
+    // Fetch audit logs for this receipt
+    const logs = await db.select({
+      action_type: invoice_audit_log.action_type,
+      actor_name: invoice_audit_log.actor_name,
+      edited_at: invoice_audit_log.edited_at,
+    })
+    .from(invoice_audit_log)
+    .where(
+      and(
+        eq(invoice_audit_log.entity_id, p.bubble_id),
+        inArray(invoice_audit_log.action_type, ["receipt_sent_auto", "receipt_sent_manual"])
+      )
+    )
+    .orderBy(desc(invoice_audit_log.edited_at));
+
+    return { success: true, html: receiptHtml, phone, logs };
   } catch (error: any) {
     console.error("getPaymentReceiptPreview error:", error);
     return { success: false, error: error.message };
