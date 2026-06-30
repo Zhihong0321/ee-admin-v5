@@ -31,7 +31,8 @@ import {
   Download,
   Copy,
   Phone,
-  MessageCircle
+  MessageCircle,
+  ExternalLink
 } from "lucide-react";
 import {
   getSubmittedPayments,
@@ -2189,11 +2190,34 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
 
                   {viewingPayment.attachment && viewingPayment.attachment.length > 0 ? (
                     viewingPayment.attachment[0].toLowerCase().includes('.pdf') ? (
-                      <iframe
-                        src={viewingPayment.attachment[0]}
-                        className="w-full h-full rounded-xl shadow-2xl bg-white"
-                        title="Payment Attachment PDF"
-                      />
+                      <div className="w-full h-full relative group">
+                        <iframe
+                          src={viewingPayment.attachment[0]}
+                          className="w-full h-full rounded-xl shadow-2xl bg-white"
+                          title="Payment Attachment PDF"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-secondary-900/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl pointer-events-none">
+                          <div className="flex gap-3">
+                            <a 
+                              href={viewingPayment.attachment[0]} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="bg-white text-secondary-900 font-medium px-4 py-2 rounded-lg shadow-xl pointer-events-auto flex items-center gap-2 hover:bg-secondary-50 transition-colors"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              Open in New Tab
+                            </a>
+                            <a 
+                              href={viewingPayment.attachment[0]} 
+                              download
+                              className="bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-xl pointer-events-auto flex items-center gap-2 hover:bg-primary-700 transition-colors"
+                            >
+                              <Download className="h-4 w-4" />
+                              Download PDF
+                            </a>
+                          </div>
+                        </div>
+                      </div>
                     ) : (
                       <div
                         className="relative cursor-none group h-full w-full flex items-center justify-center"
@@ -2206,6 +2230,26 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           src={viewingPayment.attachment[0]}
                           alt="Payment Attachment"
                           className="max-h-full max-w-full object-contain shadow-2xl transition-opacity group-hover:opacity-90"
+                          onError={(e) => {
+                            // If the image fails to load, it might be a PDF without the extension. Replace with a link.
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement!.innerHTML = `
+                              <div class="flex flex-col items-center justify-center gap-4 text-secondary-500 bg-secondary-50 p-8 rounded-xl w-full h-full">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-16 w-16 text-primary-400"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                                <p class="text-sm font-medium">Preview not available</p>
+                                <div class="flex gap-3">
+                                  <a href="${viewingPayment.attachment[0]}" target="_blank" rel="noopener noreferrer" class="px-4 py-2 bg-white text-secondary-900 border border-secondary-200 rounded-lg hover:bg-secondary-50 shadow-sm font-medium text-sm flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                    Open
+                                  </a>
+                                  <a href="${viewingPayment.attachment[0]}" download class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 shadow-sm font-medium text-sm flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    Download
+                                  </a>
+                                </div>
+                              </div>
+                            `;
+                          }}
                         />
 
                         {showMagnifier && (
