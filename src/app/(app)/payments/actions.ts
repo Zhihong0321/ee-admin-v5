@@ -1606,14 +1606,18 @@ export async function getPaymentReceiptPreview(paymentId: number) {
     }
 
     const c = cust[0];
-    const phone = c.phone || "";
+    let rawPhone = c.phone || "";
+    let phone = rawPhone.replace(/[^0-9]/g, "");
+    if (phone.startsWith("0")) phone = "6" + phone;
     
     let agentPhone = "";
     let agentName = "";
     if (p.linked_agent) {
       const agRecord = await db.select().from(agents).where(eq(agents.bubble_id, p.linked_agent)).limit(1);
       if (agRecord.length > 0) {
-        agentPhone = agRecord[0].contact || "";
+        let rawAgentPhone = agRecord[0].contact || "";
+        agentPhone = rawAgentPhone.replace(/[^0-9]/g, "");
+        if (agentPhone.startsWith("0")) agentPhone = "6" + agentPhone;
         agentName = agRecord[0].name || "";
       }
     }
