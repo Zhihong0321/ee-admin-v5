@@ -722,6 +722,17 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
             const pdfUrl = `https://pdf-gen-production-6c81.up.railway.app/api/pdf/${pdfId}`;
             
             await sendReceiptViaWhatsApp(phone, pdfUrl, `Official_Receipt_${invoiceRef || p.bubble_id.substring(0,7)}.pdf`);
+            
+            await logPaymentAudit({
+              linkedInvoice: p.linked_invoice,
+              paymentBubbleId: p.bubble_id,
+              actionType: "receipt_sent_auto",
+              changes: [{ field: "whatsapp_receipt", before: null, after: phone }],
+              actorName,
+              actorPhone,
+              actorUserId,
+              actorRole,
+            });
           }
         }
       } catch (e) {
@@ -1626,6 +1637,12 @@ export async function getPaymentReceiptPreview(paymentId: number) {
  */
 export async function manualSendReceipt(paymentId: number) {
   try {
+    const user = await getUser();
+    const actorName = user?.name || "System";
+    const actorPhone = user?.phone || "";
+    const actorUserId = user?.userId || "";
+    const actorRole = user?.role || "admin";
+
     const preview = await getPaymentReceiptPreview(paymentId);
     if (!preview.success || !preview.html || !preview.phone) {
       throw new Error(preview.error || "Failed to generate receipt preview");
@@ -1646,6 +1663,18 @@ export async function manualSendReceipt(paymentId: number) {
     }
 
     const res = await sendReceiptViaWhatsApp(preview.phone, pdfUrl, `Official_Receipt_${invoiceRef || p.bubble_id?.substring(0, 7) || paymentId}.pdf`);
+    
+    await logPaymentAudit({
+      linkedInvoice: p.linked_invoice,
+      paymentBubbleId: p.bubble_id,
+      actionType: "receipt_sent_manual",
+      changes: [{ field: "whatsapp_receipt", before: null, after: preview.phone }],
+      actorName,
+      actorPhone,
+      actorUserId,
+      actorRole,
+    });
+
     return { success: true, result: res };
   } catch (error: any) {
     console.error("manualSendReceipt error:", error);
