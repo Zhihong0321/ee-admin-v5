@@ -1050,18 +1050,18 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   )}
                 </div>
               </div>
-              <table className="table table-fixed min-w-[1200px]">
+              <table className="table table-fixed w-full">
                 <thead>
                   <tr>
-                    <th className="w-[150px]">Date</th>
-                    <th className="w-[250px]">Customer</th>
-                    <th className="w-[150px]">Bank</th>
-                    <th className="w-[100px]">Tenure</th>
-                    <th className="w-[100px]">Rate</th>
-                    <th className="w-[150px] text-right">Amount</th>
-                    <th className="w-[150px] text-right">EPP Cost</th>
+                    <th className="w-32">Date</th>
+                    <th className="w-64">Customer</th>
+                    <th className="w-32">Bank</th>
+                    <th className="w-24">Tenure</th>
+                    <th className="w-24">Rate</th>
+                    <th className="w-32 text-right">Amount</th>
+                    <th className="w-32 text-right">EPP Cost</th>
                     <th className="w-full">Attachment</th>
-                    <th className="w-[120px] text-right">Actions</th>
+                    <th className="w-32 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1395,15 +1395,15 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
             </div>
           ) : activeTab === "fully-paid" && viewMode === "list" ? (
             // Dedicated Table for Fully Paid Invoices
-            <table className="table table-fixed min-w-[1200px]">
+            <table className="table table-fixed w-full">
               <thead>
                 <tr>
-                  <th className="w-[150px]">Full Payment Date</th>
-                  <th className="w-[300px]">Customer / User</th>
-                  <th className="w-[150px]">Total Amount</th>
-                  <th className="w-[150px]">Status</th>
+                  <th className="w-40">Full Payment Date</th>
+                  <th className="w-80">Customer / User</th>
+                  <th className="w-40">Total Amount</th>
+                  <th className="w-40">Status</th>
                   <th className="w-full">Invoice # / Remark</th>
-                  <th className="w-[150px] text-right">Actions</th>
+                  <th className="w-40 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1507,22 +1507,22 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
             </table>
           ) : (
             // Regular Table View (Pending / Verified)
-            <table className="table table-fixed min-w-[1200px]">
+            <table className="table table-fixed w-full">
               {/* Only show headers relevant to payments, no invoice stuff mixed in */}
               <thead>
                 <tr>
-                  <th className="w-[150px]">
+                  <th className="w-40">
                     {activeTab === "verified"
                       ? "Payment Date"
                       : activeTab === "pending"
                         ? "Created On"
                         : "Date"}
                   </th>
-                  <th className="w-[300px]">User / Customer</th>
-                  <th className="w-[150px]">Amount</th>
-                  <th className="w-[200px]">Method</th>
+                  <th className="w-96">User / Customer</th>
+                  <th className="w-36">Amount</th>
+                  <th className="w-48">Method</th>
                   <th className="w-full">Status / Remark</th>
-                  <th className="w-[150px] text-right">Actions</th>
+                  <th className="w-40 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
