@@ -59,6 +59,7 @@ import { EPP_BANKS, EPP_RATES, getEppRate, calculateEppCost } from "@/lib/epp-ra
 import InvoiceViewer from "@/components/InvoiceViewer";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
 import { Sparkles, Zap, AlertTriangle } from "lucide-react";
+import { ReceiptPreviewModal } from "@/components/ReceiptPreviewModal";
 
 function formatDate(dateInput: string | Date | null | undefined): string {
   if (!dateInput) return 'N/A';
@@ -138,6 +139,10 @@ export default function PaymentsPage() {
   const [aiData, setAIData] = useState<{ amount: string; date: string; is_epp?: boolean; bank?: string | null; tenure?: string | null } | null>(null);
 
   const [viewingDescription, setViewingDescription] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // New state for Receipt Preview Modal
+  const [previewingPaymentId, setPreviewingPaymentId] = useState<number | null>(null);
 
   // View Modal State
   const [viewingPayment, setViewingPayment] = useState<any | null>(null);
@@ -1652,6 +1657,16 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                               </button>
                             </>
                           )}
+                          {activeTab === "verified" && (
+                            <button
+                              onClick={() => setPreviewingPaymentId(payment.id)}
+                              className="btn-ghost text-green-600 hover:text-green-700 flex items-center gap-1.5"
+                              title="Preview Receipt"
+                            >
+                              <FileText className="h-4 w-4" />
+                              Receipt
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2325,6 +2340,12 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
           </div>
         </div>
       )}
+
+      {/* Receipt Preview Modal */}
+      <ReceiptPreviewModal 
+        paymentId={previewingPaymentId} 
+        onClose={() => setPreviewingPaymentId(null)} 
+      />
     </div>
   );
 }

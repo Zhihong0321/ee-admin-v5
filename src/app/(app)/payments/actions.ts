@@ -685,6 +685,50 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
       });
     }
 
+    // 5. Generate and send receipt
+    if (p.bubble_id && p.linked_customer) {
+      try {
+        const cust = await db.select().from(customers).where(eq(customers.customer_id, p.linked_customer)).limit(1);
+        let invoiceRef = "";
+        if (p.linked_invoice) {
+          const inv = await db.select().from(invoices).where(eq(invoices.bubble_id, p.linked_invoice)).limit(1);
+          if (inv.length > 0) invoiceRef = inv[0].invoice_number || "";
+        }
+        if (cust.length > 0) {
+          const c = cust[0];
+          const phone = c.phone || "";
+          if (phone) {
+            const { getReceiptHtml } = await import("@/lib/receipt-template");
+            const { generateGenericPdf } = await import("@/lib/pdf-generator");
+            const { sendReceiptViaWhatsApp } = await import("@/lib/whatsapp/send-receipt");
+            const { numberToWords } = await import("@/lib/number-to-words");
+
+            const numAmount = typeof p.amount === 'string' ? parseFloat(p.amount) : (p.amount || 0);
+
+            const receiptHtml = getReceiptHtml({
+              customerName: c.name || "",
+              customerAddress: c.address || "",
+              voucherNo: "OR-" + p.bubble_id.substring(0, 7).toUpperCase(),
+              receiptDate: new Date().toLocaleDateString('en-GB'),
+              amountInWords: numberToWords(numAmount),
+              paymentMethod: p.payment_method_v2 || p.payment_method || "",
+              chequeNo: p.remark || "",
+              paymentAmount: numAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+              invoiceRef: invoiceRef,
+              description: `PAYMENT FOR - ${invoiceRef || 'INVOICE'}`
+            });
+
+            const pdfId = await generateGenericPdf(receiptHtml);
+            const pdfUrl = `https://pdf-gen-production-6c81.up.railway.app/api/pdf/${pdfId}`;
+            
+            await sendReceiptViaWhatsApp(phone, pdfUrl, `Official_Receipt_${invoiceRef || p.bubble_id.substring(0,7)}.pdf`);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to generate/send receipt:", e);
+      }
+    }
+
     revalidatePath("/payments");
     return { success: true };
   } catch (error) {
@@ -1522,5 +1566,89 @@ Invoice.amount_eligible_for_comm = RM ${amountEligible.toFixed(2)}`;
   } catch (error) {
     console.error("Commission Calculation Action Error:", error);
     return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Get Receipt Preview HTML
+ */
+export async function getPaymentReceiptPreview(paymentId: number) {
+  try {
+    const pRecord = await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1);
+    if (!pRecord || pRecord.length === 0) {
+      throw new Error("Payment not found");
+    }
+    const p = pRecord[0];
+
+    if (!p.bubble_id || !p.linked_customer) {
+      throw new Error("Payment missing bubble_id or linked_customer");
+    }
+
+    const cust = await db.select().from(customers).where(eq(customers.customer_id, p.linked_customer)).limit(1);
+    let invoiceRef = "";
+    if (p.linked_invoice) {
+      const inv = await db.select().from(invoices).where(eq(invoices.bubble_id, p.linked_invoice)).limit(1);
+      if (inv.length > 0) invoiceRef = inv[0].invoice_number || "";
+    }
+    if (cust.length === 0) {
+      throw new Error("Customer not found");
+    }
+
+    const c = cust[0];
+    const phone = c.phone || "";
+    const numAmount = typeof p.amount === 'string' ? parseFloat(p.amount) : (p.amount || 0);
+
+    const { getReceiptHtml } = await import("@/lib/receipt-template");
+    const { numberToWords } = await import("@/lib/number-to-words");
+
+    const receiptHtml = getReceiptHtml({
+      customerName: c.name || "",
+      customerAddress: c.address || "",
+      voucherNo: "OR-" + p.bubble_id.substring(0, 7).toUpperCase(),
+      receiptDate: new Date(p.payment_date || p.created_at || new Date()).toLocaleDateString('en-GB'),
+      amountInWords: numberToWords(numAmount),
+      paymentMethod: p.payment_method_v2 || p.payment_method || "",
+      chequeNo: p.remark || "",
+      paymentAmount: numAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      invoiceRef: invoiceRef,
+      description: `PAYMENT FOR - ${invoiceRef || 'INVOICE'}`
+    });
+
+    return { success: true, html: receiptHtml, phone };
+  } catch (error: any) {
+    console.error("getPaymentReceiptPreview error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Manually generate PDF and send via WhatsApp
+ */
+export async function manualSendReceipt(paymentId: number) {
+  try {
+    const preview = await getPaymentReceiptPreview(paymentId);
+    if (!preview.success || !preview.html || !preview.phone) {
+      throw new Error(preview.error || "Failed to generate receipt preview");
+    }
+
+    const { generateGenericPdf } = await import("@/lib/pdf-generator");
+    const { sendReceiptViaWhatsApp } = await import("@/lib/whatsapp/send-receipt");
+
+    const pdfId = await generateGenericPdf(preview.html);
+    const pdfUrl = `https://pdf-gen-production-6c81.up.railway.app/api/pdf/${pdfId}`;
+
+    const pRecord = await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1);
+    const p = pRecord[0];
+    let invoiceRef = "";
+    if (p.linked_invoice) {
+      const inv = await db.select().from(invoices).where(eq(invoices.bubble_id, p.linked_invoice)).limit(1);
+      if (inv.length > 0) invoiceRef = inv[0].invoice_number || "";
+    }
+
+    const res = await sendReceiptViaWhatsApp(preview.phone, pdfUrl, `Official_Receipt_${invoiceRef || p.bubble_id?.substring(0, 7) || paymentId}.pdf`);
+    return { success: true, result: res };
+  } catch (error: any) {
+    console.error("manualSendReceipt error:", error);
+    return { success: false, error: error.message };
   }
 }
