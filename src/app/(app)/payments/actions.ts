@@ -1682,7 +1682,7 @@ export async function manualSendReceipt(paymentId: number) {
     const { sendReceiptViaWhatsApp } = await import("@/lib/whatsapp/send-receipt");
 
     const pdfId = await generateGenericPdf(preview.html);
-    const pdfUrl = `https://pdf-gen-production-6c81.up.railway.app/api/pdf/${pdfId}`;
+    const pdfUrl = `https://pdf-gen-production-6c81.up.railway.app/api/download/${pdfId}`;
 
     const pRecord = await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1);
     const p = pRecord[0];
@@ -1732,7 +1732,7 @@ export async function manualSendReceiptToAgent(paymentId: number) {
     const { sendReceiptViaWhatsApp } = await import("@/lib/whatsapp/send-receipt");
 
     const pdfId = await generateGenericPdf(preview.html);
-    const pdfUrl = `https://pdf-gen-production-6c81.up.railway.app/api/pdf/${pdfId}`;
+    const pdfUrl = `https://pdf-gen-production-6c81.up.railway.app/api/download/${pdfId}`;
 
     const pRecord = await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1);
     const p = pRecord[0];
