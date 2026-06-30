@@ -2,7 +2,7 @@
 
 import { Send, Loader2, AlertCircle, X, CheckCircle, Download } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getPaymentReceiptPreview, manualSendReceipt } from "@/app/(app)/payments/actions";
+import { getPaymentReceiptPreview, manualSendReceipt, manualSendReceiptToAgent } from "@/app/(app)/payments/actions";
 
 interface ReceiptPreviewModalProps {
   paymentId: number | null;
@@ -15,6 +15,8 @@ export function ReceiptPreviewModal({ paymentId, onClose }: ReceiptPreviewModalP
   const [error, setError] = useState<string | null>(null);
   const [html, setHtml] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
+  const [agentPhone, setAgentPhone] = useState<string>("");
+  const [agentName, setAgentName] = useState<string>("");
   const [logs, setLogs] = useState<any[]>([]);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -26,6 +28,8 @@ export function ReceiptPreviewModal({ paymentId, onClose }: ReceiptPreviewModalP
       setError(null);
       setSuccessMsg(null);
       setLogs([]);
+      setAgentPhone("");
+      setAgentName("");
     }
   }, [paymentId]);
 
@@ -38,6 +42,8 @@ export function ReceiptPreviewModal({ paymentId, onClose }: ReceiptPreviewModalP
       if (res.success && res.html) {
         setHtml(res.html);
         setPhone(res.phone || "Unknown Phone");
+        setAgentPhone(res.agentPhone || "");
+        setAgentName(res.agentName || "");
         setLogs(res.logs || []);
       } else {
         setError(res.error || "Failed to load preview");
@@ -60,6 +66,25 @@ export function ReceiptPreviewModal({ paymentId, onClose }: ReceiptPreviewModalP
         setSuccessMsg("Receipt successfully sent to WhatsApp!");
       } else {
         setError(res.error || "Failed to send receipt");
+      }
+    } catch (e: any) {
+      setError(e.message || "An error occurred while sending");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleSendToAgent() {
+    if (!paymentId) return;
+    setSending(true);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      const res = await manualSendReceiptToAgent(paymentId);
+      if (res.success) {
+        setSuccessMsg(`Receipt successfully sent to Agent (${agentName}) WhatsApp!`);
+      } else {
+        setError(res.error || "Failed to send receipt to agent");
       }
     } catch (e: any) {
       setError(e.message || "An error occurred while sending");
@@ -98,17 +123,36 @@ export function ReceiptPreviewModal({ paymentId, onClose }: ReceiptPreviewModalP
             ) : (
               <p className="text-sm text-gray-500 mt-1">Client WhatsApp: {phone}</p>
             )}
+            {agentPhone && (
+              <p className="text-xs text-blue-600 mt-0.5 font-medium">Agent: {agentName} ({agentPhone})</p>
+            )}
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 lg:gap-3 flex-wrap">
             <button
               onClick={handleDownloadHtml}
               disabled={loading || !html}
-              className="flex items-center gap-2 bg-secondary-100 hover:bg-secondary-200 disabled:opacity-50 text-secondary-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 bg-secondary-100 hover:bg-secondary-200 disabled:opacity-50 text-secondary-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+              title="Download HTML"
             >
               <Download className="h-4 w-4" />
-              Download HTML
             </button>
+            
+            {agentPhone && (
+              <button
+                onClick={handleSendToAgent}
+                disabled={loading || sending || !html || !!successMsg}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+              >
+                {sending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                WhatsApp to Agent
+              </button>
+            )}
+
             <button
               onClick={handleSend}
               disabled={loading || sending || !html || !!successMsg}

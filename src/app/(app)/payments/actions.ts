@@ -1607,6 +1607,17 @@ export async function getPaymentReceiptPreview(paymentId: number) {
 
     const c = cust[0];
     const phone = c.phone || "";
+    
+    let agentPhone = "";
+    let agentName = "";
+    if (p.linked_agent) {
+      const agRecord = await db.select().from(agents).where(eq(agents.bubble_id, p.linked_agent)).limit(1);
+      if (agRecord.length > 0) {
+        agentPhone = agRecord[0].contact || "";
+        agentName = agRecord[0].name || "";
+      }
+    }
+
     const numAmount = typeof p.amount === 'string' ? parseFloat(p.amount) : (p.amount || 0);
 
     const { getReceiptHtml } = await import("@/lib/receipt-template");
@@ -1640,7 +1651,7 @@ export async function getPaymentReceiptPreview(paymentId: number) {
     )
     .orderBy(desc(invoice_audit_log.edited_at));
 
-    return { success: true, html: receiptHtml, phone, logs };
+    return { success: true, html: receiptHtml, phone, logs, agentPhone, agentName };
   } catch (error: any) {
     console.error("getPaymentReceiptPreview error:", error);
     return { success: false, error: error.message };
@@ -1693,6 +1704,56 @@ export async function manualSendReceipt(paymentId: number) {
     return { success: true, result: res };
   } catch (error: any) {
     console.error("manualSendReceipt error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Manually generate PDF and send via WhatsApp to Sales Agent
+ */
+export async function manualSendReceiptToAgent(paymentId: number) {
+  try {
+    const user = await getUser();
+    const actorName = user?.name || "System";
+    const actorPhone = user?.phone || "";
+    const actorUserId = user?.userId || "";
+    const actorRole = user?.role || "admin";
+
+    const preview = await getPaymentReceiptPreview(paymentId);
+    if (!preview.success || !preview.html || !preview.agentPhone) {
+      throw new Error(preview.error || "Failed to generate receipt preview or missing agent phone");
+    }
+
+    const { generateGenericPdf } = await import("@/lib/pdf-generator");
+    const { sendReceiptViaWhatsApp } = await import("@/lib/whatsapp/send-receipt");
+
+    const pdfId = await generateGenericPdf(preview.html);
+    const pdfUrl = `https://pdf-gen-production-6c81.up.railway.app/api/pdf/${pdfId}`;
+
+    const pRecord = await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1);
+    const p = pRecord[0];
+    let invoiceRef = "";
+    if (p.linked_invoice) {
+      const inv = await db.select().from(invoices).where(eq(invoices.bubble_id, p.linked_invoice)).limit(1);
+      if (inv.length > 0) invoiceRef = inv[0].invoice_number || "";
+    }
+
+    const res = await sendReceiptViaWhatsApp(preview.agentPhone, pdfUrl, `Official_Receipt_${invoiceRef || p.bubble_id?.substring(0, 7) || paymentId}.pdf`);
+    
+    await logPaymentAudit({
+      linkedInvoice: p.linked_invoice,
+      paymentBubbleId: p.bubble_id,
+      actionType: "receipt_sent_manual",
+      changes: [{ field: "whatsapp_receipt", before: null, after: `Agent: ${preview.agentPhone}` }],
+      actorName,
+      actorPhone,
+      actorUserId,
+      actorRole,
+    });
+
+    return { success: true, result: res };
+  } catch (error: any) {
+    console.error("manualSendReceiptToAgent error:", error);
     return { success: false, error: error.message };
   }
 }
