@@ -1,6 +1,6 @@
 "use client";
 
-import { Send, Loader2, AlertCircle, X, CheckCircle } from "lucide-react";
+import { Send, Loader2, AlertCircle, X, CheckCircle, Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getPaymentReceiptPreview, manualSendReceipt } from "@/app/(app)/payments/actions";
 
@@ -68,6 +68,19 @@ export function ReceiptPreviewModal({ paymentId, onClose }: ReceiptPreviewModalP
     }
   }
 
+  function handleDownloadHtml() {
+    if (!html) return;
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Receipt_${paymentId}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   if (!paymentId) return null;
 
   return (
@@ -78,10 +91,24 @@ export function ReceiptPreviewModal({ paymentId, onClose }: ReceiptPreviewModalP
         <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Receipt Preview</h3>
-            {phone && <p className="text-sm text-gray-500 mt-1">Client WhatsApp: {phone}</p>}
+            {(!phone || phone === "Unknown Phone") ? (
+              <p className="text-sm text-red-600 font-bold mt-1">
+                Client WhatsApp: ( RED WARNING, NO CUST PHONE RECORDED )
+              </p>
+            ) : (
+              <p className="text-sm text-gray-500 mt-1">Client WhatsApp: {phone}</p>
+            )}
           </div>
           
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleDownloadHtml}
+              disabled={loading || !html}
+              className="flex items-center gap-2 bg-secondary-100 hover:bg-secondary-200 disabled:opacity-50 text-secondary-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Download HTML
+            </button>
             <button
               onClick={handleSend}
               disabled={loading || sending || !html || !!successMsg}
