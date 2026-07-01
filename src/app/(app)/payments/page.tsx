@@ -1769,6 +1769,21 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
               <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
                 {/* Info Sidebar */}
                 <div className="w-full md:w-80 bg-secondary-50 p-6 space-y-6 overflow-y-auto border-r border-secondary-200">
+                  {/* Missing Attachment Alert */}
+                  {(!viewingPayment.attachment || viewingPayment.attachment.length === 0) && (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 animate-pulse">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="text-sm font-bold text-red-900 mb-1">No Payment Proof</h4>
+                          <p className="text-xs text-red-700 leading-relaxed">
+                            This payment has no attached receipt or proof document. Please request the agent to upload payment evidence before verification.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {isEditing ? (
                     <div className="space-y-4 bg-white p-4 rounded-lg shadow-sm border border-primary-200">
                       <h3 className="text-xs font-bold text-primary-600 uppercase tracking-widest flex items-center gap-2">
