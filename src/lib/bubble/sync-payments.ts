@@ -167,25 +167,34 @@ export async function syncPaymentsFromBubble() {
 
     // Step 4: Sync all submit_payment records from Bubble (overwrite)
     logSyncActivity('Step 4: Syncing submitted payment records from Bubble...', 'INFO');
-    await syncTable('submit_payment', submitted_payments, submitted_payments.bubble_id, (b) => ({
-      amount: b.Amount?.toString(),
-      payment_date: b["Payment Date"] ? new Date(b["Payment Date"]) : null,
-      payment_method: b["Payment Method"] || b["Payment Method V2"],
-      payment_method_v2: b["Payment Method V2"],
-      remark: b.Remark,
-      linked_agent: b["Linked Agent"],
-      linked_customer: b["Linked Customer"],
-      linked_invoice: b["Linked Invoice"],
-      attachment: b.Attachment ? (Array.isArray(b.Attachment) ? b.Attachment : [b.Attachment]) : null,
-      issuer_bank: b["Issuer Bank"],
-      epp_month: b["EPP Month"]?.toString(),
-      epp_type: b["EPP Type"],
-      created_by: b["Created By"],
-      created_date: b["Created Date"] ? new Date(b["Created Date"]) : null,
-      modified_date: new Date(b["Modified Date"]),
-      status: b.Status || 'pending',
-      last_synced_at: new Date()
-    }), results);
+    await syncTable('submit_payment', submitted_payments, submitted_payments.bubble_id, (b) => {
+      // 🚫 CRITICAL VALIDATION: Skip payments without attachment (payment proof required)
+      if (!b.Attachment || (Array.isArray(b.Attachment) && b.Attachment.length === 0)) {
+        logSyncActivity(`SKIPPED: Payment ${b._id} has no attachment (payment proof required)`, 'WARN');
+        results.errors.push(`Payment ${b._id} skipped - no attachment`);
+        return null; // Skip this record
+      }
+
+      return {
+        amount: b.Amount?.toString(),
+        payment_date: b["Payment Date"] ? new Date(b["Payment Date"]) : null,
+        payment_method: b["Payment Method"] || b["Payment Method V2"],
+        payment_method_v2: b["Payment Method V2"],
+        remark: b.Remark,
+        linked_agent: b["Linked Agent"],
+        linked_customer: b["Linked Customer"],
+        linked_invoice: b["Linked Invoice"],
+        attachment: Array.isArray(b.Attachment) ? b.Attachment : [b.Attachment],
+        issuer_bank: b["Issuer Bank"],
+        epp_month: b["EPP Month"]?.toString(),
+        epp_type: b["EPP Type"],
+        created_by: b["Created By"],
+        created_date: b["Created Date"] ? new Date(b["Created Date"]) : null,
+        modified_date: new Date(b["Modified Date"]),
+        status: b.Status || 'pending',
+        last_synced_at: new Date()
+      };
+    }, results);
 
     // Step 5: Delete submitted_payments that were verified in Bubble (no longer exist)
     if (deletedSubmittedPaymentIds.length > 0) {
@@ -377,6 +386,9 @@ async function syncTable(typeName: string, table: any, conflictCol: any, mapFn: 
       for (const b of records) {
         try {
           const vals = mapFn(b);
+          // Skip records where mapFn returns null (validation failed)
+          if (vals === null) continue;
+
           await db.insert(table).values({ bubble_id: b._id, ...vals })
             .onConflictDoUpdate({
               target: conflictCol,

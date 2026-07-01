@@ -615,6 +615,11 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
 
     const p = submitted[0];
 
+    // 🚫 CRITICAL VALIDATION: Block verification without payment proof attachment
+    if (!p.attachment || p.attachment.length === 0) {
+      throw new Error("PAYMENT VERIFICATION BLOCKED: Payment proof (image/PDF) attachment is required. Cannot verify payment without proof of payment.");
+    }
+
     // 2. Insert into payments table
     await db.insert(payments).values({
       bubble_id: p.bubble_id,

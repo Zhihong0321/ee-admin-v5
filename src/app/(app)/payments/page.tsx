@@ -457,6 +457,13 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
   };
 
   const handleVerify = async (id: number) => {
+    // 🚫 CRITICAL: Block verification if no attachment
+    const payment = filteredAndSortedPayments.find(p => p.id === id);
+    if (!payment?.attachment || payment.attachment.length === 0) {
+      alert("❌ VERIFICATION BLOCKED\n\nPayment proof (image/PDF) is required.\nCannot verify payment without attachment.");
+      return;
+    }
+
     if (!confirm("Are you sure you want to verify this payment?")) return;
 
     try {
@@ -465,7 +472,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
       setIsViewModalOpen(false);
     } catch (error) {
       console.error("Failed to verify payment", error);
-      alert("Failed to verify payment");
+      alert(error instanceof Error ? error.message : "Failed to verify payment");
     }
   };
 
@@ -2096,7 +2103,13 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           handleVerify(viewingPayment.id);
                           setIsViewModalOpen(false);
                         }}
-                        className="flex-1 btn-primary py-3 flex items-center justify-center gap-2"
+                        disabled={!viewingPayment.attachment || viewingPayment.attachment.length === 0}
+                        className={`flex-1 py-3 flex items-center justify-center gap-2 ${
+                          !viewingPayment.attachment || viewingPayment.attachment.length === 0
+                            ? 'bg-secondary-300 text-secondary-500 cursor-not-allowed'
+                            : 'btn-primary'
+                        }`}
+                        title={!viewingPayment.attachment || viewingPayment.attachment.length === 0 ? 'Payment proof attachment required' : ''}
                       >
                         <CheckCircle className="h-5 w-5" />
                         Verify
