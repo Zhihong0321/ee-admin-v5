@@ -2204,93 +2204,137 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   </div>
 
                   {viewingPayment.attachment && viewingPayment.attachment.length > 0 ? (
-                    viewingPayment.attachment[0].toLowerCase().includes('.pdf') ? (
-                      <div className="w-full h-full relative group">
-                        <iframe
-                          src={viewingPayment.attachment[0]}
-                          className="w-full h-full rounded-xl shadow-2xl bg-white"
-                          title="Payment Attachment PDF"
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center bg-secondary-900/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl pointer-events-none">
-                          <div className="flex gap-3">
-                            <a 
-                              href={viewingPayment.attachment[0]} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="bg-white text-secondary-900 font-medium px-4 py-2 rounded-lg shadow-xl pointer-events-auto flex items-center gap-2 hover:bg-secondary-50 transition-colors"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                              Open in New Tab
-                            </a>
-                            <a 
-                              href={viewingPayment.attachment[0]} 
-                              download
-                              className="bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-xl pointer-events-auto flex items-center gap-2 hover:bg-primary-700 transition-colors"
-                            >
-                              <Download className="h-4 w-4" />
-                              Download PDF
-                            </a>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className="relative cursor-none group h-full w-full flex items-center justify-center"
-                        onMouseMove={handleMouseMove}
-                        onMouseEnter={() => setShowMagnifier(true)}
-                        onMouseLeave={() => setShowMagnifier(false)}
-                      >
-                        <img
-                          ref={imgRef}
-                          src={viewingPayment.attachment[0]}
-                          alt="Payment Attachment"
-                          className="max-h-full max-w-full object-contain shadow-2xl transition-opacity group-hover:opacity-90"
-                          onError={(e) => {
-                            // If the image fails to load, it might be a PDF without the extension. Replace with a link.
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.parentElement!.innerHTML = `
-                              <div class="flex flex-col items-center justify-center gap-4 text-secondary-500 bg-secondary-50 p-8 rounded-xl w-full h-full">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-16 w-16 text-primary-400"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-                                <p class="text-sm font-medium">Preview not available</p>
-                                <div class="flex gap-3">
-                                  <a href="${viewingPayment.attachment[0]}" target="_blank" rel="noopener noreferrer" class="px-4 py-2 bg-white text-secondary-900 border border-secondary-200 rounded-lg hover:bg-secondary-50 shadow-sm font-medium text-sm flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                                    Open
-                                  </a>
-                                  <a href="${viewingPayment.attachment[0]}" download class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 shadow-sm font-medium text-sm flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                    Download
-                                  </a>
-                                </div>
-                              </div>
-                            `;
-                          }}
-                        />
+                    (() => {
+                      const attachmentUrl = viewingPayment.attachment[0];
+                      const isPdf = attachmentUrl.toLowerCase().includes('.pdf') || attachmentUrl.toLowerCase().includes('application/pdf');
+                      const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)(\?|$)/i.test(attachmentUrl);
 
-                        {showMagnifier && (
-                          <>
-                            {/* Custom Cursor / Magnifier Ring */}
-                            <div
-                              className="pointer-events-none absolute border-2 border-primary-500 rounded-full shadow-2xl z-50 overflow-hidden"
-                              style={{
-                                left: `${cursorPos.x - 75}px`,
-                                top: `${cursorPos.y - 75}px`,
-                                width: '150px',
-                                height: '150px',
-                                backgroundImage: `url(${viewingPayment.attachment[0]})`,
-                                backgroundRepeat: 'no-repeat',
-                                backgroundSize: `${imgRef.current ? imgRef.current.width * 2.5 : 0}px ${imgRef.current ? imgRef.current.height * 2.5 : 0}px`,
-                                backgroundPosition: `${magnifierPos.x}% ${magnifierPos.y}%`
-                              }}
-                            />
-                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/60 backdrop-blur-md rounded-full text-white text-xs flex items-center gap-2 pointer-events-none">
-                              <ZoomIn className="h-3 w-3" />
-                              Magnifying glass active
+                      // If it's a PDF or non-image file, show download interface instead of preview
+                      if (isPdf || !isImage) {
+                        return (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-6 p-8">
+                            {/* File Type Icon */}
+                            <div className="p-8 bg-white/10 rounded-3xl shadow-2xl">
+                              <FileText className="h-24 w-24 text-white" />
                             </div>
-                          </>
-                        )}
-                      </div>
-                    )
+
+                            {/* File Info */}
+                            <div className="text-center">
+                              <h3 className="text-2xl font-bold text-white mb-2">
+                                {isPdf ? 'PDF Payment Proof' : 'Payment Proof Document'}
+                              </h3>
+                              <p className="text-white/70 text-sm">
+                                Click below to view or download the payment receipt
+                              </p>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                              <a
+                                href={attachmentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 bg-white text-secondary-900 font-bold px-6 py-4 rounded-xl shadow-xl flex items-center justify-center gap-3 hover:bg-secondary-50 transition-all hover:scale-105 text-lg"
+                              >
+                                <ExternalLink className="h-6 w-6" />
+                                Open in Browser
+                              </a>
+                              <a
+                                href={attachmentUrl}
+                                download
+                                className="flex-1 bg-primary-600 text-white font-bold px-6 py-4 rounded-xl shadow-xl flex items-center justify-center gap-3 hover:bg-primary-700 transition-all hover:scale-105 text-lg"
+                              >
+                                <Download className="h-6 w-6" />
+                                Download
+                              </a>
+                            </div>
+
+                            {/* Direct Link (fallback) */}
+                            <div className="text-center">
+                              <p className="text-white/50 text-xs mb-2">Or copy the direct link:</p>
+                              <div className="flex items-center gap-2 bg-white/10 rounded-lg px-4 py-2 max-w-md">
+                                <input
+                                  type="text"
+                                  value={attachmentUrl}
+                                  readOnly
+                                  className="bg-transparent text-white/80 text-xs flex-1 outline-none"
+                                  onClick={(e) => e.currentTarget.select()}
+                                />
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(attachmentUrl);
+                                    alert('Link copied to clipboard!');
+                                  }}
+                                  className="text-white/70 hover:text-white transition-colors"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Otherwise, show image preview with magnifier
+                      return (
+                        <div
+                          className="relative cursor-none group h-full w-full flex items-center justify-center"
+                          onMouseMove={handleMouseMove}
+                          onMouseEnter={() => setShowMagnifier(true)}
+                          onMouseLeave={() => setShowMagnifier(false)}
+                        >
+                          <img
+                            ref={imgRef}
+                            src={attachmentUrl}
+                            alt="Payment Attachment"
+                            className="max-h-full max-w-full object-contain shadow-2xl transition-opacity group-hover:opacity-90"
+                            onError={(e) => {
+                              // If the image fails to load, it might be a PDF without the extension. Replace with a link.
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.parentElement!.innerHTML = `
+                                <div class="flex flex-col items-center justify-center gap-4 text-white p-8 rounded-xl w-full h-full">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-16 w-16 text-white"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                                  <p class="text-lg font-bold text-white mb-2">Preview not available</p>
+                                  <div class="flex gap-3">
+                                    <a href="${attachmentUrl}" target="_blank" rel="noopener noreferrer" class="px-6 py-3 bg-white text-secondary-900 border border-secondary-200 rounded-lg hover:bg-secondary-50 shadow-xl font-bold text-sm flex items-center gap-2">
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                      Open in Browser
+                                    </a>
+                                    <a href="${attachmentUrl}" download class="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 shadow-xl font-bold text-sm flex items-center gap-2">
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                      Download
+                                    </a>
+                                  </div>
+                                </div>
+                              `;
+                            }}
+                          />
+
+                          {showMagnifier && (
+                            <>
+                              {/* Custom Cursor / Magnifier Ring */}
+                              <div
+                                className="pointer-events-none absolute border-2 border-primary-500 rounded-full shadow-2xl z-50 overflow-hidden"
+                                style={{
+                                  left: `${cursorPos.x - 75}px`,
+                                  top: `${cursorPos.y - 75}px`,
+                                  width: '150px',
+                                  height: '150px',
+                                  backgroundImage: `url(${attachmentUrl})`,
+                                  backgroundRepeat: 'no-repeat',
+                                  backgroundSize: `${imgRef.current ? imgRef.current.width * 2.5 : 0}px ${imgRef.current ? imgRef.current.height * 2.5 : 0}px`,
+                                  backgroundPosition: `${magnifierPos.x}% ${magnifierPos.y}%`
+                                }}
+                              />
+                              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/60 backdrop-blur-md rounded-full text-white text-xs flex items-center gap-2 pointer-events-none">
+                                <ZoomIn className="h-3 w-3" />
+                                Magnifying glass active
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()
                   ) : (
                     <div className="flex flex-col items-center gap-4 text-white/50">
                       <div className="p-8 bg-white/5 rounded-full">
