@@ -710,10 +710,26 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
 
             const numAmount = typeof p.amount === 'string' ? parseFloat(p.amount) : (p.amount || 0);
 
+            let paymentSeq = 1;
+            if (p.linked_invoice) {
+              const allInvoicePayments = await db
+                .select()
+                .from(payments)
+                .where(eq(payments.linked_invoice, p.linked_invoice))
+                .orderBy(payments.payment_date, payments.created_at);
+
+              const idx = allInvoicePayments.findIndex(pay => pay.bubble_id === p.bubble_id);
+              if (idx !== -1) {
+                paymentSeq = idx + 1;
+              }
+            }
+            const padSeq = String(paymentSeq).padStart(2, '0');
+            const voucherNo = invoiceRef ? `${invoiceRef}-PAY${padSeq}` : `OR-${p.bubble_id.substring(0, 7).toUpperCase()}-PAY${padSeq}`;
+
             const receiptHtml = getReceiptHtml({
               customerName: c.name || "",
               customerAddress: c.address || "",
-              voucherNo: "OR-" + p.bubble_id.substring(0, 7).toUpperCase(),
+              voucherNo: voucherNo,
               receiptDate: new Date().toLocaleDateString('en-GB'),
               amountInWords: numberToWords(numAmount),
               paymentMethod: p.payment_method_v2 || p.payment_method || "",
