@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { users, agents } from "@/db/schema";
 import { ilike, or, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { pushUserUpdateToBubble, pushAgentUpdateToBubble, syncProfilesFromBubble, syncSingleProfileFromBubble } from "@/lib/bubble";
+import { pushAgentUpdateToBubble, syncProfilesFromBubble, syncSingleProfileFromBubble } from "@/lib/bubble";
 import fs from "fs";
 import path from "path";
 
@@ -325,7 +325,8 @@ export async function activateUser(userId: number) {
       return { success: true, alreadyActive: true };
     }
 
-    // Update local DB first so the admin panel reflects the change immediately.
+    // Postgres is now the source of truth (Bubble sync is disabled), so a
+    // local update is durable — no push to Bubble needed.
     await db
       .update(users)
       .set({
@@ -334,24 +335,8 @@ export async function activateUser(userId: number) {
       })
       .where(eq(users.id, userId));
 
-    // Push to Bubble so the next profile sync does not revert user_signed_up back to false.
-    // (sync-profiles.ts overwrites user_signed_up from Bubble on every sync.)
-    let bubbleWarning: string | undefined;
-    if (user.bubble_id) {
-      try {
-        await pushUserUpdateToBubble(user.bubble_id, { user_signed_up: true });
-      } catch (bubbleError) {
-        console.error("activateUser: Bubble push failed", bubbleError);
-        bubbleWarning =
-          "Activated locally, but failed to sync to Bubble. It may revert on the next sync. " +
-          String(bubbleError);
-      }
-    } else {
-      bubbleWarning = "Activated locally, but user has no Bubble ID so the change was not synced to Bubble.";
-    }
-
     revalidatePath("/users");
-    return { success: true, bubbleWarning };
+    return { success: true };
   } catch (error) {
     console.error("activateUser error:", error);
     return { success: false, error: `Failed to activate user: ${String(error)}` };

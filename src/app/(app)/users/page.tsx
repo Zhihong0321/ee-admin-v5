@@ -47,14 +47,13 @@ export default function UsersPage() {
   async function handleActivateUser(user: any) {
     if (!user) return;
     const label = user.agent_name && user.agent_name !== "N/A" ? user.agent_name : user.agent_email;
-    if (!confirm(`Manually activate ${label}? This marks the user as signed up (Active) and syncs the change to Bubble.`)) {
+    if (!confirm(`Manually activate ${label}? This marks the user as signed up (Active).`)) {
       return;
     }
     setActivatingUserId(user.id);
     try {
       const result = await activateUser(user.id);
       if (result.success) {
-        if (result.bubbleWarning) alert(result.bubbleWarning);
         // Reflect immediately in the open modal and the list.
         if (editingUser && editingUser.id === user.id) {
           setEditingUser({ ...editingUser, user_signed_up: true });
