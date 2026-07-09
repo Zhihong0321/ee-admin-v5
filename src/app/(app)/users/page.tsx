@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, User, Mail, Phone, MapPin, Edit2, Shield, Briefcase, Building2, Calendar, X, PlusCircle, RefreshCw, GitBranch, FileText, ExternalLink, UploadCloud, Loader2 } from "lucide-react";
-import { getUsers, updateUserProfile, getAllUniqueTags, triggerProfileSync, syncUserFromBubble, createAgentForUser, uploadUserLetter } from "./actions";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, User, Mail, Phone, MapPin, Edit2, Shield, Briefcase, Building2, Calendar, X, PlusCircle, RefreshCw, GitBranch, FileText, ExternalLink, UploadCloud, Loader2, CheckCircle } from "lucide-react";
+import { getUsers, updateUserProfile, getAllUniqueTags, createAgentForUser, uploadUserLetter, activateUser } from "./actions";
 
 type UserLetterField = "offer_letter" | "employment_letter";
 
@@ -15,13 +15,13 @@ export default function UsersPage() {
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [newTagInput, setNewTagInput] = useState("");
   const [activeTab, setActiveTab] = useState<'profile' | 'mykad' | 'letters'>('profile');
   const [letterUploading, setLetterUploading] = useState<UserLetterField | null>(null);
+  const [activatingUserId, setActivatingUserId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -44,43 +44,30 @@ export default function UsersPage() {
     }
   }
 
-  async function handleSync() {
-    setSyncing(true);
-    try {
-      const result = await triggerProfileSync();
-      if (result.success) {
-        alert("Sync complete: Profiles updated based on latest modification.");
-        fetchData(currentPage);
-      } else {
-        alert("Sync failed: " + result.error);
-      }
-    } catch (error) {
-      console.error("Sync error", error);
-      alert("Sync error");
-    } finally {
-      setSyncing(false);
+  async function handleActivateUser(user: any) {
+    if (!user) return;
+    const label = user.agent_name && user.agent_name !== "N/A" ? user.agent_name : user.agent_email;
+    if (!confirm(`Manually activate ${label}? This marks the user as signed up (Active) and syncs the change to Bubble.`)) {
+      return;
     }
-  }
-
-  async function handleSingleSync(bubbleId: string, agentBubbleId?: string) {
-    setSyncing(true);
+    setActivatingUserId(user.id);
     try {
-      const result = await syncUserFromBubble(bubbleId, agentBubbleId);
+      const result = await activateUser(user.id);
       if (result.success) {
-        // Update local state for editing user if open
-        if (editingUser && editingUser.bubble_id === bubbleId) {
-          const updatedUsers = await getUsers({ search, page: currentPage });
-          const updatedUser = updatedUsers.users.find(u => u.bubble_id === bubbleId);
-          if (updatedUser) setEditingUser(updatedUser);
+        if (result.bubbleWarning) alert(result.bubbleWarning);
+        // Reflect immediately in the open modal and the list.
+        if (editingUser && editingUser.id === user.id) {
+          setEditingUser({ ...editingUser, user_signed_up: true });
         }
-        fetchData(currentPage);
+        setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, user_signed_up: true } : u)));
       } else {
-        alert("Sync failed");
+        alert("Activation failed: " + result.error);
       }
     } catch (error) {
-      console.error("Single sync error", error);
+      console.error("Activate user error", error);
+      alert("Activation error");
     } finally {
-      setSyncing(false);
+      setActivatingUserId(null);
     }
   }
 
@@ -276,14 +263,6 @@ export default function UsersPage() {
             <Building2 className="h-4 w-4" />
             Department
           </Link>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="btn-secondary flex items-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync Bubble'}
-          </button>
           <button className="btn-secondary flex items-center gap-2">
             <Download className="h-4 w-4" />
             Export
@@ -532,15 +511,6 @@ export default function UsersPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-3">
                   <h2 className="text-xl font-bold text-secondary-900">Edit User Profile</h2>
-                  <button 
-                    type="button"
-                    onClick={() => handleSingleSync(editingUser.bubble_id, editingUser.linked_agent_profile)}
-                    disabled={syncing}
-                    className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-secondary-100 text-secondary-600 rounded-lg hover:bg-primary-50 hover:text-primary-600 transition-colors disabled:opacity-50"
-                  >
-                    <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
-                    {syncing ? 'Syncing...' : 'Sync from Bubble'}
-                  </button>
                   {editingUser?.access_level?.includes("blocked") ? (
                     <span className="badge-danger uppercase font-bold">
                       Blocked
@@ -554,9 +524,25 @@ export default function UsersPage() {
                       Active
                     </span>
                   ) : (
-                    <span className="badge bg-secondary-100 text-secondary-600 uppercase font-bold">
-                      Pending Signup
-                    </span>
+                    <>
+                      <span className="badge bg-secondary-100 text-secondary-600 uppercase font-bold">
+                        Pending Signup
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleActivateUser(editingUser)}
+                        disabled={activatingUserId === editingUser?.id}
+                        className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors disabled:opacity-50"
+                        title="Manually mark this user as signed up (Active)"
+                      >
+                        {activatingUserId === editingUser?.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <CheckCircle className="h-3 w-3" />
+                        )}
+                        {activatingUserId === editingUser?.id ? 'Activating...' : 'Activate'}
+                      </button>
+                    </>
                   )}
                 </div>
                 <p className="text-sm text-secondary-500">Managing Agent: {editingUser?.agent_name}</p>
@@ -923,7 +909,6 @@ export default function UsersPage() {
                         <li>✅ <strong>This section</strong>: Agent/Employee IC (user/agent identification)</li>
                         <li>❌ <strong>NOT here</strong>: Customer IC (found in SEDA Registration)</li>
                         <li>📄 Bubble field: <code className="bg-secondary-100 px-1 rounded text-xs">IC Front</code> and <code className="bg-secondary-100 px-1 rounded text-xs">IC Back</code></li>
-                        <li>🔄 Click "Sync from Bubble" to refresh documents</li>
                       </ul>
                     </div>
                   </div>

@@ -307,6 +307,57 @@ export async function updateUserProfile(userId: number, agentData: Partial<typeo
   }
 }
 
+export async function activateUser(userId: number) {
+  try {
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return { success: false, error: "Invalid user selected" };
+    }
+
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!user) {
+      return { success: false, error: "User not found" };
+    }
+
+    if (user.user_signed_up) {
+      return { success: true, alreadyActive: true };
+    }
+
+    // Update local DB first so the admin panel reflects the change immediately.
+    await db
+      .update(users)
+      .set({
+        user_signed_up: true,
+        updated_at: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    // Push to Bubble so the next profile sync does not revert user_signed_up back to false.
+    // (sync-profiles.ts overwrites user_signed_up from Bubble on every sync.)
+    let bubbleWarning: string | undefined;
+    if (user.bubble_id) {
+      try {
+        await pushUserUpdateToBubble(user.bubble_id, { user_signed_up: true });
+      } catch (bubbleError) {
+        console.error("activateUser: Bubble push failed", bubbleError);
+        bubbleWarning =
+          "Activated locally, but failed to sync to Bubble. It may revert on the next sync. " +
+          String(bubbleError);
+      }
+    } else {
+      bubbleWarning = "Activated locally, but user has no Bubble ID so the change was not synced to Bubble.";
+    }
+
+    revalidatePath("/users");
+    return { success: true, bubbleWarning };
+  } catch (error) {
+    console.error("activateUser error:", error);
+    return { success: false, error: `Failed to activate user: ${String(error)}` };
+  }
+}
+
 export async function getAllUniqueTags() {
   try {
     const res = await db.execute(sql`

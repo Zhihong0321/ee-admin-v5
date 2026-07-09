@@ -19,7 +19,6 @@ import {
   DollarSign,
   FileText,
   Loader2,
-  RefreshCw,
   ArrowLeft,
   Trash2,
   Edit,
@@ -42,7 +41,6 @@ import {
   getEppPayments,
   verifyPayment,
   getInvoiceDetailsByBubbleId,
-  triggerPaymentSync,
   diagnoseMissingInvoices,
   updateVerifiedPayment,
   updateSubmittedPayment,
@@ -116,7 +114,6 @@ export default function PaymentsPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [fullyPaidInvoices, setFullyPaidInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [reconciling, setReconciling] = useState(false);
 
   // New state for fully paid invoices view mode
@@ -265,24 +262,6 @@ export default function PaymentsPage() {
       console.error("Failed to fetch payments", error);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleSync() {
-    setSyncing(true);
-    try {
-      const result = await triggerPaymentSync();
-      if (result.success) {
-        alert("Sync complete: New submissions imported and verified payments synchronized.");
-        fetchData();
-      } else {
-        alert("Sync failed: " + result.error);
-      }
-    } catch (error) {
-      console.error("Sync error", error);
-      alert("Sync error");
-    } finally {
-      setSyncing(false);
     }
   }
 
@@ -679,14 +658,6 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
           >
             <History className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} />
             {scanning ? 'Scanning...' : 'Re-scan Dates'}
-          </button>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="btn-secondary flex items-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync Bubble'}
           </button>
           <button
             onClick={handleCalculateEppCost}

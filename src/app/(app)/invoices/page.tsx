@@ -2,8 +2,8 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, RefreshCw, Database, Trash2, RotateCcw, AlertTriangle, X, Printer } from "lucide-react";
-import { getInvoices, getInvoiceDetails, generateInvoicePdf, triggerInvoiceSync, deleteInvoice, recoverInvoice, getUsersForFilter } from "./actions";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, Database, Trash2, RotateCcw, AlertTriangle, X, Printer } from "lucide-react";
+import { getInvoices, getInvoiceDetails, generateInvoicePdf, deleteInvoice, recoverInvoice, getUsersForFilter } from "./actions";
 import InvoiceEditor from "@/components/InvoiceEditor";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 
@@ -19,7 +19,6 @@ function InvoicesContent() {
   const pageSize = 50;
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [paidPercentMin, setPaidPercentMin] = useState("");
   const [paidPercentMax, setPaidPercentMax] = useState("");
@@ -142,24 +141,6 @@ function InvoicesContent() {
     fetchData(1);
   };
 
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      const result = await triggerInvoiceSync();
-      if (result.success) {
-        alert("Sync complete: Customers and invoices synchronized from Bubble.");
-        fetchData();
-      } else {
-        alert("Sync failed: " + result.error);
-      }
-    } catch (error) {
-      console.error("Sync error", error);
-      alert("Sync error");
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Warning Popup */}
@@ -216,15 +197,6 @@ function InvoicesContent() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="btn-secondary flex items-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync Bubble'}
-          </button>
-
           {/* Version Toggle */}
           <div className="flex items-center bg-white border border-secondary-200 rounded-xl p-1 shadow-sm">
             <button

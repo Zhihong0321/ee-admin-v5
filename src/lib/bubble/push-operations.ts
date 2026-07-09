@@ -29,6 +29,7 @@ import { BUBBLE_BASE_URL, BUBBLE_API_HEADERS } from './client';
  * @param bubbleId - Bubble user ID (required)
  * @param data - Update data object with optional fields:
  *   - access_level: string[] - User permissions/roles
+ *   - user_signed_up: boolean - Whether the user has completed signup (manual activation)
  *
  * OUTPUTS:
  * @returns Bubble API response object on success
@@ -43,6 +44,7 @@ import { BUBBLE_BASE_URL, BUBBLE_API_HEADERS } from './client';
  *
  * FIELD MAPPINGS:
  * - access_level → "Access Level"
+ * - user_signed_up → "user_signed_up"
  *
  * EDGE CASES:
  * - No bubbleId → Returns early, no error logged
@@ -58,7 +60,7 @@ import { BUBBLE_BASE_URL, BUBBLE_API_HEADERS } from './client';
  * - Requires: BUBBLE_BASE_URL, BUBBLE_API_HEADERS
  * - Used by: User management UI operations
  */
-export async function pushUserUpdateToBubble(bubbleId: string, data: { access_level?: string[] }) {
+export async function pushUserUpdateToBubble(bubbleId: string, data: { access_level?: string[]; user_signed_up?: boolean }) {
   if (!bubbleId) {
     console.error("pushUserUpdateToBubble: No bubble_id provided");
     return;
@@ -67,6 +69,9 @@ export async function pushUserUpdateToBubble(bubbleId: string, data: { access_le
   const bubbleData: any = {};
   if (data.access_level) {
     bubbleData["Access Level"] = data.access_level;
+  }
+  if (data.user_signed_up !== undefined) {
+    bubbleData["user_signed_up"] = data.user_signed_up;
   }
 
   if (Object.keys(bubbleData).length === 0) return;
