@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { queryProxy } from "@/lib/pg-proxy";
+import { db } from "@/lib/db";
+import { sql } from "drizzle-orm";
 
 interface AutoProcessedTaskRow {
   id: number;
@@ -19,7 +20,7 @@ interface AutoProcessedTaskRow {
  */
 export async function GET() {
   try {
-    const result = await queryProxy(`
+    const result = await db.execute(sql`
       SELECT
         ial.id,
         ial.invoice_id,
@@ -48,7 +49,7 @@ export async function GET() {
       LIMIT 20
     `);
 
-    return NextResponse.json({ tasks: result.rows as AutoProcessedTaskRow[] });
+    return NextResponse.json({ tasks: result.rows as unknown as AutoProcessedTaskRow[] });
   } catch (error) {
     console.error("Error fetching SEDA auto-processed tasks:", error);
     return NextResponse.json(
