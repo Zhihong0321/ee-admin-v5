@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock, ListChecks } from "lucide-react";
+
+const AUTO_PROCESSED_TAB = "Auto Processed Task";
 
 interface SedaRegistration {
   id: number;
@@ -39,6 +41,36 @@ interface SedaGroup {
   registrations: SedaRegistration[];
 }
 
+interface AutoProcessedTask {
+  id: number;
+  invoice_id: number | null;
+  invoice_number: string | null;
+  entity_id: string | null;
+  changes: Array<{ field: string; before: unknown; after: unknown }> | string | null;
+  actor_name: string | null;
+  source_app: string | null;
+  edited_at: string;
+  customer_name: string | null;
+}
+
+function parseChanges(changes: AutoProcessedTask["changes"]): Array<{ field: string; before: unknown; after: unknown }> {
+  if (Array.isArray(changes)) return changes;
+  if (typeof changes === "string") {
+    try {
+      const parsed = JSON.parse(changes);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function displayValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "Not set";
+  return String(value);
+}
+
 export default function SedaListPage() {
   const [data, setData] = useState<SedaGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,9 +79,16 @@ export default function SedaListPage() {
   const [searchInput, setSearchInput] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [attentionCount, setAttentionCount] = useState<number>(0);
+  const [autoProcessedTasks, setAutoProcessedTasks] = useState<AutoProcessedTask[]>([]);
+  const [autoProcessedLoading, setAutoProcessedLoading] = useState(false);
+  const [autoProcessedError, setAutoProcessedError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchData();
+    if (activeTab === AUTO_PROCESSED_TAB) {
+      fetchAutoProcessedTasks();
+    } else {
+      fetchData();
+    }
   }, [search, activeTab]);
 
   useEffect(() => {
@@ -88,6 +127,22 @@ export default function SedaListPage() {
     }
   };
 
+  const fetchAutoProcessedTasks = async () => {
+    setAutoProcessedLoading(true);
+    setAutoProcessedError(null);
+    try {
+      const response = await fetch("/api/seda/auto-processed-tasks");
+      if (!response.ok) throw new Error("Failed to fetch auto-processed tasks");
+      const result = await response.json();
+      setAutoProcessedTasks(result.tasks || []);
+    } catch (error) {
+      console.error("Error fetching SEDA auto-processed tasks:", error);
+      setAutoProcessedError("Failed to load the latest SEDA status updates.");
+    } finally {
+      setAutoProcessedLoading(false);
+    }
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearch(searchInput);
@@ -121,6 +176,17 @@ export default function SedaListPage() {
     });
   };
 
+  const formatDateTime = (dateStr: string | null): string => {
+    if (!dateStr) return "N/A";
+    return new Date(dateStr).toLocaleString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   const tabs = [
     {
       id: "Pending",
@@ -145,6 +211,12 @@ export default function SedaListPage() {
       label: "All Registrations",
       description: "View all records",
       icon: Search
+    },
+    {
+      id: AUTO_PROCESSED_TAB,
+      label: "Auto Processed Task",
+      description: "Latest SEDA status updates",
+      icon: ListChecks
     }
   ];
 
@@ -221,7 +293,7 @@ export default function SedaListPage() {
         </div>
 
         {/* Search */}
-        <form onSubmit={handleSearch} className="mb-6">
+        {activeTab !== AUTO_PROCESSED_TAB && <form onSubmit={handleSearch} className="mb-6">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
@@ -238,10 +310,70 @@ export default function SedaListPage() {
               Search
             </button>
           </div>
-        </form>
+        </form>}
 
-        {/* Data */}
-        {loading ? (
+        {activeTab === AUTO_PROCESSED_TAB ? (
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-900">Latest SEDA status updates</h2>
+              <p className="text-sm text-slate-500 mt-1">The 20 most recent invoice audit log entries created when a SEDA status was updated.</p>
+            </div>
+
+            {autoProcessedLoading ? (
+              <div className="p-16 text-center">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-400" />
+                <p className="mt-4 text-slate-500">Loading status updates...</p>
+              </div>
+            ) : autoProcessedError ? (
+              <div className="p-10 text-center text-sm text-red-600">{autoProcessedError}</div>
+            ) : autoProcessedTasks.length === 0 ? (
+              <div className="p-16 text-center text-sm text-slate-500">No SEDA status updates found.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Invoice</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Customer</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status update</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Source</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {autoProcessedTasks.map((task) => {
+                      const statusChange = parseChanges(task.changes).find((change) => change.field === "seda_status");
+                      return (
+                        <tr key={task.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">{formatDateTime(task.edited_at)}</td>
+                          <td className="px-6 py-4">
+                            {task.invoice_id ? (
+                              <a href={`/invoice/${task.invoice_id}`} className="text-sm font-semibold text-blue-600 hover:text-blue-800">
+                                {task.invoice_number || `Invoice #${task.invoice_id}`}
+                              </a>
+                            ) : (
+                              <span className="text-sm text-slate-500">Not linked</span>
+                            )}
+                            <div className="text-xs text-slate-400 font-mono mt-1 truncate max-w-[14rem]">{task.entity_id || "No SEDA ID"}</div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700">{task.customer_name || "Not available"}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="px-2 py-1 rounded-md bg-slate-100 text-slate-600">{displayValue(statusChange?.before)}</span>
+                              <span className="text-slate-400">→</span>
+                              <span className="px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 font-semibold">{displayValue(statusChange?.after)}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-500">{task.source_app || task.actor_name || "System"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : loading ? (
           <div className="bg-white border border-slate-200 rounded-xl p-16 text-center shadow-sm">
             <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-400" />
             <p className="mt-4 text-slate-500">Loading registrations...</p>
