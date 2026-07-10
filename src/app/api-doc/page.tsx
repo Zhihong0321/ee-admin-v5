@@ -23,13 +23,55 @@ interface ApiEndpoint {
   path: string;
   description: string;
   features?: string[];
+  headers?: { [key: string]: string };
   body?: { [key: string]: string };
   response?: { [key: string]: any };
   example?: any;
+  curlExample?: string;
   notes?: string;
 }
 
 const apiEndpoints: ApiEndpoint[] = [
+  {
+    method: "POST",
+    path: "/api/v1/seda/status",
+    description: "Match an existing SEDA registration by customer name and installation address, then update its SEDA status",
+    features: [
+      "Requires the external SEDA API key",
+      "Uses normalized name/address fuzzy matching",
+      "Requires a 90% overall score and a 5% lead over the next candidate",
+      "Rejects ambiguous matches without changing data",
+      "Writes an external-seda-api audit entry when the status changes"
+    ],
+    headers: {
+      Authorization: "Bearer <SEDA_API_KEY>",
+      "Content-Type": "application/json"
+    },
+    body: {
+      name: "string (required) - Customer/registration name",
+      address: "string (required) - SEDA installation address",
+      status: "Pending | Submitted | Approved | APPROVED BY SEDA",
+      dry_run: "boolean (optional, default: false) - Match only; never update"
+    },
+    response: {
+      success: true,
+      matched: true,
+      seda_bubble_id: "string",
+      previous_status: "Pending",
+      status: "Submitted",
+      score: "number (0-1)",
+      score_margin: "number (0-1)",
+      updated: true
+    },
+    example: {
+      name: "Customer Name",
+      address: "Installation address",
+      status: "Submitted",
+      dry_run: true
+    },
+    curlExample: "curl -X POST {{baseUrl}}/api/v1/seda/status -H \"Authorization: Bearer $SEDA_API_KEY\" -H \"Content-Type: application/json\" -d '{\"name\":\"Customer Name\",\"address\":\"Installation address\",\"status\":\"Submitted\",\"dry_run\":true}'",
+    notes: "Configure SEDA_API_KEY in the deployment environment. A 404 means no candidate reached 90%; a 409 means the match was ambiguous and no status was changed."
+  },
   {
     method: "POST",
     path: "/api/sync/invoice",
@@ -228,6 +270,21 @@ export default function ApiDocPage() {
                   </div>
                 )}
 
+                {/* Request Headers */}
+                {endpoint.headers && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-secondary-900 mb-3 flex items-center gap-2">
+                      <Code className="h-4 w-4 text-secondary-500" />
+                      Request Headers
+                    </h4>
+                    <div className="bg-secondary-50 rounded-lg p-4 overflow-x-auto">
+                      <pre className="text-sm text-secondary-700">
+                        {JSON.stringify(endpoint.headers, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+
                 {/* Request Body */}
                 {endpoint.body && (
                   <div>
@@ -283,10 +340,10 @@ export default function ApiDocPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <code className="text-xs bg-secondary-100 px-2 py-1 rounded text-secondary-600">
-                          curl -X POST {baseUrl}{endpoint.path} -H "Content-Type: application/json" -d {'{"bubble_id":"..."}'}
+                          {(endpoint.curlExample || `curl -X POST ${baseUrl}${endpoint.path} -H "Content-Type: application/json" -d '${JSON.stringify(endpoint.example)}'`).replace("{{baseUrl}}", baseUrl)}
                         </code>
                         <button
-                          onClick={() => copyToClipboard(`curl -X POST ${baseUrl}${endpoint.path} -H "Content-Type: application/json" -d '${JSON.stringify(endpoint.example)}'`, 'url')}
+                          onClick={() => copyToClipboard((endpoint.curlExample || `curl -X POST ${baseUrl}${endpoint.path} -H "Content-Type: application/json" -d '${JSON.stringify(endpoint.example)}'`).replace("{{baseUrl}}", baseUrl), 'url')}
                           className="p-1.5 hover:bg-secondary-100 rounded transition-colors"
                         >
                           {copiedUrl?.includes('curl') ? (
