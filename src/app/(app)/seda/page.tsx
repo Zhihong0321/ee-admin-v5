@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock, ListChecks, Bell, AlertTriangle } from "lucide-react";
+import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock, ListChecks, Bell, AlertTriangle, GitCompare, X } from "lucide-react";
 
 const AUTO_PROCESSED_TAB = "Auto Processed Task";
 const PENDING_TASKS_TAB = "Pending Task List";
@@ -93,6 +93,33 @@ interface PendingSedaTask {
   match_score: number | null;
 }
 
+interface DiagnoseCandidate {
+  bubble_id: string;
+  customer_name: string;
+  installation_address: string;
+  current_status: string | null;
+  name_score: number;
+  address_score: number;
+  score: number;
+}
+
+interface DiagnoseData {
+  task: {
+    id: number;
+    application_number: string | null;
+    customer_name: string | null;
+    installation_address: string | null;
+    last_error: string | null;
+    target_status: string;
+  };
+  thresholds: {
+    match_threshold: number;
+    min_field_score: number;
+    min_score_margin: number;
+  };
+  candidates: DiagnoseCandidate[];
+}
+
 export default function SedaListPage() {
   const [data, setData] = useState<SedaGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +135,10 @@ export default function SedaListPage() {
   const [pendingTasksLoading, setPendingTasksLoading] = useState(false);
   const [pendingTasksError, setPendingTasksError] = useState<string | null>(null);
   const [pendingNeedsAttentionCount, setPendingNeedsAttentionCount] = useState<number>(0);
+  const [diagnoseModalOpen, setDiagnoseModalOpen] = useState(false);
+  const [diagnoseData, setDiagnoseData] = useState<DiagnoseData | null>(null);
+  const [diagnoseLoading, setDiagnoseLoading] = useState(false);
+  const [diagnoseError, setDiagnoseError] = useState<string | null>(null);
 
   useEffect(() => {
     if (activeTab === AUTO_PROCESSED_TAB) {
@@ -192,6 +223,31 @@ export default function SedaListPage() {
     } finally {
       setPendingTasksLoading(false);
     }
+  };
+
+  const openDiagnose = async (taskId: number) => {
+    setDiagnoseModalOpen(true);
+    setDiagnoseData(null);
+    setDiagnoseError(null);
+    setDiagnoseLoading(true);
+    try {
+      const response = await fetch(`/api/seda/pending-tasks/${taskId}`);
+      if (!response.ok) throw new Error("Failed to load diagnosis");
+      const result = await response.json();
+      setDiagnoseData(result);
+    } catch (error) {
+      console.error("Error diagnosing pending SEDA task:", error);
+      setDiagnoseError("Failed to load match diagnosis for this task.");
+    } finally {
+      setDiagnoseLoading(false);
+    }
+  };
+
+  const closeDiagnose = () => {
+    setDiagnoseModalOpen(false);
+    setDiagnoseData(null);
+    setDiagnoseError(null);
+    setDiagnoseLoading(false);
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -472,7 +528,7 @@ export default function SedaListPage() {
                       <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Match Result</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Reason / Last Error</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">Created</th>
-                      <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Actions</th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-28">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -516,16 +572,28 @@ export default function SedaListPage() {
                           {task.last_error || "Not attempted yet"}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">{formatDate(task.created_at)}</td>
-                        <td className="px-6 py-4 text-right">
-                          {task.matched_bubble_id && (
-                            <a
-                              href={`/seda/${task.matched_bubble_id}`}
-                              className="inline-flex items-center gap-1 p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                              title="View matched SEDA registration"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </a>
-                          )}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-end gap-1">
+                            {task.match_status !== "missing_data" && (
+                              <button
+                                type="button"
+                                onClick={() => openDiagnose(task.id)}
+                                className="inline-flex items-center gap-1 p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Compare email data vs SEDA Registration DB"
+                              >
+                                <GitCompare className="w-4 h-4" />
+                              </button>
+                            )}
+                            {task.matched_bubble_id && (
+                              <a
+                                href={`/seda/${task.matched_bubble_id}`}
+                                className="inline-flex items-center gap-1 p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                title="View matched SEDA registration"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </a>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -784,6 +852,127 @@ export default function SedaListPage() {
           </div>
         )}
       </div>
+
+      {diagnoseModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4"
+          onClick={closeDiagnose}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[85vh] overflow-y-auto"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Match Diagnosis{diagnoseData ? ` — ${diagnoseData.task.application_number || `Task #${diagnoseData.task.id}`}` : ""}
+              </h3>
+              <button
+                type="button"
+                onClick={closeDiagnose}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {diagnoseLoading ? (
+                <div className="p-10 text-center">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-400" />
+                  <p className="mt-4 text-slate-500">Loading diagnosis...</p>
+                </div>
+              ) : diagnoseError ? (
+                <div className="p-6 text-center text-sm text-red-600">{diagnoseError}</div>
+              ) : diagnoseData ? (
+                <>
+                  <div className="mb-6">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">From the SEDA email (task)</div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-xs text-slate-400">Customer Name</div>
+                        <div className="text-sm font-medium text-slate-900">{diagnoseData.task.customer_name || "Not extracted"}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-400">Installation Address</div>
+                        <div className="text-sm font-medium text-slate-900 whitespace-pre-wrap">{diagnoseData.task.installation_address || "Not extracted"}</div>
+                      </div>
+                    </div>
+                    {diagnoseData.task.last_error && (
+                      <div className="mt-2 text-xs text-amber-600">Last error: {diagnoseData.task.last_error}</div>
+                    )}
+                  </div>
+
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Closest SEDA Registration DB matches</div>
+                    <div className="text-xs text-slate-400">
+                      Needs ≥{Math.round(diagnoseData.thresholds.match_threshold * 100)}% overall,
+                      ≥{Math.round(diagnoseData.thresholds.min_field_score * 100)}% each field,
+                      and ≥{Math.round(diagnoseData.thresholds.min_score_margin * 100)}% lead over 2nd place
+                    </div>
+                  </div>
+
+                  {diagnoseData.candidates.length === 0 ? (
+                    <div className="p-8 text-center text-sm text-slate-500 border border-dashed border-slate-200 rounded-lg">
+                      No SEDA registrations found to compare against.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">DB Name</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">DB Address</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Name %</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Address %</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Overall %</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                            <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-16"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {diagnoseData.candidates.map((candidate, index) => {
+                            const passesOverall = candidate.score >= diagnoseData.thresholds.match_threshold;
+                            const passesFields =
+                              candidate.name_score >= diagnoseData.thresholds.min_field_score &&
+                              candidate.address_score >= diagnoseData.thresholds.min_field_score;
+                            return (
+                              <tr key={candidate.bubble_id} className={index === 0 ? "bg-blue-50/40" : undefined}>
+                                <td className="px-4 py-3 text-sm text-slate-900 max-w-[14rem] truncate">{candidate.customer_name}</td>
+                                <td className="px-4 py-3 text-sm text-slate-600 max-w-[16rem] whitespace-pre-wrap">{candidate.installation_address}</td>
+                                <td className={`px-4 py-3 text-sm font-semibold ${candidate.name_score >= diagnoseData.thresholds.min_field_score ? "text-emerald-600" : "text-red-600"}`}>
+                                  {(candidate.name_score * 100).toFixed(1)}%
+                                </td>
+                                <td className={`px-4 py-3 text-sm font-semibold ${candidate.address_score >= diagnoseData.thresholds.min_field_score ? "text-emerald-600" : "text-red-600"}`}>
+                                  {(candidate.address_score * 100).toFixed(1)}%
+                                </td>
+                                <td className={`px-4 py-3 text-sm font-bold ${passesOverall && passesFields ? "text-emerald-600" : "text-red-600"}`}>
+                                  {(candidate.score * 100).toFixed(1)}%
+                                </td>
+                                <td className="px-4 py-3 text-sm text-slate-500">{candidate.current_status || "N/A"}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <a
+                                    href={`/seda/${candidate.bubble_id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                    title="View this SEDA registration"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </a>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
