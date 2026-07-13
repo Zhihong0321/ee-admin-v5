@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock, ListChecks } from "lucide-react";
+import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock, ListChecks, Bell, AlertTriangle } from "lucide-react";
 
 const AUTO_PROCESSED_TAB = "Auto Processed Task";
+const PENDING_TASKS_TAB = "Pending Task List";
 
 interface SedaRegistration {
   id: number;
@@ -71,6 +72,27 @@ function displayValue(value: unknown): string {
   return String(value);
 }
 
+type PendingTaskMatchStatus = "already_resolved" | "needs_attention" | "missing_data";
+
+interface PendingSedaTask {
+  id: number;
+  application_number: string | null;
+  customer_name: string | null;
+  installation_address: string | null;
+  status: string;
+  requires_manual_review: boolean;
+  attempt_count: number;
+  last_error: string | null;
+  source_email_id: string;
+  created_at: string;
+  updated_at: string;
+  target_status: string;
+  match_status: PendingTaskMatchStatus;
+  matched_bubble_id: string | null;
+  matched_current_status: string | null;
+  match_score: number | null;
+}
+
 export default function SedaListPage() {
   const [data, setData] = useState<SedaGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,14 +104,26 @@ export default function SedaListPage() {
   const [autoProcessedTasks, setAutoProcessedTasks] = useState<AutoProcessedTask[]>([]);
   const [autoProcessedLoading, setAutoProcessedLoading] = useState(false);
   const [autoProcessedError, setAutoProcessedError] = useState<string | null>(null);
+  const [pendingTasks, setPendingTasks] = useState<PendingSedaTask[]>([]);
+  const [pendingTasksLoading, setPendingTasksLoading] = useState(false);
+  const [pendingTasksError, setPendingTasksError] = useState<string | null>(null);
+  const [pendingNeedsAttentionCount, setPendingNeedsAttentionCount] = useState<number>(0);
 
   useEffect(() => {
     if (activeTab === AUTO_PROCESSED_TAB) {
       fetchAutoProcessedTasks();
+    } else if (activeTab === PENDING_TASKS_TAB) {
+      fetchPendingTasks();
     } else {
       fetchData();
     }
   }, [search, activeTab]);
+
+  useEffect(() => {
+    // Fetch once on mount so the "needs attention" badge is visible
+    // even if the admin hasn't opened the Pending Task List tab yet.
+    fetchPendingTasks();
+  }, []);
 
   useEffect(() => {
     if (data.length > 0 && expandedGroups.size === 0) {
@@ -143,6 +177,23 @@ export default function SedaListPage() {
     }
   };
 
+  const fetchPendingTasks = async () => {
+    setPendingTasksLoading(true);
+    setPendingTasksError(null);
+    try {
+      const response = await fetch("/api/seda/pending-tasks");
+      if (!response.ok) throw new Error("Failed to fetch pending SEDA tasks");
+      const result = await response.json();
+      setPendingTasks(result.tasks || []);
+      setPendingNeedsAttentionCount(result.needsAttentionCount || 0);
+    } catch (error) {
+      console.error("Error fetching pending SEDA tasks:", error);
+      setPendingTasksError("Failed to load pending SEDA tasks.");
+    } finally {
+      setPendingTasksLoading(false);
+    }
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearch(searchInput);
@@ -187,7 +238,13 @@ export default function SedaListPage() {
     });
   };
 
-  const tabs = [
+  const tabs: Array<{
+    id: string;
+    label: string;
+    description: string;
+    icon: typeof AlertCircle;
+    badge?: number;
+  }> = [
     {
       id: "Pending",
       label: "Pending Verification",
@@ -217,6 +274,13 @@ export default function SedaListPage() {
       label: "Auto Processed Task",
       description: "Latest SEDA status updates",
       icon: ListChecks
+    },
+    {
+      id: PENDING_TASKS_TAB,
+      label: "Pending Task List",
+      description: "SEDA tasks awaiting a match",
+      icon: Bell,
+      badge: pendingNeedsAttentionCount > 0 ? pendingNeedsAttentionCount : undefined
     }
   ];
 
@@ -277,9 +341,14 @@ export default function SedaListPage() {
                   <tab.icon className={`w-5 h-5 flex-shrink-0 ${activeTab === tab.id ? 'text-slate-900' : 'text-slate-400'
                     }`} />
                   <div>
-                    <div className={`text-sm font-semibold ${activeTab === tab.id ? 'text-slate-900' : 'text-slate-600'
+                    <div className={`flex items-center gap-2 text-sm font-semibold ${activeTab === tab.id ? 'text-slate-900' : 'text-slate-600'
                       }`}>
                       {tab.label}
+                      {!!tab.badge && (
+                        <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold">
+                          {tab.badge}
+                        </span>
+                      )}
                     </div>
                     <div className={`text-xs ${activeTab === tab.id ? 'text-slate-500' : 'text-slate-400'
                       }`}>
@@ -293,7 +362,7 @@ export default function SedaListPage() {
         </div>
 
         {/* Search */}
-        {activeTab !== AUTO_PROCESSED_TAB && <form onSubmit={handleSearch} className="mb-6">
+        {activeTab !== AUTO_PROCESSED_TAB && activeTab !== PENDING_TASKS_TAB && <form onSubmit={handleSearch} className="mb-6">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
@@ -368,6 +437,98 @@ export default function SedaListPage() {
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : activeTab === PENDING_TASKS_TAB ? (
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-900">Pending SEDA tasks</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Tasks the email worker created from SEDA application emails but hasn&apos;t auto-processed yet.
+                Each one is re-checked against SEDA Registration Management — if the target status is already set, it likely means an admin already handled it manually.
+              </p>
+            </div>
+
+            {pendingTasksLoading ? (
+              <div className="p-16 text-center">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-400" />
+                <p className="mt-4 text-slate-500">Loading pending tasks...</p>
+              </div>
+            ) : pendingTasksError ? (
+              <div className="p-10 text-center text-sm text-red-600">{pendingTasksError}</div>
+            ) : pendingTasks.length === 0 ? (
+              <div className="p-16 text-center text-sm text-slate-500">No pending SEDA tasks. All caught up.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Application #</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Customer</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Target Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Match Result</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Reason / Last Error</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">Created</th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {pendingTasks.map((task) => (
+                      <tr key={task.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-semibold text-slate-900">{task.application_number || `Task #${task.id}`}</div>
+                          {task.requires_manual_review && (
+                            <div className="text-xs text-amber-600 mt-1">Needs manual review</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-slate-900 max-w-xs truncate">{task.customer_name || "Not available"}</div>
+                          <div className="text-xs text-slate-400 mt-1 max-w-xs truncate">{task.installation_address || "No address"}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 rounded-md bg-slate-100 text-slate-600 text-sm">{task.target_status}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {task.match_status === "already_resolved" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                              <CheckCircle className="w-3 h-3" />
+                              No Processed Needed
+                            </span>
+                          ) : task.match_status === "missing_data" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                              <XCircle className="w-3 h-3" />
+                              Missing Name/Address
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-700 border border-red-200">
+                              <AlertTriangle className="w-3 h-3" />
+                              Needs Attention
+                            </span>
+                          )}
+                          {task.match_score !== null && (
+                            <div className="text-xs text-slate-400 mt-1">Match score: {(task.match_score * 100).toFixed(1)}%</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate" title={task.last_error || undefined}>
+                          {task.last_error || "Not attempted yet"}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">{formatDate(task.created_at)}</td>
+                        <td className="px-6 py-4 text-right">
+                          {task.matched_bubble_id && (
+                            <a
+                              href={`/seda/${task.matched_bubble_id}`}
+                              className="inline-flex items-center gap-1 p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                              title="View matched SEDA registration"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </a>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
