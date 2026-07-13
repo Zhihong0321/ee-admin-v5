@@ -84,6 +84,9 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         name_score: roundScore(candidate.name_score),
         address_score: roundScore(candidate.address_score),
         score: roundScore(candidate.score),
+        invoice_number: candidate.invoice_number,
+        percent_of_total_amount: candidate.percent_of_total_amount,
+        has_required_payment: candidate.has_required_payment,
       })),
     });
   } catch (error) {

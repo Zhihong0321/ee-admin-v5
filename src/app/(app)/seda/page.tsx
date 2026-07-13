@@ -91,6 +91,8 @@ interface PendingSedaTask {
   matched_bubble_id: string | null;
   matched_current_status: string | null;
   match_score: number | null;
+  matched_percent_paid: number | null;
+  matched_has_required_payment: boolean | null;
 }
 
 interface DiagnoseCandidate {
@@ -101,6 +103,9 @@ interface DiagnoseCandidate {
   name_score: number;
   address_score: number;
   score: number;
+  invoice_number: string | null;
+  percent_of_total_amount: number;
+  has_required_payment: boolean;
 }
 
 interface DiagnoseData {
@@ -567,6 +572,11 @@ export default function SedaListPage() {
                           {task.match_score !== null && (
                             <div className="text-xs text-slate-400 mt-1">Match score: {(task.match_score * 100).toFixed(1)}%</div>
                           )}
+                          {task.matched_percent_paid !== null && (
+                            <div className={`text-xs mt-1 ${task.matched_has_required_payment ? "text-emerald-600" : "text-red-500"}`}>
+                              Payment: {task.matched_percent_paid.toFixed(1)}%{task.matched_has_required_payment ? " ✓" : ""}
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate" title={task.last_error || undefined}>
                           {task.last_error || "Not attempted yet"}
@@ -926,6 +936,7 @@ export default function SedaListPage() {
                             <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Address %</th>
                             <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Overall %</th>
                             <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-28">Payment</th>
                             <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-16"></th>
                           </tr>
                         </thead>
@@ -949,6 +960,15 @@ export default function SedaListPage() {
                                   {(candidate.score * 100).toFixed(1)}%
                                 </td>
                                 <td className="px-4 py-3 text-sm text-slate-500">{candidate.current_status || "N/A"}</td>
+                                <td className="px-4 py-3">
+                                  <div className={`text-sm font-semibold ${candidate.has_required_payment ? "text-emerald-600" : "text-red-600"}`}>
+                                    {candidate.percent_of_total_amount.toFixed(1)}%
+                                    {candidate.has_required_payment && <span className="ml-1">✓</span>}
+                                  </div>
+                                  {candidate.invoice_number && (
+                                    <div className="text-xs text-slate-400 truncate max-w-[8rem]">{candidate.invoice_number}</div>
+                                  )}
+                                </td>
                                 <td className="px-4 py-3 text-right">
                                   <a
                                     href={`/seda/${candidate.bubble_id}`}

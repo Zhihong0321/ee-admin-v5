@@ -18,6 +18,9 @@ export interface SedaCandidate {
   current_status: string | null;
   customer_name: string;
   installation_address: string;
+  invoice_number: string | null;
+  percent_of_total_amount: number;
+  has_required_payment: boolean;
 }
 
 export interface ScoredCandidate extends SedaCandidate {
@@ -120,10 +123,12 @@ export async function getSedaCandidates(): Promise<SedaCandidate[]> {
       sr.bubble_id,
       sr.seda_status AS current_status,
       sr.installation_address,
-      c.name AS customer_name
+      c.name AS customer_name,
+      linked_invoice.invoice_number,
+      linked_invoice.percent_of_total_amount
     FROM seda_registration sr
     LEFT JOIN LATERAL (
-      SELECT i.linked_customer
+      SELECT i.linked_customer, i.invoice_number, i.percent_of_total_amount
       FROM invoice i
       WHERE i.linked_seda_registration = sr.bubble_id
          OR i.bubble_id = ANY(sr.linked_invoice)
@@ -137,7 +142,16 @@ export async function getSedaCandidates(): Promise<SedaCandidate[]> {
       AND NULLIF(TRIM(sr.installation_address), '') IS NOT NULL
   `);
 
-  return result.rows as unknown as SedaCandidate[];
+  return (result.rows as unknown as Array<SedaCandidate & { percent_of_total_amount: string | number | null }>).map(
+    (row) => {
+      const percent = parseFloat(String(row.percent_of_total_amount ?? "0")) || 0;
+      return {
+        ...row,
+        percent_of_total_amount: percent,
+        has_required_payment: percent >= 4,
+      };
+    }
+  );
 }
 
 export function scoreSedaCandidates(

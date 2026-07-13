@@ -56,6 +56,8 @@ export async function GET() {
       let matchedBubbleId: string | null = null;
       let matchedCurrentStatus: string | null = null;
       let matchScore: number | null = null;
+      let matchedPercentPaid: number | null = null;
+      let matchedHasRequiredPayment: boolean | null = null;
 
       if (name && address) {
         const match = findBestSedaMatch(candidates, name, address);
@@ -64,6 +66,8 @@ export async function GET() {
         if (match.matched && match.best) {
           matchedBubbleId = match.best.bubble_id;
           matchedCurrentStatus = match.best.current_status;
+          matchedPercentPaid = match.best.percent_of_total_amount;
+          matchedHasRequiredPayment = match.best.has_required_payment;
           matchStatus =
             normalizeStatus(match.best.current_status) === targetStatus
               ? "already_resolved"
@@ -80,6 +84,8 @@ export async function GET() {
         matched_bubble_id: matchedBubbleId,
         matched_current_status: matchedCurrentStatus,
         match_score: matchScore,
+        matched_percent_paid: matchedPercentPaid,
+        matched_has_required_payment: matchedHasRequiredPayment,
       };
     });
 
