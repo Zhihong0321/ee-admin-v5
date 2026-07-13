@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock, ListChecks, Bell, AlertTriangle, GitCompare, X } from "lucide-react";
+import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock, ListChecks, Bell, AlertTriangle, GitCompare, X, ShieldCheck } from "lucide-react";
 
 const AUTO_PROCESSED_TAB = "Auto Processed Task";
 const PENDING_TASKS_TAB = "Pending Task List";
@@ -144,6 +144,10 @@ export default function SedaListPage() {
   const [diagnoseData, setDiagnoseData] = useState<DiagnoseData | null>(null);
   const [diagnoseLoading, setDiagnoseLoading] = useState(false);
   const [diagnoseError, setDiagnoseError] = useState<string | null>(null);
+  const [diagnoseTaskId, setDiagnoseTaskId] = useState<number | null>(null);
+  const [approvingBubbleId, setApprovingBubbleId] = useState<string | null>(null);
+  const [approveError, setApproveError] = useState<string | null>(null);
+  const [approvedBubbleId, setApprovedBubbleId] = useState<string | null>(null);
 
   useEffect(() => {
     if (activeTab === AUTO_PROCESSED_TAB) {
@@ -232,9 +236,12 @@ export default function SedaListPage() {
 
   const openDiagnose = async (taskId: number) => {
     setDiagnoseModalOpen(true);
+    setDiagnoseTaskId(taskId);
     setDiagnoseData(null);
     setDiagnoseError(null);
     setDiagnoseLoading(true);
+    setApproveError(null);
+    setApprovedBubbleId(null);
     try {
       const response = await fetch(`/api/seda/pending-tasks/${taskId}`);
       if (!response.ok) throw new Error("Failed to load diagnosis");
@@ -250,9 +257,42 @@ export default function SedaListPage() {
 
   const closeDiagnose = () => {
     setDiagnoseModalOpen(false);
+    setDiagnoseTaskId(null);
     setDiagnoseData(null);
     setDiagnoseError(null);
     setDiagnoseLoading(false);
+    setApproveError(null);
+    setApprovedBubbleId(null);
+  };
+
+  const handleApprove = async (candidate: DiagnoseCandidate) => {
+    if (!diagnoseTaskId) return;
+    const confirmed = window.confirm(
+      `Approve this SEDA registration as "${diagnoseData?.task.target_status}"?\n\n` +
+      `${candidate.customer_name}\n${candidate.installation_address}\n\n` +
+      `This updates the live SEDA registration status and marks the pending task as resolved.`
+    );
+    if (!confirmed) return;
+
+    setApprovingBubbleId(candidate.bubble_id);
+    setApproveError(null);
+    try {
+      const response = await fetch(`/api/seda/pending-tasks/${diagnoseTaskId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bubble_id: candidate.bubble_id }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to approve");
+
+      setApprovedBubbleId(candidate.bubble_id);
+      fetchPendingTasks();
+    } catch (error) {
+      console.error("Error approving SEDA task:", error);
+      setApproveError(error instanceof Error ? error.message : "Failed to approve this SEDA registration.");
+    } finally {
+      setApprovingBubbleId(null);
+    }
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -912,6 +952,10 @@ export default function SedaListPage() {
                     )}
                   </div>
 
+                  {approveError && (
+                    <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">{approveError}</div>
+                  )}
+
                   <div className="mb-3 flex items-center justify-between">
                     <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Closest SEDA Registration DB matches</div>
                     <div className="text-xs text-slate-400">
@@ -937,6 +981,7 @@ export default function SedaListPage() {
                             <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Overall %</th>
                             <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
                             <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-28">Payment</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">Admin Action</th>
                             <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-16"></th>
                           </tr>
                         </thead>
@@ -967,6 +1012,29 @@ export default function SedaListPage() {
                                   </div>
                                   {candidate.invoice_number && (
                                     <div className="text-xs text-slate-400 truncate max-w-[8rem]">{candidate.invoice_number}</div>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {approvedBubbleId === candidate.bubble_id ? (
+                                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                                      <CheckCircle className="w-3.5 h-3.5" />
+                                      Approved
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      disabled={!candidate.has_required_payment || approvingBubbleId === candidate.bubble_id}
+                                      onClick={() => handleApprove(candidate)}
+                                      title={candidate.has_required_payment ? `Set this registration to ${diagnoseData.task.target_status}` : "Cannot approve: linked invoice payment is below the required 4%"}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                      {approvingBubbleId === candidate.bubble_id ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      ) : (
+                                        <ShieldCheck className="w-3.5 h-3.5" />
+                                      )}
+                                      Approve
+                                    </button>
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-right">
