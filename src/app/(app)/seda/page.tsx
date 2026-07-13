@@ -909,7 +909,7 @@ export default function SedaListPage() {
           onClick={closeDiagnose}
         >
           <div
-            className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[85vh] overflow-y-auto"
+            className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[85vh] overflow-y-auto"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
@@ -947,21 +947,16 @@ export default function SedaListPage() {
                         <div className="text-sm font-medium text-slate-900 whitespace-pre-wrap">{diagnoseData.task.installation_address || "Not extracted"}</div>
                       </div>
                     </div>
-                    {diagnoseData.task.last_error && (
-                      <div className="mt-2 text-xs text-amber-600">Last error: {diagnoseData.task.last_error}</div>
-                    )}
                   </div>
 
                   {approveError && (
                     <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">{approveError}</div>
                   )}
 
-                  <div className="mb-3 flex items-center justify-between">
+                  <div className="mb-3">
                     <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Closest SEDA Registration DB matches</div>
-                    <div className="text-xs text-slate-400">
-                      Needs ≥{Math.round(diagnoseData.thresholds.match_threshold * 100)}% overall,
-                      ≥{Math.round(diagnoseData.thresholds.min_field_score * 100)}% each field,
-                      and ≥{Math.round(diagnoseData.thresholds.min_score_margin * 100)}% lead over 2nd place
+                    <div className="text-xs text-slate-400 mt-0.5">
+                      Needs ≥{Math.round(diagnoseData.thresholds.min_field_score * 100)}% on both Name and Address, with a clear lead over the next best match
                     </div>
                   </div>
 
@@ -971,86 +966,76 @@ export default function SedaListPage() {
                     </div>
                   ) : (
                     <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                      <table className="w-full">
+                      <table className="w-full table-fixed">
                         <thead>
                           <tr className="border-b border-slate-200 bg-slate-50">
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">DB Name</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">DB Address</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Name %</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Address %</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Overall %</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-28">Payment</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">Admin Action</th>
-                            <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-16"></th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-[18%]">DB Name</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-[24%]">DB Address</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-[10%]">Name %</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-[10%]">Address %</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-[12%]">Status</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-[14%]">Payment</th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-[12%]">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {diagnoseData.candidates.map((candidate, index) => {
-                            const passesOverall = candidate.score >= diagnoseData.thresholds.match_threshold;
-                            const passesFields =
-                              candidate.name_score >= diagnoseData.thresholds.min_field_score &&
-                              candidate.address_score >= diagnoseData.thresholds.min_field_score;
-                            return (
-                              <tr key={candidate.bubble_id} className={index === 0 ? "bg-blue-50/40" : undefined}>
-                                <td className="px-4 py-3 text-sm text-slate-900 max-w-[14rem] truncate">{candidate.customer_name}</td>
-                                <td className="px-4 py-3 text-sm text-slate-600 max-w-[16rem] whitespace-pre-wrap">{candidate.installation_address}</td>
-                                <td className={`px-4 py-3 text-sm font-semibold ${candidate.name_score >= diagnoseData.thresholds.min_field_score ? "text-emerald-600" : "text-red-600"}`}>
+                          {diagnoseData.candidates.map((candidate, index) => (
+                            <tr key={candidate.bubble_id} className={index === 0 ? "bg-blue-50/40" : undefined}>
+                                <td className="px-3 py-3 text-sm text-slate-900 truncate" title={candidate.customer_name}>{candidate.customer_name}</td>
+                                <td className="px-3 py-3 text-sm text-slate-600 truncate" title={candidate.installation_address}>
+                                  {candidate.installation_address.replace(/\n/g, ", ")}
+                                </td>
+                                <td className={`px-3 py-3 text-sm font-semibold ${candidate.name_score >= diagnoseData.thresholds.min_field_score ? "text-emerald-600" : "text-red-600"}`}>
                                   {(candidate.name_score * 100).toFixed(1)}%
                                 </td>
-                                <td className={`px-4 py-3 text-sm font-semibold ${candidate.address_score >= diagnoseData.thresholds.min_field_score ? "text-emerald-600" : "text-red-600"}`}>
+                                <td className={`px-3 py-3 text-sm font-semibold ${candidate.address_score >= diagnoseData.thresholds.min_field_score ? "text-emerald-600" : "text-red-600"}`}>
                                   {(candidate.address_score * 100).toFixed(1)}%
                                 </td>
-                                <td className={`px-4 py-3 text-sm font-bold ${passesOverall && passesFields ? "text-emerald-600" : "text-red-600"}`}>
-                                  {(candidate.score * 100).toFixed(1)}%
-                                </td>
-                                <td className="px-4 py-3 text-sm text-slate-500">{candidate.current_status || "N/A"}</td>
-                                <td className="px-4 py-3">
+                                <td className="px-3 py-3 text-sm text-slate-500 truncate">{candidate.current_status || "N/A"}</td>
+                                <td className="px-3 py-3">
                                   <div className={`text-sm font-semibold ${candidate.has_required_payment ? "text-emerald-600" : "text-red-600"}`}>
                                     {candidate.percent_of_total_amount.toFixed(1)}%
                                     {candidate.has_required_payment && <span className="ml-1">✓</span>}
                                   </div>
                                   {candidate.invoice_number && (
-                                    <div className="text-xs text-slate-400 truncate max-w-[8rem]">{candidate.invoice_number}</div>
+                                    <div className="text-xs text-slate-400 truncate">{candidate.invoice_number}</div>
                                   )}
                                 </td>
-                                <td className="px-4 py-3">
-                                  {approvedBubbleId === candidate.bubble_id ? (
-                                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                                      <CheckCircle className="w-3.5 h-3.5" />
-                                      Approved
-                                    </span>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      disabled={!candidate.has_required_payment || approvingBubbleId === candidate.bubble_id}
-                                      onClick={() => handleApprove(candidate)}
-                                      title={candidate.has_required_payment ? `Set this registration to ${diagnoseData.task.target_status}` : "Cannot approve: linked invoice payment is below the required 4%"}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors"
+                                <td className="px-3 py-3">
+                                  <div className="flex items-center justify-end gap-1">
+                                    {approvedBubbleId === candidate.bubble_id ? (
+                                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                                        <CheckCircle className="w-3.5 h-3.5" />
+                                        Done
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        disabled={!candidate.has_required_payment || approvingBubbleId === candidate.bubble_id}
+                                        onClick={() => handleApprove(candidate)}
+                                        title={candidate.has_required_payment ? `Set this registration to ${diagnoseData.task.target_status}` : "Cannot approve: linked invoice payment is below the required 4%"}
+                                        className="inline-flex items-center gap-1 p-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors"
+                                      >
+                                        {approvingBubbleId === candidate.bubble_id ? (
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                          <ShieldCheck className="w-3.5 h-3.5" />
+                                        )}
+                                      </button>
+                                    )}
+                                    <a
+                                      href={`/seda/${candidate.bubble_id}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                      title="View this SEDA registration"
                                     >
-                                      {approvingBubbleId === candidate.bubble_id ? (
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                      ) : (
-                                        <ShieldCheck className="w-3.5 h-3.5" />
-                                      )}
-                                      Approve
-                                    </button>
-                                  )}
+                                      <Eye className="w-3.5 h-3.5" />
+                                    </a>
+                                  </div>
                                 </td>
-                                <td className="px-4 py-3 text-right">
-                                  <a
-                                    href={`/seda/${candidate.bubble_id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                    title="View this SEDA registration"
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                  </a>
-                                </td>
-                              </tr>
-                            );
-                          })}
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
