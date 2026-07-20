@@ -47,11 +47,15 @@ type ReferralRow = {
 
 type AgentOption = {
   id: number;
+  /** Canonical identity to persist into referral.linked_agent (user.bubble_id, or
+   *  agent.bubble_id for orphan agents). Never a raw integer id. */
+  value: string;
   bubble_id: string | null;
   name: string | null;
   contact: string | null;
   email: string | null;
   agent_type: string | null;
+  is_orphan_agent: boolean;
 };
 
 type InvoiceOption = {
@@ -197,7 +201,6 @@ export default function ReferralsPage() {
           agent.email,
           agent.contact,
           agent.bubble_id,
-          String(agent.id),
           agent.agent_type,
         ]
           .filter(Boolean)
@@ -210,7 +213,7 @@ export default function ReferralsPage() {
 
   const selectedAgent = useMemo(() => {
     if (!editingReferral?.linked_agent) return null;
-    return agents.find((agent) => String(agent.id) === editingReferral.linked_agent) || null;
+    return agents.find((agent) => agent.value === editingReferral.linked_agent) || null;
   }, [agents, editingReferral]);
 
   const selectedInvoice = useMemo(() => {
@@ -712,13 +715,14 @@ export default function ReferralsPage() {
                         </div>
                       ) : (
                         filteredAgents.map((agent) => {
-                          const isSelected = editingReferral.linked_agent === String(agent.id);
+                          const isSelected = editingReferral.linked_agent === agent.value;
                           return (
                             <button
-                              key={agent.id}
+                              key={agent.value}
                               type="button"
                               onClick={() => {
-                                setEditingReferral({ ...editingReferral, linked_agent: String(agent.id) });
+                                // Persist the canonical identity (user.bubble_id), never a raw id.
+                                setEditingReferral({ ...editingReferral, linked_agent: agent.value });
                                 setAgentSearch(agent.name || "");
                               }}
                               className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
@@ -737,8 +741,7 @@ export default function ReferralsPage() {
                                   </div>
                                 </div>
                                 <div className="text-right text-[11px] text-secondary-500 shrink-0">
-                                  <div className="font-mono">ID {agent.id}</div>
-                                  <div>{agent.bubble_id || "No bubble id"}</div>
+                                  <div className="font-mono text-[10px]">{agent.value}</div>
                                 </div>
                               </div>
                             </button>

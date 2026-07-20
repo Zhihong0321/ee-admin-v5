@@ -1,13 +1,20 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { customers, customer_history, agents } from "@/db/schema";
+import { customers, customer_history } from "@/db/schema";
 import { ilike, or, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { resolvedIdentityName } from "@/lib/agent-identity";
 
 export async function getCustomers(search?: string) {
   console.log(`Fetching customers: search=${search}`);
   try {
+    // `created_by` is a user reference: every bubble_id value in it matches
+    // user.bubble_id and none match agent.bubble_id, and legacy raw integers are
+    // user.id row keys. It was previously joined against agent.id, which collides
+    // with user.id and attributed ~331 customers to the wrong person.
+    const createdByNameExpr = resolvedIdentityName(sql`${customers.created_by}`, "user");
+
     const filters = search
       ? or(
           ilike(customers.name, `%${search}%`),
@@ -15,7 +22,7 @@ export async function getCustomers(search?: string) {
           ilike(customers.phone, `%${search}%`),
           ilike(customers.customer_id, `%${search}%`),
           ilike(customers.ic_number, `%${search}%`),
-          ilike(agents.name, `%${search}%`)
+          sql`${createdByNameExpr} ILIKE ${`%${search}%`}`
         )
       : undefined;
 
@@ -34,10 +41,9 @@ export async function getCustomers(search?: string) {
         notes: customers.notes,
         version: customers.version,
         created_by: customers.created_by,
-        agent_name: agents.name,
+        agent_name: createdByNameExpr,
       })
       .from(customers)
-      .leftJoin(agents, eq(customers.created_by, sql`CAST(${agents.id} AS TEXT)`))
       .where(filters)
       .orderBy(desc(customers.id))
       .limit(50);

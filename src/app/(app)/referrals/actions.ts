@@ -1,10 +1,11 @@
 "use server";
 
-import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { agents, customers, referrals } from "@/db/schema";
+import { customers, referrals } from "@/db/schema";
 import { getUser } from "@/lib/auth";
+import { resolvedIdentityContact, resolvedIdentityName } from "@/lib/agent-identity";
 
 type GetReferralsParams = {
   search?: string;
@@ -176,21 +177,55 @@ function scoreInvoiceCandidate(
   return score;
 }
 
+/**
+ * Assignable agents, keyed by the canonical identity (`user.bubble_id`).
+ *
+ * Previously this returned `agent.id` and the UI wrote that raw integer into
+ * `referral.linked_agent` — which collides with `user.id` and misattributes referrals.
+ * The `value` field is what must be persisted; `id` is retained for React keys only.
+ *
+ * Sourced from `user` (the authoritative identity table), plus the orphan agents that
+ * never had a login account so they remain assignable.
+ */
 export async function getReferralAgents() {
   try {
-    const data = await db
-      .select({
-        id: agents.id,
-        bubble_id: agents.bubble_id,
-        name: agents.name,
-        contact: agents.contact,
-        email: agents.email,
-        agent_type: agents.agent_type,
-      })
-      .from(agents)
-      .orderBy(asc(agents.name));
+    const result = await db.execute(sql`
+      SELECT
+        u.id                                   AS id,
+        u.bubble_id                            AS value,
+        u.bubble_id                            AS bubble_id,
+        u.name                                 AS name,
+        a.contact                              AS contact,
+        COALESCE(u.email, a.email)             AS email,
+        COALESCE(u.agent_type, a.agent_type)   AS agent_type,
+        false                                  AS is_orphan_agent
+      FROM "user" u
+      LEFT JOIN agent a ON a.bubble_id = u.linked_agent_profile
+      WHERE u.bubble_id IS NOT NULL AND u.bubble_id <> ''
 
-    return data;
+      UNION ALL
+
+      -- Agents with no linked user account: keep them assignable under their own
+      -- bubble_id, which never collides with a user.id integer.
+      SELECT
+        a.id, a.bubble_id, a.bubble_id, a.name, a.contact, a.email, a.agent_type, true
+      FROM agent a
+      WHERE a.bubble_id IS NOT NULL AND a.bubble_id <> ''
+        AND (a.linked_user_login IS NULL OR a.linked_user_login = '')
+
+      ORDER BY name ASC NULLS LAST
+    `);
+
+    return result.rows as Array<{
+      id: number;
+      value: string;
+      bubble_id: string | null;
+      name: string | null;
+      contact: string | null;
+      email: string | null;
+      agent_type: string | null;
+      is_orphan_agent: boolean;
+    }>;
   } catch (error) {
     console.error("Database error in getReferralAgents:", error);
     throw error;
@@ -199,14 +234,6 @@ export async function getReferralAgents() {
 
 function formatLogTimestamp(date = new Date()) {
   return date.toISOString().replace("T", " ").replace("Z", " UTC");
-}
-
-function getAgentDisplayName(agent: { id: number; name: string | null; bubble_id: string | null } | null, fallbackId?: string | null) {
-  if (!agent) {
-    return fallbackId ? `Agent #${fallbackId}` : "Unassigned";
-  }
-
-  return agent.name?.trim() || agent.bubble_id || `Agent #${agent.id}`;
 }
 
 function appendPreferredAgentLog(existingLog: string | null | undefined, entry: string) {
@@ -219,6 +246,11 @@ export async function getReferrals({ search, status, page = 1, pageSize = 50 }: 
     const currentPage = Math.max(1, page);
     const safePageSize = Math.max(1, Math.min(pageSize, 100));
     const hasPreferredAgentLog = await hasReferralPreferredAgentLogColumn();
+
+    // Identity resolution: user.bubble_id -> agent.bubble_id -> legacy raw agent.id.
+    // A raw integer here means agent.id, because that is what this app used to write.
+    const agentNameExpr = resolvedIdentityName(sql`${referrals.linked_agent}`, "agent");
+    const agentContactExpr = resolvedIdentityContact(sql`${referrals.linked_agent}`, "agent");
 
     const filters = [];
 
@@ -235,8 +267,8 @@ export async function getReferrals({ search, status, page = 1, pageSize = 50 }: 
           ilike(referrals.project_type, term),
           ilike(customers.name, term),
           ilike(customers.customer_id, term),
-          ilike(agents.name, term),
-          ilike(agents.contact, term),
+          sql`${agentNameExpr} ILIKE ${term}`,
+          sql`${agentContactExpr} ILIKE ${term}`,
         ),
       );
     }
@@ -252,8 +284,7 @@ export async function getReferrals({ search, status, page = 1, pageSize = 50 }: 
         count: sql<number>`count(*)::int`,
       })
       .from(referrals)
-      .leftJoin(customers, eq(customers.customer_id, referrals.linked_customer_profile))
-      .leftJoin(agents, eq(sql`CAST(${agents.id} AS TEXT)`, referrals.linked_agent));
+      .leftJoin(customers, eq(customers.customer_id, referrals.linked_customer_profile));
 
     const [{ count }] = whereClause ? await countQuery.where(whereClause) : await countQuery;
     const total = count ?? 0;
@@ -283,13 +314,12 @@ export async function getReferrals({ search, status, page = 1, pageSize = 50 }: 
         customer_name: customers.name,
         customer_phone: customers.phone,
         customer_email: customers.email,
-        agent_name: agents.name,
-        agent_contact: agents.contact,
-        agent_bubble_id: agents.bubble_id,
+        agent_name: agentNameExpr,
+        agent_contact: agentContactExpr,
+        agent_bubble_id: referrals.linked_agent,
       })
       .from(referrals)
-      .leftJoin(customers, eq(customers.customer_id, referrals.linked_customer_profile))
-      .leftJoin(agents, eq(sql`CAST(${agents.id} AS TEXT)`, referrals.linked_agent));
+      .leftJoin(customers, eq(customers.customer_id, referrals.linked_customer_profile));
 
     const referralRows = whereClause ? baseQuery.where(whereClause) : baseQuery;
     const data = await referralRows.orderBy(desc(referrals.created_at), desc(referrals.id)).limit(safePageSize).offset(offset);
@@ -302,8 +332,7 @@ export async function getReferrals({ search, status, page = 1, pageSize = 50 }: 
         pending: sql<number>`sum(case when ${referrals.status} = 'Pending' then 1 else 0 end)::int`,
       })
       .from(referrals)
-      .leftJoin(customers, eq(customers.customer_id, referrals.linked_customer_profile))
-      .leftJoin(agents, eq(sql`CAST(${agents.id} AS TEXT)`, referrals.linked_agent));
+      .leftJoin(customers, eq(customers.customer_id, referrals.linked_customer_profile));
 
     const [stats] = whereClause ? await statsQuery.where(whereClause) : await statsQuery;
 
@@ -493,31 +522,29 @@ export async function updateReferral(
       let updatedLog = current.preferred_agent_log;
 
       if (agentChanged) {
-        const idsToResolve = Array.from(
-          new Set(
-            [oldAgentId, newAgentId]
-              .filter((value): value is string => Boolean(value))
-              .map((value) => Number.parseInt(value, 10))
-              .filter((value) => Number.isFinite(value)),
-          ),
+        // Resolve labels through the shared identity rule rather than by parsing the
+        // value as an agent.id — the value is a bubble_id for anything written since
+        // the identity normalisation, and only legacy rows are still integers.
+        const refsToResolve = Array.from(
+          new Set([oldAgentId, newAgentId].filter((value): value is string => Boolean(value))),
         );
 
-        const resolvedAgents = idsToResolve.length > 0
-          ? await tx
-              .select({
-                id: agents.id,
-                name: agents.name,
-                bubble_id: agents.bubble_id,
-              })
-              .from(agents)
-              .where(inArray(agents.id, idsToResolve))
-          : [];
+        const labels = new Map<string, string>();
 
-        const agentMap = new Map(resolvedAgents.map((agent) => [String(agent.id), agent]));
-        const oldAgent = oldAgentId ? agentMap.get(oldAgentId) || null : null;
-        const newAgent = newAgentId ? agentMap.get(newAgentId) || null : null;
-        const oldLabel = getAgentDisplayName(oldAgent, oldAgentId);
-        const newLabel = getAgentDisplayName(newAgent, newAgentId);
+        if (refsToResolve.length > 0) {
+          const resolved = await tx.execute(sql`
+            SELECT r.ref,
+                   ${resolvedIdentityName(sql`r.ref`, "agent")} AS name
+            FROM UNNEST(ARRAY[${sql.join(refsToResolve.map((v) => sql`${v}`), sql`, `)}]::text[]) AS r(ref)
+          `);
+
+          for (const row of resolved.rows as Array<{ ref: string; name: string | null }>) {
+            if (row.name) labels.set(row.ref, row.name);
+          }
+        }
+
+        const oldLabel = oldAgentId ? labels.get(oldAgentId) || `Agent #${oldAgentId}` : "Unassigned";
+        const newLabel = newAgentId ? labels.get(newAgentId) || `Agent #${newAgentId}` : "Unassigned";
         const entry = `${formatLogTimestamp()} - ${actorName} updated the preferred agent from ${oldLabel} to ${newLabel}.`;
 
         updatedLog = appendPreferredAgentLog(current.preferred_agent_log, entry);
