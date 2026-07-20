@@ -1,8 +1,16 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { payments, submitted_payments, agents, customers, invoices, invoice_templates, users, invoice_items, vouchers, invoice_audit_log } from "@/db/schema";
+import { payments, submitted_payments, customers, invoices, invoice_templates, users, invoice_items, vouchers, invoice_audit_log } from "@/db/schema";
 import { ilike, or, desc, eq, and, sql, inArray, isNull, isNotNull, gte, lte } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+
+/**
+ * The assigned agent on an invoice/payment is a `user`, resolved by bubble_id.
+ * Aliased because these queries already join `users` for `created_by`.
+ * The `agent` table is retired and must not be joined here.
+ */
+const agentUser = alias(users, "agent_user");
 import { revalidatePath } from "next/cache";
 import { syncPaymentsFromBubble } from "@/lib/bubble";
 import { calculateEppCost, getEppRate } from "@/lib/epp-rates";
@@ -79,7 +87,7 @@ export async function getSubmittedPayments(search?: string, status: string = 'pe
         ilike(submitted_payments.payment_method_v2, `%${search}%`),
         ilike(users.name, `%${search}%`),
         ilike(users.email, `%${search}%`),
-        ilike(agents.name, `%${search}%`),
+        ilike(agentUser.name, `%${search}%`),
         ilike(customers.name, `%${search}%`),
         sql`CAST(${submitted_payments.created_by} AS TEXT) ILIKE ${`%${search}%`}`
       )
@@ -102,7 +110,7 @@ export async function getSubmittedPayments(search?: string, status: string = 'pe
         remark: submitted_payments.remark,
         created_by_user_name: users.name,
         created_by_user_email: users.email,
-        agent_name: agents.name,
+        agent_name: agentUser.name,
         customer_name: customers.name,
         customer_phone: customers.phone,
         created_at: submitted_payments.created_at,
@@ -116,7 +124,7 @@ export async function getSubmittedPayments(search?: string, status: string = 'pe
       })
       .from(submitted_payments)
       .leftJoin(users, eq(submitted_payments.created_by, users.bubble_id))
-      .leftJoin(agents, eq(submitted_payments.linked_agent, agents.bubble_id))
+      .leftJoin(agentUser, eq(submitted_payments.linked_agent, agentUser.bubble_id))
       .leftJoin(customers, eq(submitted_payments.linked_customer, customers.customer_id))
       .leftJoin(invoices, sql`${submitted_payments.linked_invoice} = ${invoices.bubble_id} OR ${submitted_payments.linked_invoice} = CAST(${invoices.invoice_id} AS TEXT)`)
       .where(whereClause)
@@ -139,7 +147,7 @@ export async function getVerifiedPayments(search?: string) {
         ilike(payments.payment_method_v2, `%${search}%`),
         ilike(users.name, `%${search}%`),
         ilike(users.email, `%${search}%`),
-        ilike(agents.name, `%${search}%`),
+        ilike(agentUser.name, `%${search}%`),
         ilike(customers.name, `%${search}%`),
         sql`CAST(${payments.created_by} AS TEXT) ILIKE ${`%${search}%`}`
       )
@@ -157,7 +165,7 @@ export async function getVerifiedPayments(search?: string) {
         remark: payments.remark,
         created_by_user_name: users.name,
         created_by_user_email: users.email,
-        agent_name: agents.name,
+        agent_name: agentUser.name,
         customer_name: customers.name,
         customer_phone: customers.phone,
         created_at: payments.created_at,
@@ -174,7 +182,7 @@ export async function getVerifiedPayments(search?: string) {
       })
       .from(payments)
       .leftJoin(users, eq(payments.created_by, users.bubble_id))
-      .leftJoin(agents, eq(payments.linked_agent, agents.bubble_id))
+      .leftJoin(agentUser, eq(payments.linked_agent, agentUser.bubble_id))
       .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
       .leftJoin(invoices, sql`${payments.linked_invoice} = ${invoices.bubble_id} OR ${payments.linked_invoice} = CAST(${invoices.invoice_id} AS TEXT)`)
       .where(filters)
@@ -199,7 +207,7 @@ export async function getFullyPaidInvoices(search?: string) {
         ilike(customers.name, `%${search}%`),
         ilike(users.name, `%${search}%`),
         ilike(users.email, `%${search}%`),
-        ilike(agents.name, `%${search}%`),
+        ilike(agentUser.name, `%${search}%`),
         sql`CAST(${invoices.created_by} AS TEXT) ILIKE ${`%${search}%`}`
       )
       : undefined;
@@ -230,7 +238,7 @@ export async function getFullyPaidInvoices(search?: string) {
         customer_name: customers.name,
         created_by_user_name: users.name,
         created_by_user_email: users.email,
-        agent_name: agents.name,
+        agent_name: agentUser.name,
         created_at: invoices.created_at,
         updated_at: invoices.updated_at,
         eligible_amount_description: invoices.eligible_amount_description,
@@ -239,7 +247,7 @@ export async function getFullyPaidInvoices(search?: string) {
       .from(invoices)
       .leftJoin(users, eq(invoices.created_by, users.bubble_id))
       .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
-      .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
+      .leftJoin(agentUser, eq(invoices.linked_agent, agentUser.bubble_id))
       .where(whereClause)
       .orderBy(desc(invoices.full_payment_date), desc(invoices.updated_at))
       .limit(5000);
@@ -265,7 +273,7 @@ export async function getFullyPaidInvoicesByAgent(month: number, year: number, s
         ilike(users.name, `%${search}%`),
         ilike(users.email, `%${search}%`),
         ilike(customers.name, `%${search}%`),
-        ilike(agents.name, `%${search}%`)
+        ilike(agentUser.name, `%${search}%`)
       )
       : undefined;
 
@@ -278,7 +286,7 @@ export async function getFullyPaidInvoicesByAgent(month: number, year: number, s
         total_amount: invoices.total_amount,
         full_payment_date: invoices.full_payment_date,
         created_by_user_name: users.name,
-        agent_name: agents.name,
+        agent_name: agentUser.name,
         customer_name: customers.name,
         eligible_amount_description: invoices.eligible_amount_description,
         amount_eligible_for_comm: invoices.amount_eligible_for_comm,
@@ -286,7 +294,7 @@ export async function getFullyPaidInvoicesByAgent(month: number, year: number, s
       })
       .from(invoices)
       .leftJoin(users, eq(invoices.created_by, users.bubble_id))
-      .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
+      .leftJoin(agentUser, eq(invoices.linked_agent, agentUser.bubble_id))
       .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
       .where(and(
         eq(invoices.paid, true),
@@ -1130,7 +1138,7 @@ export async function getEppPayments(search?: string) {
         ilike(payments.issuer_bank, `%${search}%`),
         ilike(users.name, `%${search}%`),
         ilike(users.email, `%${search}%`),
-        ilike(agents.name, `%${search}%`),
+        ilike(agentUser.name, `%${search}%`),
         ilike(customers.name, `%${search}%`),
         sql`CAST(${payments.created_by} AS TEXT) ILIKE ${`%${search}%`}`
       )
@@ -1144,7 +1152,7 @@ export async function getEppPayments(search?: string) {
         amount: payments.amount,
         payment_date: payments.payment_date,
         attachment: payments.attachment,
-        agent_name: agents.name,
+        agent_name: agentUser.name,
         customer_name: customers.name,
         issuer_bank: payments.issuer_bank,
         epp_month: payments.epp_month,
@@ -1158,7 +1166,7 @@ export async function getEppPayments(search?: string) {
       })
       .from(payments)
       .leftJoin(users, eq(payments.created_by, users.bubble_id))
-      .leftJoin(agents, eq(payments.linked_agent, agents.bubble_id))
+      .leftJoin(agentUser, eq(payments.linked_agent, agentUser.bubble_id))
       .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
       .where(whereClause)
       .orderBy(desc(payments.payment_date))
@@ -1207,7 +1215,7 @@ export async function getPaymentsWithoutMethod(search?: string) {
         ilike(payments.remark, `%${search}%`),
         ilike(users.name, `%${search}%`),
         ilike(users.email, `%${search}%`),
-        ilike(agents.name, `%${search}%`),
+        ilike(agentUser.name, `%${search}%`),
         ilike(customers.name, `%${search}%`),
         sql`CAST(${payments.created_by} AS TEXT) ILIKE ${`%${search}%`}`
       )
@@ -1233,7 +1241,7 @@ export async function getPaymentsWithoutMethod(search?: string) {
         amount: payments.amount,
         payment_date: payments.payment_date,
         attachment: payments.attachment,
-        agent_name: agents.name,
+        agent_name: agentUser.name,
         customer_name: customers.name,
         issuer_bank: payments.issuer_bank,
         epp_type: payments.epp_type,
@@ -1247,7 +1255,7 @@ export async function getPaymentsWithoutMethod(search?: string) {
       })
       .from(payments)
       .leftJoin(users, eq(payments.created_by, users.bubble_id))
-      .leftJoin(agents, eq(payments.linked_agent, agents.bubble_id))
+      .leftJoin(agentUser, eq(payments.linked_agent, agentUser.bubble_id))
       .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
       .where(whereClause)
       .orderBy(desc(payments.payment_date))
@@ -1634,7 +1642,7 @@ export async function getPaymentReceiptPreview(paymentId: number) {
     let agentPhone = "";
     let agentName = "";
     if (p.linked_agent) {
-      const agRecord = await db.select().from(agents).where(eq(agents.bubble_id, p.linked_agent)).limit(1);
+      const agRecord = await db.select().from(users).where(eq(users.bubble_id, p.linked_agent)).limit(1);
       if (agRecord.length > 0) {
         let rawAgentPhone = agRecord[0].contact || "";
         agentPhone = rawAgentPhone.replace(/[^0-9]/g, "");

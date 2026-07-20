@@ -10,11 +10,12 @@
  */
 
 import { db } from "@/lib/db";
-import { users, agents, payments, submitted_payments, customers, invoices, sedaRegistration, invoice_templates } from "@/db/schema";
+import { users, payments, submitted_payments, customers, invoices, sedaRegistration, invoice_templates } from "@/db/schema";
 import { syncFilesByCategory } from "@/app/(app)/manage-company/storage-actions";
 import { logSyncActivity } from "@/lib/logger";
 import { createProgressSession, updateProgress, getProgress } from "@/lib/progress-tracker";
 import { BUBBLE_BASE_URL, BUBBLE_API_HEADERS } from "./client";
+import { syncAgentProfilesOntoUsers } from "./sync-profiles";
 import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
 
 /**
@@ -217,14 +218,8 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
   }
 
   try {
-    // 1. Sync Agents
-    await syncTable('agent', agents, agents.bubble_id, (b) => ({
-      name: b.Name, email: b.email, contact: b.Contact, agent_type: b["Agent Type"],
-      address: b.Address, bankin_account: b.bankin_account, banker: b.banker,
-      ic_front: b["IC Front"] || b["ic_front"] || null,
-      ic_back: b["IC Back"] || b["ic_back"] || null,
-      updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
-    }), results);
+    // 1. Agent profile fields are routed onto the user row after users sync
+    //    below - the agent table is retired (migration 2026-07-20b).
 
     // 2. Sync Users
     await syncTable('user', users, users.bubble_id, (b) => ({
@@ -233,6 +228,8 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
       user_signed_up: b.user_signed_up, access_level: b["Access Level"] || [],
       updated_at: new Date(b["Modified Date"]), last_synced_at: new Date()
     }), results);
+
+    await syncAgentProfilesOntoUsers(results);
 
     // 3. Sync Customers
     await syncTable('Customer_Profile', customers, customers.customer_id, (b) => ({

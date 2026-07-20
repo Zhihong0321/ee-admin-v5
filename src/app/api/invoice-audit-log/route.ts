@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         LEFT JOIN invoice i ON i.id = ial.invoice_id
         LEFT JOIN customer c ON c.customer_id = i.linked_customer
         LEFT JOIN seda_registration sr ON sr.bubble_id = i.linked_seda_registration
-        LEFT JOIN agent ag ON ag.bubble_id = i.linked_agent
+        LEFT JOIN "user" ag ON ag.bubble_id = i.linked_agent
         ${havingClause}
         GROUP BY ial.invoice_number
         ORDER BY latest_change DESC

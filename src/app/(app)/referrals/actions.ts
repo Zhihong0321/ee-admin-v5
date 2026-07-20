@@ -184,36 +184,24 @@ function scoreInvoiceCandidate(
  * `referral.linked_agent` — which collides with `user.id` and misattributes referrals.
  * The `value` field is what must be persisted; `id` is retained for React keys only.
  *
- * Sourced from `user` (the authoritative identity table), plus the orphan agents that
- * never had a login account so they remain assignable.
+ * Sourced from `user` alone. The agent table is retired.
  */
 export async function getReferralAgents() {
   try {
+    // Every assignable agent is a user row. The 34 agents that had no login were
+    // promoted to users in migration 2026-07-20b, so no agent-table union is needed.
     const result = await db.execute(sql`
       SELECT
-        u.id                                   AS id,
-        u.bubble_id                            AS value,
-        u.bubble_id                            AS bubble_id,
-        u.name                                 AS name,
-        a.contact                              AS contact,
-        COALESCE(u.email, a.email)             AS email,
-        COALESCE(u.agent_type, a.agent_type)   AS agent_type,
-        false                                  AS is_orphan_agent
+        u.id         AS id,
+        u.bubble_id  AS value,
+        u.bubble_id  AS bubble_id,
+        u.name       AS name,
+        u.contact    AS contact,
+        u.email      AS email,
+        u.agent_type AS agent_type
       FROM "user" u
-      LEFT JOIN agent a ON a.bubble_id = u.linked_agent_profile
       WHERE u.bubble_id IS NOT NULL AND u.bubble_id <> ''
-
-      UNION ALL
-
-      -- Agents with no linked user account: keep them assignable under their own
-      -- bubble_id, which never collides with a user.id integer.
-      SELECT
-        a.id, a.bubble_id, a.bubble_id, a.name, a.contact, a.email, a.agent_type, true
-      FROM agent a
-      WHERE a.bubble_id IS NOT NULL AND a.bubble_id <> ''
-        AND (a.linked_user_login IS NULL OR a.linked_user_login = '')
-
-      ORDER BY name ASC NULLS LAST
+      ORDER BY u.name ASC NULLS LAST
     `);
 
     return result.rows as Array<{
@@ -224,7 +212,7 @@ export async function getReferralAgents() {
       contact: string | null;
       email: string | null;
       agent_type: string | null;
-      is_orphan_agent: boolean;
+
     }>;
   } catch (error) {
     console.error("Database error in getReferralAgents:", error);
@@ -247,10 +235,9 @@ export async function getReferrals({ search, status, page = 1, pageSize = 50 }: 
     const safePageSize = Math.max(1, Math.min(pageSize, 100));
     const hasPreferredAgentLog = await hasReferralPreferredAgentLogColumn();
 
-    // Identity resolution: user.bubble_id -> agent.bubble_id -> legacy raw agent.id.
-    // A raw integer here means agent.id, because that is what this app used to write.
-    const agentNameExpr = resolvedIdentityName(sql`${referrals.linked_agent}`, "agent");
-    const agentContactExpr = resolvedIdentityContact(sql`${referrals.linked_agent}`, "agent");
+    // linked_agent holds a user.bubble_id and resolves against `user` alone.
+    const agentNameExpr = resolvedIdentityName(sql`${referrals.linked_agent}`);
+    const agentContactExpr = resolvedIdentityContact(sql`${referrals.linked_agent}`);
 
     const filters = [];
 
@@ -534,7 +521,7 @@ export async function updateReferral(
         if (refsToResolve.length > 0) {
           const resolved = await tx.execute(sql`
             SELECT r.ref,
-                   ${resolvedIdentityName(sql`r.ref`, "agent")} AS name
+                   ${resolvedIdentityName(sql`r.ref`)} AS name
             FROM UNNEST(ARRAY[${sql.join(refsToResolve.map((v) => sql`${v}`), sql`, `)}]::text[]) AS r(ref)
           `);
 

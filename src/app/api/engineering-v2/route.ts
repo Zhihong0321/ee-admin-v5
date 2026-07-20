@@ -92,7 +92,7 @@ export async function GET(request: Request) {
         ON inv.linked_seda_registration = sr.bubble_id
       LEFT JOIN customer c
         ON inv.linked_customer = c.customer_id
-      LEFT JOIN agent a
+      LEFT JOIN "user" a
         ON inv.linked_agent = a.bubble_id
       WHERE inv.is_latest = true
         AND COALESCE(inv.is_deleted, false) = false

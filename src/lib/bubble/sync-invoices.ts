@@ -9,11 +9,12 @@
  * File: src/lib/bubble/sync-invoices.ts
  */
 
+import { writeAgentProfileToUser } from "./agent-profile";
 import { db } from "@/lib/db";
-import { invoices, customers, agents, users, payments, submitted_payments, sedaRegistration, invoice_templates } from "@/db/schema";
+import { invoices, customers, users, payments, submitted_payments, sedaRegistration, invoice_templates } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
 import { updateProgress } from "@/lib/progress-tracker";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { fetchBubbleRecordByTypeName, fetchBubbleRecordsWithConstraints } from "./fetch-helpers";
 import { BUBBLE_BASE_URL, BUBBLE_API_HEADERS } from "./client";
 import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
@@ -62,8 +63,9 @@ async function isCustomerNewer(customerId: string): Promise<boolean> {
  * ============================================================================
  */
 async function isAgentNewer(agentId: string): Promise<boolean> {
-  const existingAgent = await db.query.agents.findFirst({
-    where: eq(agents.bubble_id, agentId)
+  // Agent profile data now lives on the user row; compare freshness there.
+  const existingAgent = await db.query.users.findFirst({
+    where: or(eq(users.linked_agent_profile, agentId), eq(users.bubble_id, agentId))
   });
 
   try {
@@ -264,8 +266,8 @@ async function syncAgent(agentId: string): Promise<void> {
     last_synced_at: new Date()
   };
 
-  await db.insert(agents).values({ bubble_id: agentId, ...vals })
-    .onConflictDoUpdate({ target: agents.bubble_id, set: vals });
+  // Agent profile fields land on the user row; the agent table is retired.
+  await writeAgentProfileToUser(agentId, vals);
 }
 
 /**

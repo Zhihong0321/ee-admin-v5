@@ -3,7 +3,7 @@
 import fs from "fs";
 import path from "path";
 import { db } from "@/lib/db";
-import { invoices, customers, agents, app_settings } from "@/db/schema";
+import { invoices, customers, users, app_settings } from "@/db/schema";
 import { desc, isNotNull, eq } from "drizzle-orm";
 
 const CS_WHATSAPP_KEY = "CS_WHATSAPP_NO";
@@ -45,12 +45,12 @@ export async function getPaidInvoices() {
       first_payment_date: invoices.first_payment_date,
       customer_name: customers.name,
       customer_phone: customers.phone,
-      agent_name: agents.name,
-      agent_phone: agents.contact,
+      agent_name: users.name,
+      agent_phone: users.contact,
     })
       .from(invoices)
       .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
-      .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
+      .leftJoin(users, eq(invoices.linked_agent, users.bubble_id))
       .where(isNotNull(invoices.first_payment_date))
       .orderBy(desc(invoices.first_payment_date));
     

@@ -3,6 +3,11 @@ import { relations } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
 // Agent Table
+//
+// RETIRED as a source of truth (2026-07-20). Kept only so historical rows remain
+// inspectable and so `user.linked_agent_profile` still points somewhere. No
+// application code should read from this table — identity, names and profile data
+// all live on `user`. See migrations/2026-07-20b-retire-agent-table-user-only.sql.
 export const agents = pgTable('agent', {
   id: serial('id').primaryKey(),
   bubble_id: text('bubble_id'),
@@ -26,7 +31,16 @@ export const users = pgTable('user', {
   bubble_id: text('bubble_id'),
   name: text('name'),
   email: text('email'), // Added to match Bubble authentication.email
-  linked_agent_profile: text('linked_agent_profile'), // Links to agents.bubble_id
+  // Profile fields formerly read off the agent table. Backfilled 2026-07-20; the
+  // user row is now the only place the app reads these from.
+  contact: text('contact'),
+  address: text('address'),
+  bankin_account: text('bankin_account'),
+  banker: text('banker'),
+  ic_front: text('ic_front'),
+  ic_back: text('ic_back'),
+  agent_type: text('agent_type'),
+  linked_agent_profile: text('linked_agent_profile'), // historical back-link to agent.bubble_id
   agent_code: text('agent_code'),
   dealership: text('dealership'),
   profile_picture: text('profile_picture'),

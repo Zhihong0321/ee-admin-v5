@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { customers, customer_history } from "@/db/schema";
 import { ilike, or, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { resolvedIdentityName } from "@/lib/agent-identity";
+import { resolvedIdentityNameLegacy } from "@/lib/agent-identity";
 
 export async function getCustomers(search?: string) {
   console.log(`Fetching customers: search=${search}`);
@@ -13,7 +13,7 @@ export async function getCustomers(search?: string) {
     // user.bubble_id and none match agent.bubble_id, and legacy raw integers are
     // user.id row keys. It was previously joined against agent.id, which collides
     // with user.id and attributed ~331 customers to the wrong person.
-    const createdByNameExpr = resolvedIdentityName(sql`${customers.created_by}`, "user");
+    const createdByNameExpr = resolvedIdentityNameLegacy(sql`${customers.created_by}`);
 
     const filters = search
       ? or(

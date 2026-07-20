@@ -291,7 +291,7 @@ export async function updatePaymentCalculations() {
  * - Calls revalidatePath() to refresh Next.js cache
  *
  * DEPENDENCIES:
- * - Requires: db.query.invoices, db.query.agents, db.query.users, db.update(invoices)
+ * - Requires: db.query.invoices, db.query.users, db.update(invoices)
  * - Used by: src/app/sync/page.tsx (Patch Invoice Creators button)
  */
 export async function patchInvoiceCreators() {
@@ -326,34 +326,22 @@ export async function patchInvoiceCreators() {
     for (const inv of fixableInvoices) {
       if (!inv.linked_agent) continue;
 
-      // Find the agent
-      const agent = await db.query.agents.findFirst({
-        where: eq(agents.bubble_id, inv.linked_agent)
+      // invoice.linked_agent now holds the user's bubble_id directly (the agent
+      // table is retired), so the old agent -> linked_user_login hop is gone.
+      const user = await db.query.users.findFirst({
+        where: eq(users.bubble_id, inv.linked_agent)
       });
 
-      if (agent && agent.bubble_id) {
-        // Find the user linked to this agent
-        // User table has `linked_agent_profile` which points to agent.bubble_id
-        const user = await db.query.users.findFirst({
-          where: eq(users.linked_agent_profile, agent.bubble_id)
-        });
+      if (user && user.bubble_id) {
+        await db.update(invoices)
+          .set({ created_by: user.bubble_id })
+          .where(eq(invoices.id, inv.id));
 
-        if (user && user.bubble_id) {
-          // UPDATE the invoice
-          await db.update(invoices)
-            .set({ created_by: user.bubble_id })
-            .where(eq(invoices.id, inv.id));
-
-          fixedCount++;
-          logSyncActivity(`Fixed Invoice ${inv.bubble_id}: Set created_by = ${user.bubble_id} (Agent: ${agent.name})`, 'INFO');
-        } else {
-          agentNoUserCount++;
-          logSyncActivity(`WARNING: Skipped Invoice ${inv.bubble_id}: Agent ${agent.name} has no linked User account.`, 'ERROR');
-        }
+        fixedCount++;
+        logSyncActivity(`Fixed Invoice ${inv.bubble_id}: Set created_by = ${user.bubble_id} (${user.name})`, 'INFO');
       } else {
-        // Agent ID exists in invoice but not in Agent table?!
-        logSyncActivity(`WARNING: Skipped Invoice ${inv.bubble_id}: Linked Agent ID ${inv.linked_agent} not found in DB.`, 'ERROR');
         agentNoUserCount++;
+        logSyncActivity(`WARNING: Skipped Invoice ${inv.bubble_id}: linked_agent ${inv.linked_agent} matches no user.`, 'ERROR');
       }
     }
 

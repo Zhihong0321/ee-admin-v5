@@ -11,6 +11,7 @@
  * File: src/lib/integrity-sync.ts
  */
 
+import { writeAgentProfileToUser } from "@/lib/bubble/agent-profile";
 import { db } from "@/lib/db";
 import * as schema from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -109,7 +110,8 @@ export async function syncAgentIntegrity(bubbleId: string): Promise<{
     mappedAgent.created_at = bubbleAgent['Created Date'] ? new Date(bubbleAgent['Created Date']) : new Date();
     mappedAgent.last_synced_at = new Date();
 
-    await upsertWithMerge(schema.agents, bubbleId, mappedAgent, schema.agents.bubble_id);
+    // Agent profile fields land on the user row; the agent table is retired.
+    await writeAgentProfileToUser(bubbleId, mappedAgent);
 
     return { success: true, action: 'agent' };
   } catch (error: any) {

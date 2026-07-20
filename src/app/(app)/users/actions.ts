@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { users, agents } from "@/db/schema";
+import { users } from "@/db/schema";
 import { ilike, or, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { pushAgentUpdateToBubble, syncProfilesFromBubble, syncSingleProfileFromBubble } from "@/lib/bubble";
@@ -54,11 +54,8 @@ export async function getUsers({ search, page = 1, pageSize = 50 }: GetUsersPara
     const searchFilter = search
       ? or(
           ilike(users.agent_code, `%${search}%`),
-          sql`EXISTS (
-            SELECT 1 FROM agent a 
-            WHERE a.bubble_id = ${users.linked_agent_profile} 
-            AND (a.name ILIKE ${`%${search}%`} OR a.email ILIKE ${`%${search}%`})
-          )`
+          ilike(users.name, `%${search}%`),
+          ilike(users.email, `%${search}%`)
         )
       : undefined;
 
@@ -74,9 +71,6 @@ export async function getUsers({ search, page = 1, pageSize = 50 }: GetUsersPara
     const offset = (effectivePage - 1) * safePageSize;
 
     const data = await db.query.users.findMany({
-      with: {
-        agent: true
-      },
       where: searchFilter,
       orderBy: (users, { desc }) => [desc(users.id)],
       limit: safePageSize,
@@ -95,15 +89,15 @@ export async function getUsers({ search, page = 1, pageSize = 50 }: GetUsersPara
       access_level: u.access_level || [],
       joined_date: u.created_date,
       linked_agent_profile: u.linked_agent_profile,
-      agent_name: u.agent?.name || "N/A",
-      agent_email: u.agent?.email || "N/A",
-      agent_contact: u.agent?.contact || "N/A",
-      agent_type: u.agent?.agent_type || "N/A",
-      agent_address: u.agent?.address || "N/A",
-      agent_banker: u.agent?.banker || "N/A",
-      agent_bankin_account: u.agent?.bankin_account || "N/A",
-      agent_ic_front: u.agent?.ic_front || null,
-      agent_ic_back: u.agent?.ic_back || null,
+      agent_name: u.name || "N/A",
+      agent_email: u.email || "N/A",
+      agent_contact: u.contact || "N/A",
+      agent_type: u.agent_type || "N/A",
+      agent_address: u.address || "N/A",
+      agent_banker: u.banker || "N/A",
+      agent_bankin_account: u.bankin_account || "N/A",
+      agent_ic_front: u.ic_front || null,
+      agent_ic_back: u.ic_back || null,
       last_synced_at: u.last_synced_at,
     }));
 
@@ -179,124 +173,49 @@ export async function uploadUserLetter(userId: number, letterType: UserLetterTyp
   }
 }
 
-export async function createAgentForUser(userId: number, agentData: Partial<typeof agents.$inferInsert>) {
-  try {
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
-      with: { agent: true }
-    });
+/**
+ * Profile fields for a user. Formerly these lived on a separate `agent` row; the
+ * agent table is retired (migration 2026-07-20b) and a user IS the agent, so these
+ * are plain columns on `user`.
+ */
+type UserProfileData = {
+  name?: string | null;
+  email?: string | null;
+  contact?: string | null;
+  address?: string | null;
+  banker?: string | null;
+  bankin_account?: string | null;
+  agent_type?: string | null;
+};
 
-    if (!user) {
-      return { success: false, error: "User not found" };
-    }
-
-    // If user has linked_agent_profile but agent doesn't exist, create with that bubble_id
-    if (user.linked_agent_profile && !user.agent) {
-      // Check if agent with this bubble_id already exists
-      const existingAgent = await db.query.agents.findFirst({
-        where: eq(agents.bubble_id, user.linked_agent_profile)
-      });
-
-      if (existingAgent) {
-        return { success: false, error: "Agent with this bubble_id already exists" };
-      }
-
-      const newAgent = await db
-        .insert(agents)
-        .values({
-          bubble_id: user.linked_agent_profile, // Use existing link
-          name: agentData.name,
-          email: agentData.email,
-          contact: agentData.contact,
-          address: agentData.address,
-          banker: agentData.banker,
-          bankin_account: agentData.bankin_account,
-          agent_type: 'manual',
-          created_at: new Date(),
-          updated_at: new Date(),
-        })
-        .returning();
-
-      revalidatePath("/users");
-      return { success: true, agent: newAgent[0] };
-    }
-
-    if (user.agent) {
-      return { success: false, error: "User already has a linked agent profile" };
-    }
-
-    // Create new agent with user's bubble_id as the agent bubble_id
-    const newAgent = await db
-      .insert(agents)
-      .values({
-        bubble_id: user.bubble_id + '_agent', // Create unique agent bubble_id
-        name: agentData.name,
-        email: agentData.email,
-        contact: agentData.contact,
-        address: agentData.address,
-        banker: agentData.banker,
-        bankin_account: agentData.bankin_account,
-        agent_type: 'manual',
-        created_at: new Date(),
-        updated_at: new Date(),
-      })
-      .returning();
-
-    // Link the agent to the user
-    await db
-      .update(users)
-      .set({
-        linked_agent_profile: newAgent[0].bubble_id,
-        updated_at: new Date(),
-      })
-      .where(eq(users.id, userId));
-
-    revalidatePath("/users");
-    return { success: true, agent: newAgent[0] };
-  } catch (error) {
-    console.error("Error creating agent:", error);
-    return { success: false, error: `Failed to create agent: ${String(error)}` };
-  }
+/**
+ * Kept for the existing "create agent profile" button. There is no longer a separate
+ * agent record to create — this just fills in the user's own profile fields.
+ */
+export async function createAgentForUser(userId: number, agentData: UserProfileData) {
+  return updateUserProfile(userId, { ...agentData, agent_type: agentData.agent_type || 'manual' });
 }
 
-export async function updateUserProfile(userId: number, agentData: Partial<typeof agents.$inferInsert>, tags?: string[]) {
+export async function updateUserProfile(userId: number, agentData: UserProfileData, tags?: string[]) {
   try {
-    // First find the user to get the agent link
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId)
-    });
+    const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
 
     if (!user) {
       return { success: false, error: "User not found" };
     }
 
-    // Update access_level on the user table if tags provided
-    if (tags) {
-      await db
-        .update(users)
-        .set({
-          access_level: tags,
-          updated_at: new Date(),
-        })
-        .where(eq(users.id, userId));
-    }
+    const result = await db
+      .update(users)
+      .set({
+        ...agentData,
+        ...(tags ? { access_level: tags } : {}),
+        updated_at: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
 
-    // Update agent profile if link exists
-    if (user.linked_agent_profile) {
-      const result = await db
-        .update(agents)
-        .set({
-          ...agentData,
-          updated_at: new Date(),
-        })
-        .where(eq(agents.bubble_id, user.linked_agent_profile))
-        .returning();
-
-      if (result.length === 0) {
-        return { success: false, error: 'Agent profile link is broken. Please contact support.' };
-      }
-    } else {
-      return { success: false, error: 'User has no linked agent profile' };
+    if (result.length === 0) {
+      return { success: false, error: "Failed to update user profile" };
     }
 
     revalidatePath("/users");

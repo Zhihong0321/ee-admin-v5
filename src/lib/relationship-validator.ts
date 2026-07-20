@@ -170,15 +170,18 @@ async function validateInvoiceRelationships(
     // Check linked_agent
     if (invoice.linked_agent) {
       relationshipsChecked++;
-      if (!existingIds.agents.has(invoice.linked_agent)) {
+      // linked_agent holds a user.bubble_id since the agent table was retired
+      // (migration 2026-07-20b). Validating it against agent bubble_ids would flag
+      // every row as broken and, with fix_broken_links, null them all out.
+      if (!existingIds.users.has(invoice.linked_agent)) {
         errors.push({
           table: 'invoice',
           record_id: invoiceId,
           bubble_id: bubbleId,
           field: 'linked_agent',
           referenced_bubble_id: invoice.linked_agent,
-          referenced_table: 'agent',
-          error: `Agent ${invoice.linked_agent} not found in database`,
+          referenced_table: 'user',
+          error: `User ${invoice.linked_agent} not found in database`,
           timestamp: new Date()
         });
 
@@ -377,15 +380,18 @@ async function validatePaymentRelationships(
     // Check linked_agent
     if (payment.linked_agent) {
       relationshipsChecked++;
-      if (!existingIds.agents.has(payment.linked_agent)) {
+      // linked_agent holds a user.bubble_id since the agent table was retired
+      // (migration 2026-07-20b). Validating it against agent bubble_ids would flag
+      // every row as broken and, with fix_broken_links, null them all out.
+      if (!existingIds.users.has(payment.linked_agent)) {
         errors.push({
           table: 'payment',
           record_id: paymentId,
           bubble_id: bubbleId,
           field: 'linked_agent',
           referenced_bubble_id: payment.linked_agent,
-          referenced_table: 'agent',
-          error: `Agent ${payment.linked_agent} not found in database`,
+          referenced_table: 'user',
+          error: `User ${payment.linked_agent} not found in database`,
           timestamp: new Date()
         });
 
@@ -501,15 +507,18 @@ async function validateSubmittedPaymentRelationships(
 
     if (payment.linked_agent) {
       relationshipsChecked++;
-      if (!existingIds.agents.has(payment.linked_agent)) {
+      // linked_agent holds a user.bubble_id since the agent table was retired
+      // (migration 2026-07-20b). Validating it against agent bubble_ids would flag
+      // every row as broken and, with fix_broken_links, null them all out.
+      if (!existingIds.users.has(payment.linked_agent)) {
         errors.push({
           table: 'submitted_payment',
           record_id: paymentId,
           bubble_id: bubbleId,
           field: 'linked_agent',
           referenced_bubble_id: payment.linked_agent,
-          referenced_table: 'agent',
-          error: `Agent ${payment.linked_agent} not found in database`,
+          referenced_table: 'user',
+          error: `User ${payment.linked_agent} not found in database`,
           timestamp: new Date()
         });
 

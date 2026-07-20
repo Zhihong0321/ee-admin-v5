@@ -14,7 +14,8 @@
 import { db } from "@/lib/db";
 import { invoices, payments, sedaRegistration, invoice_items, users, agents, submitted_payments, packages, products } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
+import { writeAgentProfileToUser } from "./agent-profile";
 import { patchSchemaFromJson, type SchemaPatchResult } from "./schema-patcher";
 import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
 
@@ -498,36 +499,32 @@ async function syncUser(user: any): Promise<{ updated: boolean; reason?: string 
   }
 }
 
-// Upsert function for agents - ONLY overwrite if JSON is newer
+// Agent profile fields are written onto the matching `user` row - the agent table
+// is retired. Still ONLY overwrites if the JSON is newer than what we hold.
 async function upsertAgent(bubbleId: string, vals: any, jsonModifiedDate: Date | null): Promise<{ updated: boolean; reason?: string }> {
-  const existing = await db.query.agents.findFirst({
-    where: eq(agents.bubble_id, bubbleId)
+  const existing = await db.query.users.findFirst({
+    where: or(eq(users.linked_agent_profile, bubbleId), eq(users.bubble_id, bubbleId))
   });
 
-  if (existing) {
-    // Check if JSON data is newer than existing record
-    const existingDate = existing.updated_at || existing.created_at;
-
-    if (jsonModifiedDate && existingDate) {
-      // If existing record is newer or same, skip update
-      if (existingDate > jsonModifiedDate) {
-        return { updated: false, reason: 'existing_is_newer' };
-      }
-      // If dates are equal, skip to avoid unnecessary updates
-      if (existingDate.getTime() === jsonModifiedDate.getTime()) {
-        return { updated: false, reason: 'same_timestamp' };
-      }
-    }
-
-    // JSON is newer - perform update
-    await db.update(agents)
-      .set(vals)
-      .where(eq(agents.bubble_id, bubbleId));
-    return { updated: true };
-  } else {
-    await db.insert(agents).values(vals);
-    return { updated: true };
+  if (!existing) {
+    // No user corresponds to this Bubble agent. We no longer create agent rows, and
+    // inventing a user from a JSON upload would be worse than skipping.
+    return { updated: false, reason: 'no_matching_user' };
   }
+
+  const existingDate = existing.updated_at || existing.created_at;
+
+  if (jsonModifiedDate && existingDate) {
+    if (existingDate > jsonModifiedDate) {
+      return { updated: false, reason: 'existing_is_newer' };
+    }
+    if (existingDate.getTime() === jsonModifiedDate.getTime()) {
+      return { updated: false, reason: 'same_timestamp' };
+    }
+  }
+
+  await writeAgentProfileToUser(bubbleId, vals);
+  return { updated: true };
 }
 
 /**

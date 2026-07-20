@@ -47,15 +47,15 @@ type ReferralRow = {
 
 type AgentOption = {
   id: number;
-  /** Canonical identity to persist into referral.linked_agent (user.bubble_id, or
-   *  agent.bubble_id for orphan agents). Never a raw integer id. */
+  /** Canonical identity to persist into referral.linked_agent (user.bubble_id).
+   *  Never a raw integer id. */
   value: string;
   bubble_id: string | null;
   name: string | null;
   contact: string | null;
   email: string | null;
   agent_type: string | null;
-  is_orphan_agent: boolean;
+
 };
 
 type InvoiceOption = {

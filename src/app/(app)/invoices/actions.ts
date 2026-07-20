@@ -1,8 +1,16 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, agents, users, invoice_templates, customers, payments, invoice_items, invoice_edit_history, invoice_audit_log, packages } from "@/db/schema";
+import { invoices, users, invoice_templates, customers, payments, invoice_items, invoice_edit_history, invoice_audit_log, packages } from "@/db/schema";
 import { ilike, or, sql, desc, eq, and, inArray, gte, lte } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+
+/**
+ * The assigned agent on an invoice is a `user`, resolved by bubble_id. Aliased
+ * because these queries already join `users` for `created_by`. The `agent` table
+ * is retired and must not be joined here.
+ */
+const agentUser = alias(users, "agent_user");
 import { getInvoiceHtml } from "@/lib/invoice-renderer";
 import { revalidatePath } from "next/cache";
 import { syncCompleteInvoicePackage } from "@/lib/bubble";
@@ -36,7 +44,7 @@ export async function getInvoices(
           ilike(invoices.linked_customer, `%${search}%`),
           ilike(users.name, `%${search}%`),
           ilike(users.email, `%${search}%`),
-          ilike(agents.name, `%${search}%`),
+          ilike(agentUser.name, `%${search}%`),
           ilike(invoices.dealercode, `%${search}%`),
           sql`CAST(${invoices.invoice_id} AS TEXT) ILIKE ${`%${search}%`}`
         ) as any);
@@ -57,7 +65,7 @@ export async function getInvoices(
       const [{ count }] = await db.select({ count: sql<number>`count(*)` })
         .from(invoices)
         .leftJoin(users, eq(invoices.created_by, users.bubble_id))
-        .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
+        .leftJoin(agentUser, eq(invoices.linked_agent, agentUser.bubble_id))
         .where(whereClause);
 
       const total = Number(count);
@@ -70,12 +78,12 @@ export async function getInvoices(
         linked_customer: invoices.linked_customer,
         invoice_by_user_name: users.name,
         invoice_by_user_email: users.email,
-        agent_name: agents.name,
+        agent_name: agentUser.name,
         dealercode: invoices.dealercode,
       })
         .from(invoices)
         .leftJoin(users, eq(invoices.created_by, users.bubble_id))
-        .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
+        .leftJoin(agentUser, eq(invoices.linked_agent, agentUser.bubble_id))
         .where(whereClause)
         .orderBy(desc(invoices.id))
         .limit(pageSize)
@@ -117,7 +125,7 @@ export async function getInvoices(
         FROM invoice i
         LEFT JOIN customer c ON c.customer_id = i.linked_customer
         LEFT JOIN "user" u ON u.bubble_id = i.created_by
-        LEFT JOIN agent a ON a.bubble_id = i.linked_agent
+        LEFT JOIN "user" a ON a.bubble_id = i.linked_agent
         WHERE i.is_latest = true
         AND COALESCE(i.is_deleted, false) = ${tab === 'active' ? false : true}
         ${searchCondition}
@@ -141,7 +149,7 @@ export async function getInvoices(
         FROM invoice i
         LEFT JOIN customer c ON c.customer_id = i.linked_customer
         LEFT JOIN "user" u ON u.bubble_id = i.created_by
-        LEFT JOIN agent a ON a.bubble_id = i.linked_agent
+        LEFT JOIN "user" a ON a.bubble_id = i.linked_agent
         WHERE i.is_latest = true
         AND COALESCE(i.is_deleted, false) = ${tab === 'active' ? false : true}
         ${searchCondition}
@@ -685,18 +693,18 @@ export async function updateInvoiceAgent(invoiceId: number, agentBubbleId: strin
       return { success: false, error: "Invoice not found" };
     }
 
-    // Resolve old agent name
+    // Resolve old agent name (agents are users; the agent table is retired)
     let oldAgentName: string | null = null;
     if (currentInvoice.linked_agent) {
-      const oldAgent = await db.query.agents.findFirst({
-        where: eq(agents.bubble_id, currentInvoice.linked_agent),
+      const oldAgent = await db.query.users.findFirst({
+        where: eq(users.bubble_id, currentInvoice.linked_agent),
       });
       oldAgentName = oldAgent?.name || null;
     }
 
     // Validate new agent exists
-    const agent = await db.query.agents.findFirst({
-      where: eq(agents.bubble_id, agentBubbleId),
+    const agent = await db.query.users.findFirst({
+      where: eq(users.bubble_id, agentBubbleId),
     });
 
     if (!agent) {
@@ -739,13 +747,14 @@ export async function updateInvoiceAgent(invoiceId: number, agentBubbleId: strin
 
 export async function getAgentsForSelection() {
   try {
-    const agentsList = await db.query.agents.findMany({
+    // Assignable agents come from `user` — the agent table is retired.
+    const agentsList = await db.query.users.findMany({
       columns: {
         id: true,
         bubble_id: true,
         name: true,
       },
-      orderBy: (agents, { asc }) => [asc(agents.name)],
+      orderBy: (users, { asc }) => [asc(users.name)],
     });
 
     return {

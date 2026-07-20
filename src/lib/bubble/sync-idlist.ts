@@ -9,6 +9,7 @@
  * File: src/lib/bubble/sync-idlist.ts
  */
 
+import { writeAgentProfileToUser } from "./agent-profile";
 import { db } from "@/lib/db";
 import { invoices, customers, agents, users, payments, submitted_payments, sedaRegistration } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
@@ -398,8 +399,8 @@ export async function syncByIdList(csvData: string) {
           updated_at: new Date(agent["Modified Date"]),
           last_synced_at: new Date()
         };
-        await db.insert(agents).values({ bubble_id: agentId, ...vals })
-          .onConflictDoUpdate({ target: agents.bubble_id, set: vals });
+        // Agent profile fields land on the user row; the agent table is retired.
+        await writeAgentProfileToUser(agentId, vals);
         results.syncedAgents++;
       } catch (err) {
         results.errors.push(`Agent ${agentId}: ${err}`);

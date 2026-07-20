@@ -9,6 +9,7 @@
  * File: src/lib/bubble/sync-payments.ts
  */
 
+import { writeAgentProfileToUser } from "./agent-profile";
 import { db } from "@/lib/db";
 import { payments, submitted_payments, invoices, customers, agents } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
@@ -327,8 +328,8 @@ export async function syncPaymentsFromBubble() {
                 updated_at: new Date(agent["Modified Date"]),
                 last_synced_at: new Date()
               };
-              await db.insert(agents).values({ bubble_id: invoice["Linked Agent"], ...agentVals })
-                .onConflictDoUpdate({ target: agents.bubble_id, set: agentVals });
+              // Agent profile fields land on the user row; the agent table is retired.
+              await writeAgentProfileToUser(invoice["Linked Agent"], agentVals);
             } catch (err) {
               results.errors.push(`Agent ${invoice["Linked Agent"]}: ${err}`);
             }

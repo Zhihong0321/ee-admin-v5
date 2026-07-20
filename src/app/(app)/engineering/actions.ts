@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, sedaRegistration, customers, agents, invoice_audit_log } from "@/db/schema";
+import { invoices, sedaRegistration, customers, users, invoice_audit_log } from "@/db/schema";
 import { eq, sql, and, desc, or, ilike, inArray } from "drizzle-orm";
 import { getUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
@@ -89,7 +89,7 @@ export async function getEngineeringInvoices(search?: string) {
         or(
           ilike(invoices.invoice_number, `%${search}%`),
           ilike(customers.name, `%${search}%`),
-          ilike(agents.name, `%${search}%`),
+          ilike(users.name, `%${search}%`),
           ilike(sedaRegistration.installation_address, `%${search}%`)
         )
       )!;
@@ -105,7 +105,7 @@ export async function getEngineeringInvoices(search?: string) {
         invoice_date: invoices.invoice_date,
         status: invoices.status,
         customer_name: customers.name,
-        agent_name: agents.name,
+        agent_name: users.name,
         address: sedaRegistration.installation_address,
         seda_bubble_id: sedaRegistration.bubble_id,
         invoice_linked_roof_image: invoices.linked_roof_image,
@@ -117,7 +117,7 @@ export async function getEngineeringInvoices(search?: string) {
       .from(invoices)
       .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
       .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
-      .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
+      .leftJoin(users, eq(invoices.linked_agent, users.bubble_id))
       .where(whereCondition)
       .orderBy(desc(invoices.created_at))
       .limit(200);
@@ -168,7 +168,7 @@ export async function getInvoicesWithDrawingTags(search?: string) {
         or(
           ilike(invoices.invoice_number, `%${search}%`),
           ilike(customers.name, `%${search}%`),
-          ilike(agents.name, `%${search}%`),
+          ilike(users.name, `%${search}%`),
           ilike(sedaRegistration.installation_address, `%${search}%`)
         )
       )!;
@@ -184,7 +184,7 @@ export async function getInvoicesWithDrawingTags(search?: string) {
         invoice_date: invoices.invoice_date,
         status: invoices.status,
         customer_name: customers.name,
-        agent_name: agents.name,
+        agent_name: users.name,
         address: sedaRegistration.installation_address,
         seda_bubble_id: sedaRegistration.bubble_id,
         invoice_linked_roof_image: invoices.linked_roof_image,
@@ -196,7 +196,7 @@ export async function getInvoicesWithDrawingTags(search?: string) {
       .from(invoices)
       .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
       .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
-      .leftJoin(agents, eq(invoices.linked_agent, agents.bubble_id))
+      .leftJoin(users, eq(invoices.linked_agent, users.bubble_id))
       .where(whereCondition)
       .orderBy(desc(invoices.created_at))
       .limit(200);
