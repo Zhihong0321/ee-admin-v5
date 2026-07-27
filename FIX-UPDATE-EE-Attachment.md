@@ -249,6 +249,45 @@ Insert, soft-delete `UPDATE` and tombstone insert were each validated with
 `EXPLAIN` against prod; all three plan on
 `idx_ee_attachment_owner_doc_type` and none were executed.
 
+### Drawings — migrated 2026-07-27
+
+Decision: drawings get their own `category` rather than being folded into
+`site_assessment`. They are a different artifact with a different audience, and
+the roof/site bucketing rule would have swallowed every drawing into the site
+catch-all.
+
+| | value |
+|---|---|
+| category | `drawing` |
+| doc_type (PV system) | `pv_system` |
+| doc_type (engineering / SEDA) | `engineering_seda` |
+| owner | `owner_type = 'invoice'`, `owner_id = invoice.bubble_id` |
+
+Inside the category the same rule as photos applies: `pv_system` is the
+allow-list, everything else is the catch-all, so a new drawing type surfaces
+under engineering instead of vanishing.
+
+- [x] **Writes** — every upload path in both screens now inserts an
+      `ee_attachment` row. No upload appends to a legacy array any more.
+      Engineering drawings used to hang off the SEDA registration; they are
+      owned by the invoice now, so an invoice with no SEDA row can hold one.
+      The "No SEDA linked — cannot upload engineering drawing" warning in v2 is
+      gone because the restriction is gone.
+- [x] **Reads** — v2 API, v1 list/detail and the SEDA ZIP all union
+      `ee_attachment` (category `drawing`) with `invoice.pv_system_drawing`,
+      `seda_registration.drawing_pdf_system` and
+      `drawing_engineering_seda_pdf`, minus suppressed URLs.
+- [x] **Deletes** — v1 soft-deletes drawings the same way as photos, tombstone
+      fallback included.
+- [ ] **Not backfilled.** 593 PV and 1 engineering drawing still live only in
+      the legacy columns. The union covers them, exactly as it covers the 156
+      SEDA photos. Backfill is a separate decision.
+
+Verified against prod before shipping: 6,006 live invoices, PV 593 → 593,
+engineering 1 → 1, **0 regressions** on either. `ee_attachment` held 0 rows in
+category `drawing` at that point, so the union is currently pure legacy
+passthrough — the numbers only start moving once someone uploads.
+
 ### Tier U — UI and API contract
 
 Everything above only makes the *data* correct. These make the screens reflect
@@ -320,6 +359,9 @@ Not bugs. Changing these breaks historical sync.
 
 - [`complete-bubble-mappings.ts:46,226-227`](src/lib/complete-bubble-mappings.ts:46), [`sync-idlist.ts:332-333`](src/lib/bubble/sync-idlist.ts:332), [`bubble/types.ts:145-146`](src/lib/bubble/types.ts:145) — Bubble→Postgres sync must keep writing the legacy columns.
 - [`schema.ts:107,109,250,305`](src/db/schema.ts:107) — column definitions.
+- The Bubble sync keeps writing `pv_system_drawing`, `drawing_pdf_system` and
+  `drawing_engineering_seda_pdf` even though Admin no longer does. That is why
+  the drawing reads still union the legacy columns.
 - [`engineering-v2-client.tsx:35,342`](src/app/(app)/engineering-v2/engineering-v2-client.tsx:35) — consumes the already-migrated API output.
 
 ### Not production
@@ -359,9 +401,10 @@ Run through this for every task before marking it done.
 - [ ] Decide the fate of the 156 unbackfilled `seda_registration.roof_images`
       photos — backfill them into `ee_attachment`, or keep the SEDA union
       permanently. Currently unresolved; the union is load-bearing until then.
-- [ ] Decide whether `pv_system_drawing` and `drawing_engineering_seda_pdf`
-      migrate under their own `category`, or stay legacy forever. Pick
-      deliberately rather than letting it drift.
+- [x] Decided 2026-07-27: `pv_system_drawing` and
+      `drawing_engineering_seda_pdf` migrate under their **own category**,
+      `category = 'drawing'`, with `doc_type` `pv_system` / `engineering_seda`.
+      Shipped — see "Drawings" below.
 - [ ] Admin OS team notified of the two corrections: `doc_type` is an open set of
       7 and growing, not a closed set of 2; and the row count in the handover
       message was stale.

@@ -60,14 +60,19 @@ function scanDirectory(dirPath: string, basePath: string = ''): string[] {
 async function fetchInvoicePhotos(sedaBubbleId: string): Promise<{
   roof: string[];
   site: string[];
+  pv: string[];
+  eng: string[];
   suppressed: Set<string>;
 }> {
   const result = await db.execute(sql`
     SELECT
       COALESCE(att.ee_roof, ARRAY[]::text[])                 AS ee_roof,
       COALESCE(att.ee_site, ARRAY[]::text[])                 AS ee_site,
+      COALESCE(drw.ee_pv,   ARRAY[]::text[])                 AS ee_pv,
+      COALESCE(drw.ee_eng,  ARRAY[]::text[])                 AS ee_eng,
       COALESCE(i.linked_roof_image, ARRAY[]::text[])         AS legacy_roof,
       COALESCE(i.site_assessment_image, ARRAY[]::text[])     AS legacy_site,
+      COALESCE(i.pv_system_drawing, ARRAY[]::text[])         AS legacy_pv,
       COALESCE(sup.urls, ARRAY[]::text[])                    AS suppressed
     FROM invoice i
     JOIN seda_registration sr
@@ -87,6 +92,19 @@ async function fetchInvoicePhotos(sedaBubbleId: string): Promise<{
         AND a2.purged_at  IS NULL
     ) att ON TRUE
     LEFT JOIN LATERAL (
+      SELECT
+        array_agg(a4.file_url ORDER BY a4.sort_order NULLS LAST, a4.id)
+          FILTER (WHERE a4.doc_type = 'pv_system') AS ee_pv,
+        array_agg(a4.file_url ORDER BY a4.sort_order NULLS LAST, a4.id)
+          FILTER (WHERE COALESCE(a4.doc_type, '') <> 'pv_system') AS ee_eng
+      FROM ee_attachment a4
+      WHERE a4.owner_type = 'invoice'
+        AND a4.owner_id   = i.bubble_id
+        AND a4.category   = 'drawing'
+        AND a4.deleted_at IS NULL
+        AND a4.purged_at  IS NULL
+    ) drw ON TRUE
+    LEFT JOIN LATERAL (
       SELECT array_agg(a3.file_url) AS urls
       FROM ee_attachment a3
       WHERE a3.owner_type = 'invoice'
@@ -100,19 +118,23 @@ async function fetchInvoicePhotos(sedaBubbleId: string): Promise<{
 
   const roof: string[] = [];
   const site: string[] = [];
+  const pv: string[] = [];
+  const eng: string[] = [];
   const suppressed = new Set<string>();
 
   for (const row of result.rows as any[]) {
     roof.push(...toUrlArray(row.ee_roof), ...toUrlArray(row.legacy_roof));
     site.push(...toUrlArray(row.ee_site), ...toUrlArray(row.legacy_site));
+    pv.push(...toUrlArray(row.ee_pv), ...toUrlArray(row.legacy_pv));
+    eng.push(...toUrlArray(row.ee_eng));
     for (const url of toUrlArray(row.suppressed)) suppressed.add(url);
   }
 
   // An invoice can exist in several versions; a URL that is live on any of them
   // is live, so only suppress URLs no version still holds.
-  for (const url of [...roof, ...site]) suppressed.delete(url);
+  for (const url of [...roof, ...site, ...pv, ...eng]) suppressed.delete(url);
 
-  return { roof, site, suppressed };
+  return { roof, site, pv, eng, suppressed };
 }
 
 function toUrlArray(value: unknown): string[] {
@@ -202,11 +224,18 @@ export async function GET(
 
     const seenUrls = new Set(files.map((f) => f.url));
     const usedNames = new Set(files.map((f) => f.newName));
-    const nextIndex = { RoofImage: 1, SiteImage: 1 };
+    const nextIndex = {
+      RoofImage: 1,
+      SiteImage: 1,
+      DrawingSystem: 1,
+      DrawingEngineeringSEDA: 1,
+    };
 
     for (const [urls, displayName] of [
       [invoicePhotos.roof, "RoofImage"],
       [invoicePhotos.site, "SiteImage"],
+      [invoicePhotos.pv, "DrawingSystem"],
+      [invoicePhotos.eng, "DrawingEngineeringSEDA"],
     ] as const) {
       for (const url of urls) {
         if (!url || invoicePhotos.suppressed.has(url) || seenUrls.has(url)) continue;
@@ -219,6 +248,8 @@ export async function GET(
           nextIndex[displayName]++;
           newName = generateFileName(customerName, displayName, nextIndex[displayName], url);
         }
+        // `RoofImage` etc. are the same display names extractAllFiles uses, so
+        // a drawing added here sorts alongside the SEDA-column ones in the ZIP.
         usedNames.add(newName);
         nextIndex[displayName]++;
         files.push({ url, newName });

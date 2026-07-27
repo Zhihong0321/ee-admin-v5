@@ -441,9 +441,6 @@ function InvoiceDetail({
                                     <div className="flex items-center justify-between mb-4">
                                         <p className="text-xs text-gray-400">
                                             {ATTACHMENT_META[key].label} — {urls.length} file{urls.length !== 1 ? "s" : ""}
-                                            {key === "eng" && !localInvoice.seda_bubble_id && (
-                                                <span className="ml-2 text-orange-500">(No SEDA linked — cannot upload engineering drawing)</span>
-                                            )}
                                         </p>
                                         <UploadButton invoice={localInvoice} type={key} onSuccess={refreshSingle} />
                                     </div>

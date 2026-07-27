@@ -14,31 +14,26 @@ export type UploadType = "roof" | "site" | "pv" | "eng";
 const STORAGE_ROOT = process.env.STORAGE_ROOT || "/storage";
 const FILE_BASE_URL = process.env.FILE_BASE_URL || "https://admin.atap.solar";
 
-/** Map upload type → which table/column to append the URL into */
-const TYPE_CONFIG: Record<
-    UploadType,
-    | { table: "invoice"; column: string }
-    | { table: "seda"; column: string }
-> = {
-    roof: { table: "invoice", column: "linked_roof_image" },
-    site: { table: "invoice", column: "site_assessment_image" },
-    pv: { table: "invoice", column: "pv_system_drawing" },
-    eng: { table: "seda", column: "drawing_engineering_seda_pdf" },
-};
-
 /**
- * Site photos live in ee_attachment now — one row per photo, not an array
- * element. Upload types listed here bypass TYPE_CONFIG entirely and insert a
- * row instead. pv/eng are absent on purpose: they have not been migrated and
- * still append to their legacy columns.
+ * Every upload type is one ee_attachment row now — no upload path appends to a
+ * legacy array any more.
+ *
+ * Drawings live under their own category rather than being folded into
+ * `site_assessment`: they are a different kind of artifact with a different
+ * audience, and the roof/site bucketing rule (roof allow-list, site catch-all)
+ * would otherwise swallow every drawing into the site bucket. Within a
+ * category the same rule applies — `pv_system` is the allow-list and anything
+ * else is the catch-all, so a new drawing doc_type surfaces instead of
+ * vanishing.
  */
-const ATTACHMENT_DOC_TYPE: Partial<Record<UploadType, string>> = {
-    roof: "roof_angle",
-    site: "site_other",
+const ATTACHMENT_TARGET: Record<UploadType, { category: string; docType: string }> = {
+    roof: { category: "site_assessment", docType: "roof_angle" },
+    site: { category: "site_assessment", docType: "site_other" },
+    pv: { category: "drawing", docType: "pv_system" },
+    eng: { category: "drawing", docType: "engineering_seda" },
 };
 
 const ATTACHMENT_MODULE = "invoice-office";
-const ATTACHMENT_CATEGORY = "site_assessment";
 
 /**
  * ee_attachment.uploaded_by holds a user bubble_id, but the JWT carries the
@@ -72,17 +67,18 @@ export async function uploadAttachment(
     formData: FormData,
     uploadType: UploadType,
     invoiceBubbleId: string,
-    sedaBubbleId: string | null
+    /**
+     * Unused: every attachment is owned by the invoice now, including
+     * engineering drawings, which used to hang off the SEDA registration. Kept
+     * so the client call sites do not all have to change at once.
+     */
+    _sedaBubbleId?: string | null
 ) {
     const file = formData.get("file") as File | null;
     if (!file) return { success: false, error: "No file provided" };
+    if (!invoiceBubbleId) return { success: false, error: "No invoice provided" };
 
-    const { table, column } = TYPE_CONFIG[uploadType];
-
-    // Validate seda bubble id required for eng uploads
-    if (table === "seda" && !sedaBubbleId) {
-        return { success: false, error: "No SEDA registration linked to this invoice" };
-    }
+    const { category, docType } = ATTACHMENT_TARGET[uploadType];
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const sanitized = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
@@ -99,24 +95,21 @@ export async function uploadAttachment(
         fs.writeFileSync(path.join(targetDir, sanitized), buffer);
         const fileUrl = `${FILE_BASE_URL}/api/files/${subfolder}/${sanitized}`;
 
-        const docType = ATTACHMENT_DOC_TYPE[uploadType];
+        // One ee_attachment row. sort_order continues the existing run for this
+        // invoice + doc_type, ignoring soft-deleted rows so a delete then
+        // re-upload does not leave a gap.
+        const [uploader, invoiceRow] = await Promise.all([
+            resolveUploader(),
+            db.query.invoices.findFirst({
+                where: eq(invoices.bubble_id, invoiceBubbleId),
+                columns: { linked_customer: true },
+            }),
+        ]);
 
-        if (docType) {
-            // Site photos: one ee_attachment row. sort_order continues the
-            // existing run for this invoice + doc_type, ignoring soft-deleted
-            // rows so a delete then re-upload does not leave a gap.
-            const [uploader, invoiceRow] = await Promise.all([
-                resolveUploader(),
-                db.query.invoices.findFirst({
-                    where: eq(invoices.bubble_id, invoiceBubbleId),
-                    columns: { linked_customer: true },
-                }),
-            ]);
+        const storageKey = `${subfolder}/${sanitized}`;
+        const checksum = crypto.createHash("sha256").update(buffer).digest("hex");
 
-            const storageKey = `${subfolder}/${sanitized}`;
-            const checksum = crypto.createHash("sha256").update(buffer).digest("hex");
-
-            await db.execute(sql`
+        await db.execute(sql`
         INSERT INTO ee_attachment (
           owner_type, owner_id, linked_customer, module, category, doc_type,
           sort_order, file_url, storage_subdir, storage_key,
@@ -124,7 +117,7 @@ export async function uploadAttachment(
           uploaded_by, uploaded_by_name, uploaded_by_role
         ) VALUES (
           'invoice', ${invoiceBubbleId}, ${invoiceRow?.linked_customer ?? null},
-          ${ATTACHMENT_MODULE}, ${ATTACHMENT_CATEGORY}, ${docType},
+          ${ATTACHMENT_MODULE}, ${category}, ${docType},
           (
             SELECT COALESCE(MAX(sort_order) + 1, 0)
             FROM ee_attachment
@@ -138,25 +131,6 @@ export async function uploadAttachment(
           ${uploader.bubbleId}, ${uploader.name}, ${uploader.role}
         )
       `);
-        } else if (table === "invoice") {
-            await db.execute(sql`
-        UPDATE invoice
-        SET ${sql.raw(`"${column}"`)} = array_append(
-          COALESCE(${sql.raw(`"${column}"`)}, '{}'),
-          ${fileUrl}
-        )
-        WHERE bubble_id = ${invoiceBubbleId}
-      `);
-        } else {
-            await db.execute(sql`
-        UPDATE seda_registration
-        SET ${sql.raw(`"${column}"`)} = array_append(
-          COALESCE(${sql.raw(`"${column}"`)}, '{}'),
-          ${fileUrl}
-        )
-        WHERE bubble_id = ${sedaBubbleId}
-      `);
-        }
 
         // Log to invoice_audit_log
         try {

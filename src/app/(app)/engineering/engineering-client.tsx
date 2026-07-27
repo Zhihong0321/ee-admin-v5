@@ -37,11 +37,13 @@ interface EngineeringInvoice {
   seda_drawing_pdf_system: string[] | null;
   seda_drawing_engineering_seda_pdf: string[] | null;
   /**
-   * Roof photos already unioned across ee_attachment, the legacy invoice array
-   * and the SEDA array, with soft-deleted photos subtracted. Render this — the
+   * Already unioned server-side across ee_attachment, the legacy invoice arrays
+   * and the SEDA arrays, with soft-deleted files subtracted. Render these — the
    * raw columns above are only part of the picture now.
    */
   roof_images: string[];
+  pv_drawings: string[];
+  eng_drawings: string[];
   systemDrawingCount: number;
   engineeringDrawingCount: number;
   roofImageCount: number;
@@ -143,12 +145,11 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
   };
 
   /**
-   * Roof photos are owned by the invoice in ee_attachment; drawings still hang
-   * off the SEDA registration. So the two paths need different ids, and a roof
-   * photo can be managed on an invoice that has no SEDA registration at all.
+   * Photos and drawings alike are owned by the invoice in ee_attachment now, so
+   * a file can be managed on an invoice that has no SEDA registration at all.
    */
-  const canManage = (type: "system" | "engineering" | "roof") =>
-    type === "roof" ? !!selectedInvoice?.bubble_id : !!selectedInvoice?.seda_bubble_id;
+  const canManage = (_type: "system" | "engineering" | "roof") =>
+    !!selectedInvoice?.bubble_id;
 
   const handleDelete = async (url: string, type: "system" | "engineering" | "roof") => {
     if (!selectedInvoice || !canManage(type) || !confirm("Delete this file?")) return;
@@ -167,11 +168,11 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
           if (selectedInvoice) {
             const updated = { ...selectedInvoice };
             if (type === "system") {
-              updated.seda_drawing_pdf_system = updated.seda_drawing_pdf_system?.filter(u => u !== url) || null;
-              updated.systemDrawingCount--;
+              updated.pv_drawings = updated.pv_drawings.filter(u => u !== url);
+              updated.systemDrawingCount = updated.pv_drawings.length;
             } else if (type === "engineering") {
-              updated.seda_drawing_engineering_seda_pdf = updated.seda_drawing_engineering_seda_pdf?.filter(u => u !== url) || null;
-              updated.engineeringDrawingCount--;
+              updated.eng_drawings = updated.eng_drawings.filter(u => u !== url);
+              updated.engineeringDrawingCount = updated.eng_drawings.length;
             } else {
               updated.roof_images = updated.roof_images.filter(u => u !== url);
               updated.roofImageCount = updated.roof_images.length;
@@ -209,11 +210,11 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
           if (selectedInvoice) {
             const updated = { ...selectedInvoice };
             if (type === "system") {
-              updated.seda_drawing_pdf_system = [...(updated.seda_drawing_pdf_system || []), result.url!];
-              updated.systemDrawingCount++;
+              updated.pv_drawings = [...updated.pv_drawings, result.url!];
+              updated.systemDrawingCount = updated.pv_drawings.length;
             } else if (type === "engineering") {
-              updated.seda_drawing_engineering_seda_pdf = [...(updated.seda_drawing_engineering_seda_pdf || []), result.url!];
-              updated.engineeringDrawingCount++;
+              updated.eng_drawings = [...updated.eng_drawings, result.url!];
+              updated.engineeringDrawingCount = updated.eng_drawings.length;
             } else {
               updated.roof_images = [...updated.roof_images, result.url!];
               updated.roofImageCount = updated.roof_images.length;
@@ -427,42 +428,21 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                     />
                   </label>
                 </div>
-                <div className="space-y-4">
-                  {selectedInvoice.invoice_pv_system_drawing && selectedInvoice.invoice_pv_system_drawing.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-semibold text-secondary-700">Invoice Office uploads</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {selectedInvoice.invoice_pv_system_drawing.map((url, i) => (
-                          <FileItem
-                            key={`invoice-system-${i}`}
-                            url={url}
-                            label={`Invoice Office System ${i + 1}`}
-                            sourceLabel="Read only"
-                          />
-                        ))}
-                      </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {selectedInvoice.pv_drawings.map((url, i) => (
+                    <FileItem
+                      key={url}
+                      url={url}
+                      label={`System Drawing ${i + 1}`}
+                      onDelete={() => handleDelete(url, "system")}
+                      deleting={deletingFile === url}
+                    />
+                  ))}
+                  {selectedInvoice.pv_drawings.length === 0 && (
+                    <div className="col-span-2 py-4 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
+                      No system drawings uploaded yet.
                     </div>
                   )}
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold text-secondary-700">Admin / SEDA uploads</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {selectedInvoice.seda_drawing_pdf_system?.map((url, i) => (
-                        <FileItem
-                          key={i}
-                          url={url}
-                          label={`System Drawing ${i + 1}`}
-                          sourceLabel="Admin / SEDA"
-                          onDelete={() => handleDelete(url, "system")}
-                          deleting={deletingFile === url}
-                        />
-                      ))}
-                      {(!selectedInvoice.seda_drawing_pdf_system || selectedInvoice.seda_drawing_pdf_system.length === 0) && (
-                        <div className="col-span-2 py-4 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
-                          No admin system drawings uploaded yet.
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
               </section>
 
@@ -538,17 +518,16 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                   </label>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {selectedInvoice.seda_drawing_engineering_seda_pdf?.map((url, i) => (
+                  {selectedInvoice.eng_drawings.map((url, i) => (
                     <FileItem
-                      key={i}
+                      key={url}
                       url={url}
                       label={`Engineering Drawing ${i + 1}`}
-                      sourceLabel="Admin / SEDA"
                       onDelete={() => handleDelete(url, "engineering")}
                       deleting={deletingFile === url}
                     />
                   ))}
-                  {(!selectedInvoice.seda_drawing_engineering_seda_pdf || selectedInvoice.seda_drawing_engineering_seda_pdf.length === 0) && (
+                  {selectedInvoice.eng_drawings.length === 0 && (
                     <div className="col-span-2 py-4 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
                       No engineering drawings uploaded yet.
                     </div>

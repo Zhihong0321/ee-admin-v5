@@ -84,6 +84,8 @@ export async function GET(request: Request) {
         -- ee_attachment has soft-deleted or purged, which we subtract below.
         att.ee_roof,
         att.ee_site,
+        drw.ee_pv,
+        drw.ee_eng,
         sup.suppressed_urls,
         COALESCE(sr.installation_address, c.address) AS installation_address,
         sr.seda_status,
@@ -119,6 +121,22 @@ export async function GET(request: Request) {
           AND a2.deleted_at IS NULL
           AND a2.purged_at  IS NULL
       ) att ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT
+          -- Same rule one category over: pv is the allow-list, engineering is
+          -- the catch-all, so a drawing doc_type nobody has seen yet lands
+          -- somewhere visible instead of falling through both filters.
+          array_agg(a4.file_url ORDER BY a4.sort_order NULLS LAST, a4.id)
+            FILTER (WHERE a4.doc_type = 'pv_system') AS ee_pv,
+          array_agg(a4.file_url ORDER BY a4.sort_order NULLS LAST, a4.id)
+            FILTER (WHERE COALESCE(a4.doc_type, '') <> 'pv_system') AS ee_eng
+        FROM ee_attachment a4
+        WHERE a4.owner_type = 'invoice'
+          AND a4.owner_id   = inv.bubble_id
+          AND a4.category   = 'drawing'
+          AND a4.deleted_at IS NULL
+          AND a4.purged_at  IS NULL
+      ) drw ON TRUE
       LEFT JOIN LATERAL (
         SELECT array_agg(a3.file_url) AS suppressed_urls
         FROM ee_attachment a3
@@ -157,12 +175,18 @@ export async function GET(request: Request) {
         safeArray(row.site_assessment_image),
         safeArray(row.seda_site_images)
       ));
-      // Not migrated to ee_attachment — still legacy arrays only.
-      const pvDrawing = mergeUnique(
+      // Drawings moved to ee_attachment under category 'drawing'. Same union
+      // as the photos above: new rows first, then the legacy columns the
+      // Bubble sync still writes, minus anything soft-deleted.
+      const pvDrawing = dropSuppressed(mergeUnique(
+        safeArray(row.ee_pv),
         safeArray(row.pv_system_drawing),
         safeArray(row.seda_pv_drawing)
-      );
-      const engDrawing = safeArray(row.seda_eng_drawing);
+      ));
+      const engDrawing = dropSuppressed(mergeUnique(
+        safeArray(row.ee_eng),
+        safeArray(row.seda_eng_drawing)
+      ));
 
       return {
         id: row.id,
