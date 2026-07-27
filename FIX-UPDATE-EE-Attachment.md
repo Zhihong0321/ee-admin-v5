@@ -464,10 +464,15 @@ FROM live;
 
 ---
 
-## Reference figures
+## Snapshot — assume these are already wrong
 
-Snapshot taken 2026-07-27. The table is live and growing — re-measure before
-quoting any of these.
+Taken 2026-07-27. `ee_attachment` is written by a live system; the counts moved
+by 20 rows and gained 5 `doc_type` values inside a single working session.
+
+**These are tripwires, not facts. Do not quote them to anyone.** Re-run the
+queries above and use what you get. Their only purpose is drift detection: if you
+measure something wildly different from the row below, something changed that
+this document does not know about — investigate before proceeding.
 
 | metric | value |
 |---|---|
