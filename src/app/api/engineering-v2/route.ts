@@ -78,6 +78,13 @@ export async function GET(request: Request) {
         sr.site_images       AS seda_site_images,
         sr.drawing_pdf_system AS seda_pv_drawing,
         sr.drawing_engineering_seda_pdf AS seda_eng_drawing,
+
+        -- Site photos (roof + site assessment) now live in ee_attachment,
+        -- one row per photo. att.* is the live set; sup.* is everything
+        -- ee_attachment has soft-deleted or purged, which we subtract below.
+        att.ee_roof,
+        att.ee_site,
+        sup.suppressed_urls,
         COALESCE(sr.installation_address, c.address) AS installation_address,
         sr.seda_status,
 
@@ -94,6 +101,31 @@ export async function GET(request: Request) {
         ON inv.linked_customer = c.customer_id
       LEFT JOIN "user" a
         ON inv.linked_agent = a.bubble_id
+      LEFT JOIN LATERAL (
+        SELECT
+          -- Roof is an explicit allow-list; site is a deliberate catch-all.
+          -- The doc_type taxonomy grew from 2 to 7 on 2026-07-26 (house_front,
+          -- house_db, sunpath, inverter_location, roof_closeup) and will keep
+          -- growing, so anything unrecognised must surface under site rather
+          -- than fall through both filters and disappear.
+          array_agg(a2.file_url ORDER BY a2.sort_order NULLS LAST, a2.id)
+            FILTER (WHERE a2.doc_type IN ('roof_angle', 'roof_closeup')) AS ee_roof,
+          array_agg(a2.file_url ORDER BY a2.sort_order NULLS LAST, a2.id)
+            FILTER (WHERE COALESCE(a2.doc_type, '') NOT IN ('roof_angle', 'roof_closeup')) AS ee_site
+        FROM ee_attachment a2
+        WHERE a2.owner_type = 'invoice'
+          AND a2.owner_id   = inv.bubble_id
+          AND a2.category   = 'site_assessment'
+          AND a2.deleted_at IS NULL
+          AND a2.purged_at  IS NULL
+      ) att ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT array_agg(a3.file_url) AS suppressed_urls
+        FROM ee_attachment a3
+        WHERE a3.owner_type = 'invoice'
+          AND a3.owner_id   = inv.bubble_id
+          AND (a3.deleted_at IS NOT NULL OR a3.purged_at IS NOT NULL)
+      ) sup ON TRUE
       WHERE inv.is_latest = true
         AND COALESCE(inv.is_deleted, false) = false
         AND inv.status != 'deleted'
@@ -104,14 +136,28 @@ export async function GET(request: Request) {
     `);
 
     const rows = (result.rows as any[]).map((row) => {
-      const roofImages = mergeUnique(
+      // ee_attachment is the source of truth for site photos. The legacy
+      // arrays still hold everything uploaded before the cutover and are still
+      // written by the Bubble sync, and seda_registration.roof_images holds
+      // photos that were never backfilled. So union all three (ee_attachment
+      // first, so its sort_order wins) and then drop anything ee_attachment has
+      // marked deleted or purged — without that subtraction a deleted photo
+      // would come straight back via the arrays.
+      const suppressed = new Set(safeArray(row.suppressed_urls));
+      const dropSuppressed = (urls: string[]) =>
+        urls.filter((url) => !suppressed.has(url));
+
+      const roofImages = dropSuppressed(mergeUnique(
+        safeArray(row.ee_roof),
         safeArray(row.linked_roof_image),
         safeArray(row.seda_roof_images)
-      );
-      const siteAssessment = mergeUnique(
+      ));
+      const siteAssessment = dropSuppressed(mergeUnique(
+        safeArray(row.ee_site),
         safeArray(row.site_assessment_image),
         safeArray(row.seda_site_images)
-      );
+      ));
+      // Not migrated to ee_attachment — still legacy arrays only.
       const pvDrawing = mergeUnique(
         safeArray(row.pv_system_drawing),
         safeArray(row.seda_pv_drawing)

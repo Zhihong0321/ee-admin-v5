@@ -1,10 +1,11 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invoices, invoice_audit_log } from "@/db/schema";
+import { invoices, invoice_audit_log, users } from "@/db/schema";
 import { sql, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getUser } from "@/lib/auth";
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 
@@ -24,6 +25,48 @@ const TYPE_CONFIG: Record<
     pv: { table: "invoice", column: "pv_system_drawing" },
     eng: { table: "seda", column: "drawing_engineering_seda_pdf" },
 };
+
+/**
+ * Site photos live in ee_attachment now — one row per photo, not an array
+ * element. Upload types listed here bypass TYPE_CONFIG entirely and insert a
+ * row instead. pv/eng are absent on purpose: they have not been migrated and
+ * still append to their legacy columns.
+ */
+const ATTACHMENT_DOC_TYPE: Partial<Record<UploadType, string>> = {
+    roof: "roof_angle",
+    site: "site_other",
+};
+
+const ATTACHMENT_MODULE = "invoice-office";
+const ATTACHMENT_CATEGORY = "site_assessment";
+
+/**
+ * ee_attachment.uploaded_by holds a user bubble_id, but the JWT carries the
+ * integer users.id. Resolve across rather than writing the raw JWT value —
+ * they are different keyspaces and mixing them misattributes the upload.
+ */
+async function resolveUploader() {
+    try {
+        const user = await getUser();
+        if (!user) return { bubbleId: null, name: null, role: null };
+
+        let bubbleId: string | null = null;
+        let name = user.name?.trim() || null;
+
+        if (user.userId && user.userId !== "system") {
+            const dbUser = await db.query.users.findFirst({
+                where: eq(users.id, parseInt(user.userId, 10)),
+                columns: { bubble_id: true, name: true },
+            });
+            bubbleId = dbUser?.bubble_id ?? null;
+            if (!name) name = dbUser?.name ?? null;
+        }
+
+        return { bubbleId, name, role: user.role || null };
+    } catch (_) {
+        return { bubbleId: null, name: null, role: null };
+    }
+}
 
 export async function uploadAttachment(
     formData: FormData,
@@ -56,8 +99,46 @@ export async function uploadAttachment(
         fs.writeFileSync(path.join(targetDir, sanitized), buffer);
         const fileUrl = `${FILE_BASE_URL}/api/files/${subfolder}/${sanitized}`;
 
-        // Append URL to the correct array column
-        if (table === "invoice") {
+        const docType = ATTACHMENT_DOC_TYPE[uploadType];
+
+        if (docType) {
+            // Site photos: one ee_attachment row. sort_order continues the
+            // existing run for this invoice + doc_type, ignoring soft-deleted
+            // rows so a delete then re-upload does not leave a gap.
+            const [uploader, invoiceRow] = await Promise.all([
+                resolveUploader(),
+                db.query.invoices.findFirst({
+                    where: eq(invoices.bubble_id, invoiceBubbleId),
+                    columns: { linked_customer: true },
+                }),
+            ]);
+
+            const storageKey = `${subfolder}/${sanitized}`;
+            const checksum = crypto.createHash("sha256").update(buffer).digest("hex");
+
+            await db.execute(sql`
+        INSERT INTO ee_attachment (
+          owner_type, owner_id, linked_customer, module, category, doc_type,
+          sort_order, file_url, storage_subdir, storage_key,
+          original_filename, mime_type, size_bytes, checksum_sha256,
+          uploaded_by, uploaded_by_name, uploaded_by_role
+        ) VALUES (
+          'invoice', ${invoiceBubbleId}, ${invoiceRow?.linked_customer ?? null},
+          ${ATTACHMENT_MODULE}, ${ATTACHMENT_CATEGORY}, ${docType},
+          (
+            SELECT COALESCE(MAX(sort_order) + 1, 0)
+            FROM ee_attachment
+            WHERE owner_type = 'invoice'
+              AND owner_id   = ${invoiceBubbleId}
+              AND doc_type   = ${docType}
+              AND deleted_at IS NULL
+          ),
+          ${fileUrl}, ${subfolder}, ${storageKey},
+          ${file.name}, ${file.type || null}, ${buffer.length}, ${checksum},
+          ${uploader.bubbleId}, ${uploader.name}, ${uploader.role}
+        )
+      `);
+        } else if (table === "invoice") {
             await db.execute(sql`
         UPDATE invoice
         SET ${sql.raw(`"${column}"`)} = array_append(
