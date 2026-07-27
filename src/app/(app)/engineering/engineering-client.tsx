@@ -36,6 +36,12 @@ interface EngineeringInvoice {
   seda_roof_images: string[] | null;
   seda_drawing_pdf_system: string[] | null;
   seda_drawing_engineering_seda_pdf: string[] | null;
+  /**
+   * Roof photos already unioned across ee_attachment, the legacy invoice array
+   * and the SEDA array, with soft-deleted photos subtracted. Render this — the
+   * raw columns above are only part of the picture now.
+   */
+  roof_images: string[];
   systemDrawingCount: number;
   engineeringDrawingCount: number;
   roofImageCount: number;
@@ -136,12 +142,25 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
     window.open(`https://calculator.atap.solar/view/${invoice.share_token}`, '_blank');
   };
 
+  /**
+   * Roof photos are owned by the invoice in ee_attachment; drawings still hang
+   * off the SEDA registration. So the two paths need different ids, and a roof
+   * photo can be managed on an invoice that has no SEDA registration at all.
+   */
+  const canManage = (type: "system" | "engineering" | "roof") =>
+    type === "roof" ? !!selectedInvoice?.bubble_id : !!selectedInvoice?.seda_bubble_id;
+
   const handleDelete = async (url: string, type: "system" | "engineering" | "roof") => {
-    if (!selectedInvoice?.seda_bubble_id || !confirm("Delete this file?")) return;
+    if (!selectedInvoice || !canManage(type) || !confirm("Delete this file?")) return;
 
     setDeletingFile(url);
     try {
-      const result = await deleteEngineeringFile(selectedInvoice.seda_bubble_id, url, type);
+      const result = await deleteEngineeringFile(
+        selectedInvoice.seda_bubble_id,
+        url,
+        type,
+        selectedInvoice.bubble_id
+      );
       if (result.success) {
         startTransition(() => {
           router.refresh();
@@ -154,8 +173,8 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
               updated.seda_drawing_engineering_seda_pdf = updated.seda_drawing_engineering_seda_pdf?.filter(u => u !== url) || null;
               updated.engineeringDrawingCount--;
             } else {
-              updated.seda_roof_images = updated.seda_roof_images?.filter(u => u !== url) || null;
-              updated.roofImageCount--;
+              updated.roof_images = updated.roof_images.filter(u => u !== url);
+              updated.roofImageCount = updated.roof_images.length;
             }
             setSelectedInvoice(updated);
           }
@@ -169,14 +188,19 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
       setDeletingFile(null);
     }
   };  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "system" | "engineering" | "roof") => {
-    if (!selectedInvoice?.seda_bubble_id || !e.target.files?.[0]) return;
+    if (!selectedInvoice || !canManage(type) || !e.target.files?.[0]) return;
 
     setUploadingType(type);
     const formData = new FormData();
     formData.append("file", e.target.files[0]);
 
     try {
-      const result = await uploadEngineeringFile(selectedInvoice.seda_bubble_id, formData, type);
+      const result = await uploadEngineeringFile(
+        selectedInvoice.seda_bubble_id,
+        formData,
+        type,
+        selectedInvoice.bubble_id
+      );
       if (result.success) {
         // Refresh the page data
         startTransition(() => {
@@ -191,8 +215,8 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
               updated.seda_drawing_engineering_seda_pdf = [...(updated.seda_drawing_engineering_seda_pdf || []), result.url!];
               updated.engineeringDrawingCount++;
             } else {
-              updated.seda_roof_images = [...(updated.seda_roof_images || []), result.url!];
-              updated.roofImageCount++;
+              updated.roof_images = [...updated.roof_images, result.url!];
+              updated.roofImageCount = updated.roof_images.length;
             }
             setSelectedInvoice(updated);
           }
@@ -461,57 +485,36 @@ export default function EngineeringClient({ initialInvoices, initialSearch }: Pr
                     />
                   </label>
                 </div>
-                <div className="space-y-4">
-                  {selectedInvoice.invoice_linked_roof_image && selectedInvoice.invoice_linked_roof_image.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-semibold text-secondary-700">Invoice Office uploads</p>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {selectedInvoice.invoice_linked_roof_image.map((url, i) => (
-                          <div
-                            key={`invoice-roof-${i}`}
-                            className="group relative aspect-square rounded-xl overflow-hidden bg-secondary-100 border border-secondary-200"
-                          >
-                            <img src={url} alt={`Invoice Office Roof ${i + 1}`} className="w-full h-full object-cover" />
-                            <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary-700">
-                              Read only
-                            </div>
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                              <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 bg-white rounded-full text-secondary-900 hover:bg-secondary-100">
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
-                            </div>
-                          </div>
-                        ))}
+                {/*
+                  One grid: roof photos are unioned server-side across
+                  ee_attachment, the legacy invoice array and the SEDA array,
+                  with soft-deleted ones already subtracted. The old
+                  "Invoice Office" / "Admin / SEDA" split described where a URL
+                  was stored, which no longer distinguishes anything.
+                */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {selectedInvoice.roof_images.map((url, i) => (
+                    <div key={url} className="group relative aspect-square rounded-xl overflow-hidden bg-secondary-100 border border-secondary-200">
+                      <img src={url} alt={`Roof Image ${i + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 bg-white rounded-full text-secondary-900 hover:bg-secondary-100">
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                        <button
+                          onClick={() => handleDelete(url, "roof")}
+                          disabled={deletingFile === url}
+                          className="p-2 bg-white rounded-full text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {deletingFile === url ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        </button>
                       </div>
                     </div>
-                  )}
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold text-secondary-700">Admin / SEDA uploads</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {selectedInvoice.seda_roof_images?.map((url, i) => (
-                        <div key={i} className="group relative aspect-square rounded-xl overflow-hidden bg-secondary-100 border border-secondary-200">
-                          <img src={url} alt={`Roof Image ${i + 1}`} className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 bg-white rounded-full text-secondary-900 hover:bg-secondary-100">
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                            <button
-                              onClick={() => handleDelete(url, "roof")}
-                              disabled={deletingFile === url}
-                              className="p-2 bg-white rounded-full text-red-600 hover:bg-red-50 disabled:opacity-50"
-                            >
-                              {deletingFile === url ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      {(!selectedInvoice.seda_roof_images || selectedInvoice.seda_roof_images.length === 0) && (
-                        <div className="col-span-4 py-8 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
-                          No admin roof images uploaded yet.
-                        </div>
-                      )}
+                  ))}
+                  {selectedInvoice.roof_images.length === 0 && (
+                    <div className="col-span-4 py-8 text-center border-2 border-dashed border-secondary-200 rounded-xl text-secondary-400">
+                      No roof images uploaded yet.
                     </div>
-                  </div>
+                  )}
                 </div>
               </section>
 

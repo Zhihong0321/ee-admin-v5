@@ -5,28 +5,34 @@ import { invoices, sedaRegistration, customers, users, invoice_audit_log } from 
 import { eq, sql, and, desc, or, ilike, inArray } from "drizzle-orm";
 import { getUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { pipeline } from "stream/promises";
 import { Readable } from "stream";
 
 /**
- * Resolve invoice from seda bubble_id and write a drawing event to invoice_audit_log.
+ * Resolve invoice from an invoice or seda bubble_id and write a drawing event
+ * to invoice_audit_log.
  */
 async function logDrawingAudit({
   sedaBubbleId,
+  invoiceBubbleId,
   actionType,
   fileType,
   fileUrl,
 }: {
-  sedaBubbleId: string;
+  sedaBubbleId?: string | null;
+  invoiceBubbleId?: string | null;
   actionType: 'upload' | 'delete';
   fileType: string;
   fileUrl: string;
 }) {
   try {
     const invoice = await db.query.invoices.findFirst({
-      where: eq(invoices.linked_seda_registration, sedaBubbleId),
+      where: invoiceBubbleId
+        ? eq(invoices.bubble_id, invoiceBubbleId)
+        : eq(invoices.linked_seda_registration, sedaBubbleId!),
       columns: { id: true, bubble_id: true, invoice_number: true },
     });
     if (!invoice) return;
@@ -73,6 +79,91 @@ function mergeUniqueUrls(...groups: Array<string[] | null | undefined>): string[
   return [...seen];
 }
 
+const ATTACHMENT_MODULE = "invoice-office";
+const ATTACHMENT_CATEGORY = "site_assessment";
+const ROOF_DOC_TYPE = "roof_angle";
+
+/**
+ * Live roof photos for this invoice out of ee_attachment.
+ *
+ * Roof is an explicit allow-list; everything else is site assessment and is not
+ * shown on this screen. The doc_type taxonomy is open and grows without
+ * migration, so this list must never be inverted into "everything except site".
+ * Mirrors src/app/api/engineering-v2/route.ts.
+ */
+const eeRoofImagesSql = sql<string[] | null>`(
+  SELECT array_agg(a2.file_url ORDER BY a2.sort_order NULLS LAST, a2.id)
+    FILTER (WHERE a2.doc_type IN ('roof_angle', 'roof_closeup'))
+  FROM ee_attachment a2
+  WHERE a2.owner_type = 'invoice'
+    AND a2.owner_id   = ${invoices.bubble_id}
+    AND a2.category   = 'site_assessment'
+    AND a2.deleted_at IS NULL
+    AND a2.purged_at  IS NULL
+)`;
+
+/**
+ * Everything ee_attachment has soft-deleted or purged for this invoice. The
+ * legacy arrays are still written by the Bubble sync, so without subtracting
+ * this set a deleted photo comes straight back through them.
+ */
+const eeSuppressedUrlsSql = sql<string[] | null>`(
+  SELECT array_agg(a3.file_url)
+  FROM ee_attachment a3
+  WHERE a3.owner_type = 'invoice'
+    AND a3.owner_id   = ${invoices.bubble_id}
+    AND (a3.deleted_at IS NOT NULL OR a3.purged_at IS NOT NULL)
+)`;
+
+/**
+ * ee_attachment is the source of truth, but it is not complete: the legacy
+ * invoice array holds pre-cutover history and seda_registration.roof_images
+ * holds photos that were never backfilled. Union all three, then drop anything
+ * ee_attachment marked deleted or purged.
+ */
+function buildRoofImages(row: {
+  ee_roof_images: string[] | null;
+  invoice_linked_roof_image: string[] | null;
+  seda_roof_images: string[] | null;
+  suppressed_urls: string[] | null;
+}): string[] {
+  const suppressed = new Set(normalizeUrlArray(row.suppressed_urls));
+  return mergeUniqueUrls(
+    row.ee_roof_images,
+    row.invoice_linked_roof_image,
+    row.seda_roof_images
+  ).filter((url) => !suppressed.has(url));
+}
+
+/**
+ * ee_attachment.uploaded_by / deleted_by hold a user bubble_id, but the JWT
+ * carries the integer users.id. Resolve across rather than writing the raw JWT
+ * value — they are different keyspaces and mixing them attributes the row to a
+ * user that does not exist. Copied from engineering-v2/actions.ts.
+ */
+async function resolveActor() {
+  try {
+    const user = await getUser();
+    if (!user) return { bubbleId: null, name: null, role: null };
+
+    let bubbleId: string | null = null;
+    let name = user.name?.trim() || null;
+
+    if (user.userId && user.userId !== "system") {
+      const dbUser = await db.query.users.findFirst({
+        where: eq(users.id, parseInt(user.userId, 10)),
+        columns: { bubble_id: true, name: true },
+      });
+      bubbleId = dbUser?.bubble_id ?? null;
+      if (!name) name = dbUser?.name ?? null;
+    }
+
+    return { bubbleId, name, role: user.role || null };
+  } catch (_) {
+    return { bubbleId: null, name: null, role: null };
+  }
+}
+
 /**
  * Fetch invoices with engineering-related data
  */
@@ -113,6 +204,8 @@ export async function getEngineeringInvoices(search?: string) {
         seda_roof_images: sedaRegistration.roof_images,
         seda_drawing_pdf_system: sedaRegistration.drawing_pdf_system,
         seda_drawing_engineering_seda_pdf: sedaRegistration.drawing_engineering_seda_pdf,
+        ee_roof_images: eeRoofImagesSql,
+        suppressed_urls: eeSuppressedUrlsSql,
       })
       .from(invoices)
       .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
@@ -122,12 +215,16 @@ export async function getEngineeringInvoices(search?: string) {
       .orderBy(desc(invoices.created_at))
       .limit(200);
 
-    return results.map((row) => ({
-      ...row,
-      systemDrawingCount: mergeUniqueUrls(row.invoice_pv_system_drawing, row.seda_drawing_pdf_system).length,
-      engineeringDrawingCount: normalizeUrlArray(row.seda_drawing_engineering_seda_pdf).length,
-      roofImageCount: mergeUniqueUrls(row.invoice_linked_roof_image, row.seda_roof_images).length,
-    }));
+    return results.map((row) => {
+      const roofImages = buildRoofImages(row);
+      return {
+        ...row,
+        roof_images: roofImages,
+        systemDrawingCount: mergeUniqueUrls(row.invoice_pv_system_drawing, row.seda_drawing_pdf_system).length,
+        engineeringDrawingCount: normalizeUrlArray(row.seda_drawing_engineering_seda_pdf).length,
+        roofImageCount: roofImages.length,
+      };
+    });
   } catch (error) {
     console.error("Error fetching engineering invoices:", error);
     throw new Error("Failed to fetch engineering data");
@@ -192,6 +289,8 @@ export async function getInvoicesWithDrawingTags(search?: string) {
         seda_roof_images: sedaRegistration.roof_images,
         seda_drawing_pdf_system: sedaRegistration.drawing_pdf_system,
         seda_drawing_engineering_seda_pdf: sedaRegistration.drawing_engineering_seda_pdf,
+        ee_roof_images: eeRoofImagesSql,
+        suppressed_urls: eeSuppressedUrlsSql,
       })
       .from(invoices)
       .leftJoin(sedaRegistration, eq(invoices.linked_seda_registration, sedaRegistration.bubble_id))
@@ -201,12 +300,16 @@ export async function getInvoicesWithDrawingTags(search?: string) {
       .orderBy(desc(invoices.created_at))
       .limit(200);
 
-    return results.map((row) => ({
-      ...row,
-      systemDrawingCount: mergeUniqueUrls(row.invoice_pv_system_drawing, row.seda_drawing_pdf_system).length,
-      engineeringDrawingCount: normalizeUrlArray(row.seda_drawing_engineering_seda_pdf).length,
-      roofImageCount: mergeUniqueUrls(row.invoice_linked_roof_image, row.seda_roof_images).length,
-    }));
+    return results.map((row) => {
+      const roofImages = buildRoofImages(row);
+      return {
+        ...row,
+        roof_images: roofImages,
+        systemDrawingCount: mergeUniqueUrls(row.invoice_pv_system_drawing, row.seda_drawing_pdf_system).length,
+        engineeringDrawingCount: normalizeUrlArray(row.seda_drawing_engineering_seda_pdf).length,
+        roofImageCount: roofImages.length,
+      };
+    });
   } catch (error) {
     console.error("Error fetching invoices with drawing tags:", error);
     return [];
@@ -217,12 +320,23 @@ export async function getInvoicesWithDrawingTags(search?: string) {
  * Upload a file for engineering/drawing purposes
  */
 export async function uploadEngineeringFile(
-  sedaBubbleId: string,
+  sedaBubbleId: string | null,
   formData: FormData,
-  fileType: "system" | "engineering" | "roof"
+  fileType: "system" | "engineering" | "roof",
+  invoiceBubbleId?: string | null
 ) {
   const file = formData.get("file") as File;
   if (!file) throw new Error("No file uploaded");
+
+  // Roof photos are owned by the invoice in ee_attachment, not by the SEDA
+  // registration — an invoice created in the new system has no SEDA at all.
+  if (fileType === "roof") {
+    if (!invoiceBubbleId) {
+      return { success: false, error: "No invoice linked to this row" };
+    }
+  } else if (!sedaBubbleId) {
+    return { success: false, error: "No SEDA registration linked to this invoice" };
+  }
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const filename = file.name;
@@ -245,35 +359,65 @@ export async function uploadEngineeringFile(
     // Generate URL
     const fileUrl = `${FILE_BASE_URL}/api/files/${subfolder}/${sanitizedFilename}`;
 
-    // Update database
-    const seda = await db.query.sedaRegistration.findFirst({
-      where: eq(sedaRegistration.bubble_id, sedaBubbleId),
-    });
+    if (fileType === "roof") {
+      // One ee_attachment row per photo. sort_order continues the existing run
+      // for this invoice + doc_type, ignoring soft-deleted rows so a delete
+      // then re-upload does not leave a gap.
+      const [actor, invoiceRow] = await Promise.all([
+        resolveActor(),
+        db.query.invoices.findFirst({
+          where: eq(invoices.bubble_id, invoiceBubbleId!),
+          columns: { linked_customer: true },
+        }),
+      ]);
 
-    if (!seda) throw new Error("SEDA registration not found");
+      const storageKey = `${subfolder}/${sanitizedFilename}`;
+      const checksum = crypto.createHash("sha256").update(buffer).digest("hex");
 
-    let fieldName: keyof typeof sedaRegistration;
-    let currentArray: string[] = [];
+      await db.execute(sql`
+        INSERT INTO ee_attachment (
+          owner_type, owner_id, linked_customer, module, category, doc_type,
+          sort_order, file_url, storage_subdir, storage_key,
+          original_filename, mime_type, size_bytes, checksum_sha256,
+          uploaded_by, uploaded_by_name, uploaded_by_role
+        ) VALUES (
+          'invoice', ${invoiceBubbleId}, ${invoiceRow?.linked_customer ?? null},
+          ${ATTACHMENT_MODULE}, ${ATTACHMENT_CATEGORY}, ${ROOF_DOC_TYPE},
+          (
+            SELECT COALESCE(MAX(sort_order) + 1, 0)
+            FROM ee_attachment
+            WHERE owner_type = 'invoice'
+              AND owner_id   = ${invoiceBubbleId}
+              AND doc_type   = ${ROOF_DOC_TYPE}
+              AND deleted_at IS NULL
+          ),
+          ${fileUrl}, ${subfolder}, ${storageKey},
+          ${file.name}, ${file.type || null}, ${buffer.length}, ${checksum},
+          ${actor.bubbleId}, ${actor.name}, ${actor.role}
+        )
+      `);
 
-    if (fileType === "system") {
-      fieldName = "drawing_pdf_system";
-      currentArray = seda.drawing_pdf_system || [];
-    } else if (fileType === "engineering") {
-      fieldName = "drawing_engineering_seda_pdf";
-      currentArray = seda.drawing_engineering_seda_pdf || [];
+      await logDrawingAudit({ invoiceBubbleId, actionType: 'upload', fileType, fileUrl });
     } else {
-      fieldName = "roof_images";
-      currentArray = seda.roof_images || [];
+      // Drawings are not migrated — still legacy SEDA array columns.
+      const seda = await db.query.sedaRegistration.findFirst({
+        where: eq(sedaRegistration.bubble_id, sedaBubbleId!),
+      });
+
+      if (!seda) throw new Error("SEDA registration not found");
+
+      const fieldName: keyof typeof sedaRegistration =
+        fileType === "system" ? "drawing_pdf_system" : "drawing_engineering_seda_pdf";
+      const currentArray: string[] =
+        (fileType === "system" ? seda.drawing_pdf_system : seda.drawing_engineering_seda_pdf) || [];
+
+      await db
+        .update(sedaRegistration)
+        .set({ [fieldName]: [...currentArray, fileUrl] })
+        .where(eq(sedaRegistration.bubble_id, sedaBubbleId!));
+
+      await logDrawingAudit({ sedaBubbleId, actionType: 'upload', fileType, fileUrl });
     }
-
-    const updatedArray = [...currentArray, fileUrl];
-
-    await db
-      .update(sedaRegistration)
-      .set({ [fieldName]: updatedArray })
-      .where(eq(sedaRegistration.bubble_id, sedaBubbleId));
-
-    await logDrawingAudit({ sedaBubbleId, actionType: 'upload', fileType, fileUrl });
 
     revalidatePath("/engineering");
     return { success: true, url: fileUrl };
@@ -287,39 +431,85 @@ export async function uploadEngineeringFile(
  * Delete a file from engineering/drawing records
  */
 export async function deleteEngineeringFile(
-  sedaBubbleId: string,
+  sedaBubbleId: string | null,
   fileUrl: string,
-  fileType: "system" | "engineering" | "roof"
+  fileType: "system" | "engineering" | "roof",
+  invoiceBubbleId?: string | null
 ) {
   try {
-    const seda = await db.query.sedaRegistration.findFirst({
-      where: eq(sedaRegistration.bubble_id, sedaBubbleId),
-    });
+    if (fileType === "roof") {
+      if (!invoiceBubbleId) {
+        return { success: false, error: "No invoice linked to this row" };
+      }
 
-    if (!seda) throw new Error("SEDA registration not found");
+      const actor = await resolveActor();
 
-    let fieldName: keyof typeof sedaRegistration;
-    let currentArray: string[] = [];
+      // Deletes are soft: the row stays and gets deleted_at, which every read
+      // subtracts. Never edit the legacy arrays here — the Bubble sync rewrites
+      // them, so an array edit is undone on the next sync while the tombstone
+      // survives.
+      const softDeleted = await db.execute(sql`
+        UPDATE ee_attachment
+        SET deleted_at      = now(),
+            deleted_by      = ${actor.bubbleId},
+            deleted_by_name = ${actor.name},
+            updated_at      = now()
+        WHERE owner_type = 'invoice'
+          AND owner_id   = ${invoiceBubbleId}
+          AND file_url   = ${fileUrl}
+          AND deleted_at IS NULL
+          AND purged_at  IS NULL
+        RETURNING id
+      `);
 
-    if (fileType === "system") {
-      fieldName = "drawing_pdf_system";
-      currentArray = seda.drawing_pdf_system || [];
-    } else if (fileType === "engineering") {
-      fieldName = "drawing_engineering_seda_pdf";
-      currentArray = seda.drawing_engineering_seda_pdf || [];
+      if ((softDeleted.rows?.length ?? 0) === 0) {
+        // The photo only exists in a legacy array (pre-cutover history, or one
+        // of the SEDA photos never backfilled) so there is no row to mark.
+        // Insert a tombstone instead — a row that exists only to be subtracted
+        // by the suppression filter in every read.
+        const invoiceRow = await db.query.invoices.findFirst({
+          where: eq(invoices.bubble_id, invoiceBubbleId),
+          columns: { linked_customer: true },
+        });
+
+        await db.execute(sql`
+          INSERT INTO ee_attachment (
+            owner_type, owner_id, linked_customer, module, category, doc_type,
+            file_url, deleted_at, deleted_by, deleted_by_name, metadata_json
+          ) VALUES (
+            'invoice', ${invoiceBubbleId}, ${invoiceRow?.linked_customer ?? null},
+            ${ATTACHMENT_MODULE}, ${ATTACHMENT_CATEGORY}, ${ROOF_DOC_TYPE},
+            ${fileUrl}, now(), ${actor.bubbleId}, ${actor.name},
+            ${JSON.stringify({ tombstone_for: 'legacy_array', deleted_from: 'engineering-v1' })}::jsonb
+          )
+        `);
+      }
+
+      await logDrawingAudit({ invoiceBubbleId, actionType: 'delete', fileType, fileUrl });
     } else {
-      fieldName = "roof_images";
-      currentArray = seda.roof_images || [];
+      // Drawings are not migrated — still legacy SEDA array columns.
+      if (!sedaBubbleId) {
+        return { success: false, error: "No SEDA registration linked to this invoice" };
+      }
+
+      const seda = await db.query.sedaRegistration.findFirst({
+        where: eq(sedaRegistration.bubble_id, sedaBubbleId),
+      });
+
+      if (!seda) throw new Error("SEDA registration not found");
+
+      const fieldName: keyof typeof sedaRegistration =
+        fileType === "system" ? "drawing_pdf_system" : "drawing_engineering_seda_pdf";
+      const currentArray: string[] =
+        (fileType === "system" ? seda.drawing_pdf_system : seda.drawing_engineering_seda_pdf) || [];
+
+      await db
+        .update(sedaRegistration)
+        .set({ [fieldName]: currentArray.filter((url) => url !== fileUrl) })
+        .where(eq(sedaRegistration.bubble_id, sedaBubbleId));
+
+      await logDrawingAudit({ sedaBubbleId, actionType: 'delete', fileType, fileUrl });
     }
-
-    const updatedArray = currentArray.filter((url) => url !== fileUrl);
-
-    await db
-      .update(sedaRegistration)
-      .set({ [fieldName]: updatedArray })
-      .where(eq(sedaRegistration.bubble_id, sedaBubbleId));
-
-    await logDrawingAudit({ sedaBubbleId, actionType: 'delete', fileType, fileUrl });
 
     revalidatePath("/engineering");
     return { success: true };

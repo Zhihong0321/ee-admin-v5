@@ -28,7 +28,8 @@ If you are picking this up cold, in this order:
 
 **State as of 2026-07-27:** engineering-v2 read and write paths are migrated and
 committed on branch `feat/engineering-v2-ee-attachment` (`54d22aa` code,
-`8ff24b2` this doc). Nothing pushed. Everything else in the task list is open.
+`8ff24b2` this doc). Nothing pushed. Tier 1 and Tier 2 are now also done — v1
+reads, v1 upload, v1 delete and the SEDA ZIP export. Tier U and Tier 3 are open.
 
 **Database access.** No local dev server and no local database in this repo —
 ever. Use the read-only pg-proxy against `prod_main`. The token is short-lived
@@ -217,43 +218,36 @@ One row per photo. Required (`NOT NULL`, no default): `owner_type`, `owner_id`,
 
 Committed on branch `feat/engineering-v2-ee-attachment` as `54d22aa`.
 
-### Tier 1 — broken now, user-facing
+- [x] **T1.1 — `/engineering` v1 list + counts** — [`src/app/(app)/engineering/actions.ts`](src/app/(app)/engineering/actions.ts)
+      Both query functions now select `eeRoofImagesSql` + `eeSuppressedUrlsSql`
+      and derive `roof_images` / `roofImageCount` from `buildRoofImages()`.
+      Verified against prod: 6,004 v1-visible invoices, roof photos 1,944 →
+      1,955, 0 invoices lost anything.
+- [x] **T1.2 — `/engineering` v1 detail panel** — [`engineering-client.tsx`](src/app/(app)/engineering/engineering-client.tsx)
+      One roof grid fed by the unioned `roof_images`. The old "Invoice Office
+      (read only)" / "Admin / SEDA (deletable)" split described where a URL was
+      stored, which no longer distinguishes anything, so every roof photo is now
+      deletable from v1.
+- [x] **T1.3 — SEDA ZIP export** — [`src/app/api/seda/[bubble_id]/download/route.ts`](src/app/api/seda/[bubble_id]/download/route.ts)
+      `fetchInvoicePhotos()` folds in `ee_attachment` + the legacy invoice arrays
+      for every invoice linked to the SEDA row, subtracts suppressed URLs, and
+      dedupes by URL before naming. Verified against prod across 5,059 SEDA
+      registrations: +2,873 photos that were silently missing, 0 dropped.
+      A URL live on any linked invoice version is never suppressed by another.
+- [x] **T2.1 — v1 upload** — roof uploads insert an `ee_attachment` row using the
+      canonical write (`sort_order` from live rows, `users.id → bubble_id` for
+      `uploaded_by`). `system` / `engineering` drawings still append to their
+      legacy SEDA columns. The action now takes the invoice `bubble_id`, so roof
+      photos work on invoices with no SEDA registration.
+- [x] **T2.2 — v1 delete** — sets `deleted_at`, `deleted_by`, `deleted_by_name`
+      on the matching row. If the URL has no row (pre-cutover history, or one of
+      the 156 un-backfilled SEDA photos) it inserts a **tombstone**: a row that
+      exists only to be subtracted by the suppression filter. See the note under
+      the third verification query — this makes suppression load-bearing.
 
-- [ ] **T1.1 — `/engineering` v1 list + counts**
-      [`src/app/(app)/engineering/actions.ts:111,113,129`](src/app/(app)/engineering/actions.ts:111)
-      and [`:190,192,208`](src/app/(app)/engineering/actions.ts:190)
-      Two separate query functions both compute `roofImageCount` from the legacy
-      arrays only. Undercounts new uploads, still counts all soft-deleted photos.
-      Apply the canonical read to both.
-
-- [ ] **T1.2 — `/engineering` v1 detail panel**
-      [`engineering-client.tsx:465,469`](src/app/(app)/engineering/engineering-client.tsx:465) renders `invoice_linked_roof_image`;
-      [`:491,508`](src/app/(app)/engineering/engineering-client.tsx:491) renders `seda_roof_images`;
-      [`:157,194`](src/app/(app)/engineering/engineering-client.tsx:157) mutates those arrays for optimistic updates.
-      Feed it the unioned list from T1.1 instead of the raw columns.
-
-- [ ] **T1.3 — SEDA ZIP export**
-      [`src/app/api/seda/[bubble_id]/download/route.ts:81-82`](src/app/api/seda/[bubble_id]/download/route.ts:81)
-      Packages `roof_images` / `site_images` only. Photos living solely in
-      `ee_attachment` are silently missing from the customer's download.
-      **Highest severity on this list** — the artifact leaves the building and
-      nobody can see what was omitted.
-
-### Tier 2 — write paths that bypass `ee_attachment`
-
-Do these together with Tier 1. Fixing v1's reads alone leaves it creating photos
-v2 can't soft-delete, and vice versa.
-
-- [ ] **T2.1 — v1 upload**
-      [`src/app/(app)/engineering/actions.ts:265-266`](src/app/(app)/engineering/actions.ts:265)
-      Appends roof photos to `seda.roof_images`. Switch to an `ee_attachment`
-      insert using the canonical write.
-
-- [ ] **T2.2 — v1 delete**
-      [`src/app/(app)/engineering/actions.ts:311-312`](src/app/(app)/engineering/actions.ts:311)
-      Filters the URL out of the SEDA array and never sets `deleted_at`, so
-      deleting in v1 leaves the photo visible in v2. Must set `deleted_at`,
-      `deleted_by`, `deleted_by_name` on the matching row.
+Insert, soft-delete `UPDATE` and tombstone insert were each validated with
+`EXPLAIN` against prod; all three plan on
+`idx_ee_attachment_owner_doc_type` and none were executed.
 
 ### Tier U — UI and API contract
 
@@ -299,7 +293,9 @@ no amount of client work fixes the UI until the shape changes.
       [`engineering-client.tsx`](src/app/(app)/engineering/engineering-client.tsx)
       shows roof images and drawings only. Site assessment photos are invisible
       there entirely. Decide: add the tab, or retire v1 in favour of v2 rather
-      than migrating a screen you intend to delete.
+      than migrating a screen you intend to delete. T1.1–T1.2 deliberately did
+      not add one: v1's read selects the roof allow-list only, so the site
+      catch-all still has nowhere to land on that screen.
 
 ### Tier 3 — file plumbing, no visible breakage yet
 
@@ -401,8 +397,13 @@ WHERE NOT EXISTS (
 );
 ```
 
-**Soft-deleted rows still present in a legacy array** — must stay 0, or the
-suppression subtraction is load-bearing rather than defensive:
+**Soft-deleted rows still present in a legacy array** — was 0 before T2.2 and
+will now grow. Deleting a legacy-only photo writes a tombstone row instead of
+editing the array, because the Bubble sync rewrites both `invoice` and
+`seda_registration` arrays and would undo an array edit on the next run. The
+suppression subtraction is therefore **load-bearing, not defensive**: any read
+that skips it resurrects deleted photos. Measured 0 on 2026-07-27, before any
+v1 delete had run.
 
 ```sql
 SELECT COUNT(*) FROM ee_attachment a
