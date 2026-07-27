@@ -9,6 +9,51 @@ plus the UI and API-contract work needed for the screens to express the new one.
 
 ---
 
+## Start here
+
+If you are picking this up cold, in this order:
+
+1. **Read the reference implementation before the prose.** The canonical read is
+   already written, prod-verified, and committed:
+   [`src/app/api/engineering-v2/route.ts`](src/app/api/engineering-v2/route.ts) —
+   the two `LEFT JOIN LATERAL` blocks and the `dropSuppressed` merge. The
+   canonical write is
+   [`src/app/(app)/engineering-v2/actions.ts`](src/app/(app)/engineering-v2/actions.ts) —
+   the `if (docType)` branch. **Copy those patterns. Do not re-derive them from
+   the SQL snippets below** — the snippets are documentation and drift; the code
+   is what actually ran against prod.
+2. Read "Old schema vs new schema" for the shape change.
+3. Read "Background" for the three rules that make it easy to get wrong.
+4. Pick a task. Tier 1 and Tier 2 are the real work and should land together.
+
+**State as of 2026-07-27:** engineering-v2 read and write paths are migrated and
+committed on branch `feat/engineering-v2-ee-attachment` (`54d22aa` code,
+`8ff24b2` this doc). Nothing pushed. Everything else in the task list is open.
+
+**Database access.** No local dev server and no local database in this repo —
+ever. Use the read-only pg-proxy against `prod_main`. The token is short-lived
+and supplied by the user: **ask for a fresh one**, don't hunt for a stored
+credential. Validate writes with `EXPLAIN` before running them, and never run a
+destructive statement without showing the affected rows first.
+
+**Line numbers in this document are hints, not addresses.** They were accurate
+when written and go stale on the first edit. Grep for the symbol or the column
+name instead of trusting the number.
+
+**Do not do these without asking:**
+- Backfilling the 156 unbackfilled SEDA photos into `ee_attachment` — this was
+  offered and explicitly declined once. It is still an open decision, not a task.
+- Changing the Bubble sync mappings so they stop writing the legacy columns.
+  Historical photos would stop arriving.
+- Committing anything under `tmp/`, or `.claude/settings.local.json`.
+
+**Every change must be verified against prod, not just typechecked.** The
+required evidence is a before/after photo-count comparison showing no invoice
+loses anything — query at the bottom of this file. A clean `tsc` proves nothing
+about SQL, which is where every bug in this migration has been so far.
+
+---
+
 ## Old schema vs new schema
 
 ### Shape
@@ -369,6 +414,52 @@ WHERE a.owner_type = 'invoice' AND a.deleted_at IS NOT NULL
         COALESCE(i.linked_roof_image, ARRAY[]::text[]) ||
         COALESCE(i.site_assessment_image, ARRAY[]::text[]))
   );
+```
+
+**Before/after regression check — required evidence for any read change.**
+`regressions` must be 0. A positive `new_*` delta is good (photos recovered); any
+regression means an invoice lost something and the change is wrong.
+
+```sql
+WITH live AS (
+  SELECT inv.bubble_id,
+    COALESCE(inv.linked_roof_image,     ARRAY[]::text[]) AS leg_roof,
+    COALESCE(inv.site_assessment_image, ARRAY[]::text[]) AS leg_site,
+    COALESCE(sr.roof_images,            ARRAY[]::text[]) AS seda_roof,
+    COALESCE(sr.site_images,            ARRAY[]::text[]) AS seda_site,
+    COALESCE(att.ee_roof,               ARRAY[]::text[]) AS ee_roof,
+    COALESCE(att.ee_site,               ARRAY[]::text[]) AS ee_site,
+    COALESCE(sup.urls,                  ARRAY[]::text[]) AS sup
+  FROM invoice inv
+  LEFT JOIN seda_registration sr ON inv.linked_seda_registration = sr.bubble_id
+  LEFT JOIN LATERAL (
+    SELECT array_agg(a.file_url) FILTER (WHERE a.doc_type IN ('roof_angle','roof_closeup')) AS ee_roof,
+           array_agg(a.file_url) FILTER (WHERE COALESCE(a.doc_type,'') NOT IN ('roof_angle','roof_closeup')) AS ee_site
+    FROM ee_attachment a
+    WHERE a.owner_type='invoice' AND a.owner_id=inv.bubble_id
+      AND a.category='site_assessment' AND a.deleted_at IS NULL AND a.purged_at IS NULL
+  ) att ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT array_agg(a.file_url) AS urls FROM ee_attachment a
+    WHERE a.owner_type='invoice' AND a.owner_id=inv.bubble_id
+      AND (a.deleted_at IS NOT NULL OR a.purged_at IS NOT NULL)
+  ) sup ON TRUE
+  WHERE inv.is_latest = true
+    AND COALESCE(inv.is_deleted,false) = false
+    AND inv.status <> 'deleted'
+)
+SELECT
+  sum(cardinality(leg_roof || seda_roof))                                    AS old_roof_rough,
+  sum((SELECT count(*) FROM (SELECT DISTINCT u FROM unnest(ee_roof || leg_roof || seda_roof) u
+        WHERE u <> ALL(sup)) q))                                             AS new_roof,
+  count(*) FILTER (WHERE EXISTS (
+    SELECT 1 FROM unnest(leg_roof || seda_roof) o
+    WHERE o <> ALL(ee_roof || leg_roof || seda_roof) OR o = ANY(sup)))       AS roof_regressions,
+  count(*) FILTER (WHERE EXISTS (
+    SELECT 1 FROM unnest(leg_site || seda_site) o
+    WHERE o <> ALL(ee_site || leg_site || seda_site) OR o = ANY(sup)))       AS site_regressions,
+  count(*)                                                                   AS invoices
+FROM live;
 ```
 
 ---
