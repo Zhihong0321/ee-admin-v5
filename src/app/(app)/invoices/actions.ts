@@ -15,6 +15,7 @@ import { getInvoiceHtml } from "@/lib/invoice-renderer";
 import { revalidatePath } from "next/cache";
 import { syncCompleteInvoicePackage } from "@/lib/bubble";
 import { logInvoiceEdit } from "@/lib/invoice-edit-logger";
+import { logActivity } from "@/lib/activity-log";
 
 const PDF_API_URL = "https://pdf-gen-production-6c81.up.railway.app";
 
@@ -354,34 +355,84 @@ export async function generateInvoicePdf(id: number, version: "v1" | "v2") {
       throw new Error("PDF ID not received from API");
     }
 
+    await logActivity({
+      action: "print",
+      entityType: "invoice",
+      entityId: id,
+      entityLabel: details.invoice_number ?? null,
+      metadata: { version, pdfId },
+    });
+
     return {
       pdfId,
       downloadUrl: `${PDF_API_URL}/api/download/${pdfId}`,
     };
   } catch (error) {
     console.error("Failed to generate PDF:", error);
+    await logActivity({
+      action: "print",
+      entityType: "invoice",
+      entityId: id,
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      metadata: { version },
+    });
     throw error;
   }
 }
 
 export async function deleteInvoice(id: number) {
   try {
-    await db.update(invoices).set({ is_deleted: true, deleted_at: new Date() }).where(eq(invoices.id, id));
+    const [updated] = await db
+      .update(invoices)
+      .set({ is_deleted: true, deleted_at: new Date() })
+      .where(eq(invoices.id, id))
+      .returning({ invoice_number: invoices.invoice_number });
     revalidatePath("/invoices");
+    await logActivity({
+      action: "delete",
+      entityType: "invoice",
+      entityId: id,
+      entityLabel: updated?.invoice_number ?? null,
+    });
     return { success: true };
   } catch (error) {
     console.error("Failed to delete invoice:", error);
+    await logActivity({
+      action: "delete",
+      entityType: "invoice",
+      entityId: id,
+      status: "failed",
+      errorMessage: String(error),
+    });
     return { success: false, error: String(error) };
   }
 }
 
 export async function recoverInvoice(id: number) {
   try {
-    await db.update(invoices).set({ is_deleted: false, deleted_at: null }).where(eq(invoices.id, id));
+    const [updated] = await db
+      .update(invoices)
+      .set({ is_deleted: false, deleted_at: null })
+      .where(eq(invoices.id, id))
+      .returning({ invoice_number: invoices.invoice_number });
     revalidatePath("/invoices");
+    await logActivity({
+      action: "recover",
+      entityType: "invoice",
+      entityId: id,
+      entityLabel: updated?.invoice_number ?? null,
+    });
     return { success: true };
   } catch (error) {
     console.error("Failed to recover invoice:", error);
+    await logActivity({
+      action: "recover",
+      entityType: "invoice",
+      entityId: id,
+      status: "failed",
+      errorMessage: String(error),
+    });
     return { success: false, error: String(error) };
   }
 }
@@ -391,13 +442,33 @@ export async function triggerInvoiceSync(dateFrom?: string, dateTo?: string) {
     const result = await syncCompleteInvoicePackage(dateFrom, dateTo);
     if (!result.success) {
       console.error("Invoice sync failed:", result.error);
+      await logActivity({
+        action: "sync",
+        entityType: "invoice",
+        status: "failed",
+        errorMessage: String(result.error),
+        metadata: { dateFrom, dateTo },
+      });
       return { success: false, error: result.error };
     }
 
     revalidatePath("/invoices");
+    await logActivity({
+      action: "sync",
+      entityType: "invoice",
+      description: `Invoice sync run${dateFrom || dateTo ? ` (${dateFrom ?? "…"} → ${dateTo ?? "…"})` : ""}`,
+      metadata: { dateFrom, dateTo },
+    });
     return { success: true, results: result.results };
   } catch (error) {
     console.error("Error triggering invoice sync:", error);
+    await logActivity({
+      action: "sync",
+      entityType: "invoice",
+      status: "failed",
+      errorMessage: String(error),
+      metadata: { dateFrom, dateTo },
+    });
     return { success: false, error: String(error) };
   }
 }
@@ -470,9 +541,24 @@ export async function updateInvoiceItem(
     });
 
     revalidatePath("/invoices");
+    await logActivity({
+      action: "update",
+      entityType: "invoice_item",
+      entityId: itemId,
+      entityLabel: updatedItem[0].description ?? null,
+      fields: Object.keys(data).filter((k) => (data as any)[k] !== undefined),
+      metadata: { invoice_id: invoice.id, invoice_number: invoice.invoice_number },
+    });
     return { success: true, item: updatedItem[0] };
   } catch (error) {
     console.error("Error updating invoice item:", error);
+    await logActivity({
+      action: "update",
+      entityType: "invoice_item",
+      entityId: itemId,
+      status: "failed",
+      errorMessage: String(error),
+    });
     return { success: false, error: String(error) };
   }
 }
@@ -617,9 +703,23 @@ export async function createInvoiceItem(
     });
 
     revalidatePath("/invoices");
+    await logActivity({
+      action: "create",
+      entityType: "invoice_item",
+      entityId: newItem[0].id,
+      entityLabel: newItem[0].description ?? null,
+      metadata: { invoice_id: invoiceId, invoice_number: invoice.invoice_number },
+    });
     return { success: true, item: newItem[0] };
   } catch (error) {
     console.error("Error creating invoice item:", error);
+    await logActivity({
+      action: "create",
+      entityType: "invoice_item",
+      status: "failed",
+      errorMessage: String(error),
+      metadata: { invoice_id: invoiceId },
+    });
     return { success: false, error: String(error) };
   }
 }
@@ -675,9 +775,24 @@ export async function deleteInvoiceItem(itemId: number, invoiceId: number) {
     });
 
     revalidatePath("/invoices");
+    await logActivity({
+      action: "delete",
+      entityType: "invoice_item",
+      entityId: itemId,
+      entityLabel: item.description ?? null,
+      metadata: { invoice_id: invoiceId, invoice_number: invoice.invoice_number },
+    });
     return { success: true };
   } catch (error) {
     console.error("Error deleting invoice item:", error);
+    await logActivity({
+      action: "delete",
+      entityType: "invoice_item",
+      entityId: itemId,
+      status: "failed",
+      errorMessage: String(error),
+      metadata: { invoice_id: invoiceId },
+    });
     return { success: false, error: String(error) };
   }
 }
@@ -738,9 +853,25 @@ export async function updateInvoiceAgent(invoiceId: number, agentBubbleId: strin
     });
 
     revalidatePath("/invoices");
+    await logActivity({
+      action: "update",
+      entityType: "invoice",
+      entityId: invoiceId,
+      entityLabel: currentInvoice.invoice_number ?? null,
+      fields: ["linked_agent"],
+      description: `Agent changed from ${oldAgentName ?? "—"} to ${agent.name ?? agentBubbleId} on invoice ${currentInvoice.invoice_number ?? invoiceId}`,
+    });
     return { success: true, invoice: updated[0] };
   } catch (error) {
     console.error("Error updating invoice agent:", error);
+    await logActivity({
+      action: "update",
+      entityType: "invoice",
+      entityId: invoiceId,
+      fields: ["linked_agent"],
+      status: "failed",
+      errorMessage: String(error),
+    });
     return { success: false, error: String(error) };
   }
 }
@@ -902,9 +1033,26 @@ export async function updateInvoiceWithEppFees(
     });
 
     revalidatePath("/invoices");
+    await logActivity({
+      action: "update",
+      entityType: "invoice",
+      entityId: invoiceId,
+      entityLabel: invoice.invoice_number ?? null,
+      fields: ["epp_fees"],
+      description: `EPP fees updated on invoice ${invoice.invoice_number ?? invoiceId} (${feeItemsToDelete.length} removed, ${newFeeItems.length} added)`,
+      metadata: { removed: feeItemsToDelete.length, added: newFeeItems.length },
+    });
     return { success: true };
   } catch (error) {
     console.error("Error updating invoice EPP fees:", error);
+    await logActivity({
+      action: "update",
+      entityType: "invoice",
+      entityId: invoiceId,
+      fields: ["epp_fees"],
+      status: "failed",
+      errorMessage: String(error),
+    });
     return { success: false, error: String(error) };
   }
 }
@@ -1077,9 +1225,26 @@ export async function switchInvoiceItemPackage(
     });
 
     revalidatePath("/invoices");
+    await logActivity({
+      action: "update",
+      entityType: "invoice_item",
+      entityId: itemId,
+      entityLabel: targetPackage.package_name ?? null,
+      fields: ["linked_package", "description", "unit_price", "amount"],
+      description: `Package switched to ${targetPackage.package_name ?? newPackageBubbleId} on invoice ${invoice.invoice_number ?? invoice.id}`,
+      metadata: { invoice_id: invoice.id, invoice_number: invoice.invoice_number },
+    });
     return { success: true, item: updatedItem[0] };
   } catch (error) {
     console.error("Error switching invoice item package:", error);
+    await logActivity({
+      action: "update",
+      entityType: "invoice_item",
+      entityId: itemId,
+      fields: ["linked_package"],
+      status: "failed",
+      errorMessage: String(error),
+    });
     return { success: false, error: String(error) };
   }
 }

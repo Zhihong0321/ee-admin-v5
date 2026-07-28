@@ -15,6 +15,7 @@ import { revalidatePath } from "next/cache";
 import { syncPaymentsFromBubble } from "@/lib/bubble";
 import { calculateEppCost, getEppRate } from "@/lib/epp-rates";
 import { getUser } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
 
 /**
  * Log a payment event into invoice_audit_log, linked to the invoice.
@@ -70,6 +71,13 @@ export async function triggerPaymentSync() {
   if (result.success) {
     revalidatePath("/payments");
   }
+  await logActivity({
+    action: "sync",
+    entityType: "payment",
+    description: "Payment sync run",
+    status: result.success ? "success" : "failed",
+    errorMessage: result.success ? undefined : String((result as any).error ?? ""),
+  });
   return result;
 }
 
@@ -762,17 +770,52 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
               actorUserId,
               actorRole,
             });
+
+            await logActivity({
+              action: "send",
+              entityType: "receipt",
+              entityId: submittedPaymentId,
+              entityLabel: invoiceRef || p.bubble_id || String(submittedPaymentId),
+              description: `Receipt ${invoiceRef || p.bubble_id} auto-sent to customer (${phone}) on verification`,
+              metadata: { channel: "whatsapp", recipient: phone, recipient_type: "customer", trigger: "auto_on_verify" },
+            });
           }
         }
       } catch (e) {
         console.error("Failed to generate/send receipt:", e);
+        await logActivity({
+          action: "send",
+          entityType: "receipt",
+          entityId: submittedPaymentId,
+          status: "failed",
+          errorMessage: e instanceof Error ? e.message : String(e),
+          metadata: { channel: "whatsapp", trigger: "auto_on_verify" },
+        });
       }
     }
 
     revalidatePath("/payments");
+    await logActivity({
+      action: "verify",
+      entityType: "payment",
+      entityId: submittedPaymentId,
+      entityLabel: p.bubble_id ?? null,
+      metadata: {
+        amount: p.amount,
+        linked_invoice: p.linked_invoice,
+        payment_method: p.payment_method,
+      },
+    });
     return { success: true };
   } catch (error) {
     console.error("Database error in verifyPayment:", error);
+    await logActivity({
+      action: "verify",
+      entityType: "payment",
+      entityId: submittedPaymentId,
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
@@ -958,9 +1001,25 @@ export async function updateVerifiedPayment(id: number, updates: UpdatePaymentPa
     });
 
     revalidatePath("/payments");
+    await logActivity({
+      action: "update",
+      entityType: "payment",
+      entityId: id,
+      entityLabel: current.bubble_id ?? null,
+      fields: Object.keys(updates),
+      description: `${user} updated payment ${current.bubble_id ?? id} (${changes.length} change${changes.length === 1 ? "" : "s"})`,
+      metadata: { linked_invoice: current.linked_invoice },
+    });
     return { success: true, message: "Payment updated successfully" };
   } catch (error) {
     console.error("Error updating verified payment:", error);
+    await logActivity({
+      action: "update",
+      entityType: "payment",
+      entityId: id,
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
@@ -1022,9 +1081,25 @@ export async function updateSubmittedPayment(id: number, updates: UpdatePaymentP
     });
 
     revalidatePath("/payments");
+    await logActivity({
+      action: "update",
+      entityType: "submitted_payment",
+      entityId: id,
+      entityLabel: current.bubble_id ?? null,
+      fields: Object.keys(updates),
+      description: `${user} updated submitted payment ${current.bubble_id ?? id} (${changes.length} change${changes.length === 1 ? "" : "s"})`,
+      metadata: { linked_invoice: current.linked_invoice },
+    });
     return { success: true, message: "Submitted payment updated successfully" };
   } catch (error) {
     console.error("Error updating submitted payment:", error);
+    await logActivity({
+      action: "update",
+      entityType: "submitted_payment",
+      entityId: id,
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
@@ -1058,9 +1133,24 @@ export async function softDeleteSubmittedPayment(id: number, user: string) {
     });
 
     revalidatePath("/payments");
+    await logActivity({
+      action: "delete",
+      entityType: "submitted_payment",
+      entityId: id,
+      entityLabel: current.bubble_id ?? null,
+      description: `${user} deleted submitted payment ${current.bubble_id ?? id}`,
+      metadata: { linked_invoice: current.linked_invoice, amount: current.amount },
+    });
     return { success: true };
   } catch (error) {
     console.error("Error deleting submitted payment:", error);
+    await logActivity({
+      action: "delete",
+      entityType: "submitted_payment",
+      entityId: id,
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
@@ -1116,9 +1206,21 @@ export async function runPaymentReconciliation() {
     }
 
     revalidatePath("/payments");
+    await logActivity({
+      action: "reconcile",
+      entityType: "payment",
+      description: `Payment reconciliation run — ${matchedCount} matched of ${pending.length} pending`,
+      metadata: { matched: matchedCount, pending: pending.length },
+    });
     return { success: true, count: matchedCount };
   } catch (error) {
     console.error("Reconciliation error:", error);
+    await logActivity({
+      action: "reconcile",
+      entityType: "payment",
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
@@ -1390,6 +1492,15 @@ For is_epp, default to false if unsure.
   }
 
   revalidatePath("/payments");
+  const okCount = results.filter((r) => r.success).length;
+  await logActivity({
+    action: "update",
+    entityType: "payment",
+    fields: ["payment_method", "epp_type", "issuer_bank", "epp_month"],
+    description: `AI bulk payment-method update — ${okCount} of ${paymentIds.length} succeeded`,
+    status: okCount === paymentIds.length ? "success" : "failed",
+    metadata: { requested: paymentIds.length, succeeded: okCount, payment_ids: paymentIds },
+  });
   return results;
 }
 
@@ -1455,9 +1566,23 @@ export async function rescanFullPaymentDates() {
     }
 
     revalidatePath("/payments");
+    await logActivity({
+      action: "update",
+      entityType: "invoice",
+      fields: ["full_payment_date", "last_payment_date"],
+      description: `Full-payment-date rescan — ${updatedCount} invoice${updatedCount === 1 ? "" : "s"} updated`,
+      metadata: { updated: updatedCount },
+    });
     return { success: true, count: updatedCount };
   } catch (error) {
     console.error("Scan error:", error);
+    await logActivity({
+      action: "update",
+      entityType: "invoice",
+      fields: ["full_payment_date", "last_payment_date"],
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
@@ -1601,10 +1726,22 @@ Invoice.amount_eligible_for_comm = RM ${amountEligible.toFixed(2)}`;
     }
 
     revalidatePath("/payments");
+    await logActivity({
+      action: "calculate",
+      entityType: "commission",
+      description: `Commission calculation run — ${processedCount} invoice${processedCount === 1 ? "" : "s"} processed`,
+      metadata: { processed: processedCount },
+    });
     return { success: true, count: processedCount, message: `Processed ${processedCount} invoices` };
 
   } catch (error) {
     console.error("Commission Calculation Action Error:", error);
+    await logActivity({
+      action: "calculate",
+      entityType: "commission",
+      status: "failed",
+      errorMessage: String(error),
+    });
     return { success: false, error: String(error) };
   }
 }
@@ -1750,9 +1887,26 @@ export async function manualSendReceipt(paymentId: number) {
       actorRole,
     });
 
+    await logActivity({
+      action: "send",
+      entityType: "receipt",
+      entityId: paymentId,
+      entityLabel: invoiceRef || p.bubble_id || String(paymentId),
+      description: `${actorName} sent receipt ${invoiceRef || p.bubble_id || paymentId} to customer (${preview.phone})`,
+      metadata: { channel: "whatsapp", recipient: preview.phone, recipient_type: "customer" },
+    });
+
     return { success: true, result: res };
   } catch (error: any) {
     console.error("manualSendReceipt error:", error);
+    await logActivity({
+      action: "send",
+      entityType: "receipt",
+      entityId: paymentId,
+      status: "failed",
+      errorMessage: error?.message ?? String(error),
+      metadata: { channel: "whatsapp", recipient_type: "customer" },
+    });
     return { success: false, error: error.message };
   }
 }
@@ -1800,9 +1954,26 @@ export async function manualSendReceiptToAgent(paymentId: number) {
       actorRole,
     });
 
+    await logActivity({
+      action: "send",
+      entityType: "receipt",
+      entityId: paymentId,
+      entityLabel: invoiceRef || p.bubble_id || String(paymentId),
+      description: `${actorName} sent receipt ${invoiceRef || p.bubble_id || paymentId} to agent (${preview.agentPhone})`,
+      metadata: { channel: "whatsapp", recipient: preview.agentPhone, recipient_type: "agent" },
+    });
+
     return { success: true, result: res };
   } catch (error: any) {
     console.error("manualSendReceiptToAgent error:", error);
+    await logActivity({
+      action: "send",
+      entityType: "receipt",
+      entityId: paymentId,
+      status: "failed",
+      errorMessage: error?.message ?? String(error),
+      metadata: { channel: "whatsapp", recipient_type: "agent" },
+    });
     return { success: false, error: error.message };
   }
 }

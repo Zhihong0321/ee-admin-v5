@@ -5,6 +5,7 @@ import path from "path";
 import { db } from "@/lib/db";
 import { invoices, customers, users, app_settings } from "@/db/schema";
 import { desc, isNotNull, eq } from "drizzle-orm";
+import { logActivity } from "@/lib/activity-log";
 
 const CS_WHATSAPP_KEY = "CS_WHATSAPP_NO";
 
@@ -29,9 +30,23 @@ export async function saveCustomerServiceNo(whatsappNo: string) {
         target: app_settings.key,
         set: { value: whatsappNo, updated_at: new Date() }
       });
+    await logActivity({
+      action: "save",
+      entityType: "setting",
+      entityId: CS_WHATSAPP_KEY,
+      entityLabel: "Customer service WhatsApp number",
+      fields: ["value"],
+    });
     return { success: true };
   } catch (error: any) {
     console.error("Failed to save CS number:", error);
+    await logActivity({
+      action: "save",
+      entityType: "setting",
+      entityId: CS_WHATSAPP_KEY,
+      status: "failed",
+      errorMessage: error?.message ?? String(error),
+    });
     return { success: false, error: error.message };
   }
 }
@@ -130,9 +145,25 @@ export async function createWhatsAppGroup(customerName: string, participants: st
       return { success: false, error: `Baileys API error: ${err}` };
     }
 
+    await logActivity({
+      action: "create",
+      entityType: "whatsapp_group",
+      entityId: data.group?.groupUid ?? null,
+      entityLabel: customerName,
+      description: `WhatsApp group created for ${customerName} (${participants.length} participant${participants.length === 1 ? "" : "s"})`,
+      metadata: { participant_count: participants.length },
+    });
+
     return { success: true, group: data.group };
   } catch (error: any) {
     console.error("Failed to create whatsapp group", error);
+    await logActivity({
+      action: "create",
+      entityType: "whatsapp_group",
+      entityLabel: customerName,
+      status: "failed",
+      errorMessage: error?.message ?? String(error),
+    });
     return { success: false, error: error.message };
   }
 }
@@ -152,9 +183,23 @@ export async function deleteWhatsAppGroup(groupUid: string) {
       return { success: false, error: err };
     }
 
+    await logActivity({
+      action: "delete",
+      entityType: "whatsapp_group",
+      entityId: groupUid,
+      entityLabel: groupUid,
+    });
+
     return { success: true };
   } catch (error: any) {
     console.error(`Error leaving group ${groupUid}:`, error);
+    await logActivity({
+      action: "delete",
+      entityType: "whatsapp_group",
+      entityId: groupUid,
+      status: "failed",
+      errorMessage: error?.message ?? String(error),
+    });
     return { success: false, error: error.message };
   }
 }

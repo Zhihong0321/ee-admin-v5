@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getInvoiceDetails } from "@/app/(app)/invoices/actions";
 import { getInvoiceIdDisplay } from "@/lib/invoice-display";
+import { logActivity } from "@/lib/activity-log";
 import PrintButton from "./PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +61,18 @@ export default async function InvoicePrintPage({
 
   const invoiceNo = getInvoiceIdDisplay(invoice);
   const status = invoice.status || (invoice.paid ? "Paid" : "Pending");
+
+  // Logged on page render rather than on the PrintButton click: the button only
+  // opens the browser dialog, so Ctrl+P or the browser menu would bypass it.
+  // Opening this page is the deliberate print action.
+  await logActivity({
+    action: "print",
+    entityType: "invoice",
+    entityId: invoiceId,
+    entityLabel: invoiceNo,
+    sourceUrl: `/invoices/${id}/print`,
+    metadata: { version, surface: "print_page" },
+  });
 
   const companyName = template.company_name || "Atap Solar";
   const customerName = invoice.customer_name_snapshot || invoice.customer_data?.name || "—";

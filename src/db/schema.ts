@@ -606,6 +606,51 @@ export const invoice_audit_log = pgTable('invoice_audit_log', {
   edited_at: timestamp('edited_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Shared cross-app activity log.
+//
+// Every app connected to prod_main writes here — this is NOT an EE-Admin table.
+// One row per meaningful user action (create/update/delete/save/print/send).
+// 30-day retention unless `retain_until` is set.
+//
+// Read SOP-SCHEMA-Activity-log.md before writing to it. Three traps:
+//   - `action` and `entity_type` are open taxonomies. Never constrain them and
+//     never filter reads to a hardcoded list — unknown verbs must surface.
+//   - `actor_user_id` is `user.id` (INTEGER). A bubble_id belongs in `actor_ref`.
+//   - Anything not in this schema goes in `metadata`, not a new column.
+//
+// Distinct from `invoice_audit_log`, which keeps full before/after field diffs
+// for invoices forever. An invoice edit writes to both.
+export const activity_log = pgTable('activity_log', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  // Which app wrote this row
+  app: text('app').notNull(),
+  app_env: text('app_env'),
+  source_url: text('source_url'),
+  // Who did it
+  actor_kind: text('actor_kind').notNull().default('user'),
+  actor_user_id: integer('actor_user_id'),
+  actor_ref: text('actor_ref'),
+  actor_name: text('actor_name'),
+  actor_role: text('actor_role'),
+  // What happened
+  action: text('action').notNull(),
+  entity_type: text('entity_type'),
+  entity_id: text('entity_id'),
+  entity_label: text('entity_label'),
+  description: text('description'),
+  fields: text('fields').array(),
+  status: text('status').notNull().default('success'),
+  error_message: text('error_message'),
+  // Context
+  request_id: text('request_id'),
+  ip: text('ip'),
+  user_agent: text('user_agent'),
+  metadata: jsonb('metadata').notNull().default({}),
+  // Time and lifecycle
+  occurred_at: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  retain_until: timestamp('retain_until', { withTimezone: true }),
+});
+
 // App Settings Table
 export const app_settings = pgTable('app_settings', {
   id: serial('id').primaryKey(),
