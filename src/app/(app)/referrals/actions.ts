@@ -2,6 +2,7 @@
 
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { logActivity } from "@/lib/activity-log";
 import { db } from "@/lib/db";
 import { customers, referrals } from "@/db/schema";
 import { getUser } from "@/lib/auth";
@@ -622,9 +623,24 @@ export async function updateReferral(
 
     revalidatePath("/referrals");
     revalidatePath("/invoices");
+    await logActivity({
+      action: "update",
+      entityType: "referral",
+      entityId: id,
+      fields: Object.keys(data),
+      metadata: { ...data },
+    });
     return { success: true };
   } catch (error) {
     console.error("Database error in updateReferral:", error);
+    await logActivity({
+      action: "update",
+      entityType: "referral",
+      entityId: id,
+      fields: Object.keys(data),
+      status: "failed",
+      errorMessage: String(error),
+    });
     return { success: false, error: String(error) };
   }
 }

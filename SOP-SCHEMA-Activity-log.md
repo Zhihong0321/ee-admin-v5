@@ -273,6 +273,13 @@ WHERE occurred_at < now() - interval '30 days'
   AND retain_until IS NULL;
 ```
 
+**This already runs — you do not need to schedule anything.** `ee-admin` runs it
+opportunistically on write (`maybePurgeExpired()` in `src/lib/activity-log.ts`),
+at most once per day across all instances. The lock is a row in `app_settings`
+under key `activity_log_last_purge`, claimed with an
+`ON CONFLICT DO UPDATE ... WHERE` so exactly one instance wins. Do not add a
+second purge from your app.
+
 This is a **presentational feed, not a compliance record.** Do not build anything
 that depends on rows older than 30 days existing.
 
@@ -314,3 +321,4 @@ Keep this list current. Add a row when your app starts writing.
 | Date | Change |
 |---|---|
 | 2026-07-28 | Table created in `prod_main` with 4 indexes. Verified with an insert/delete round-trip. |
+| 2026-07-28 | `ee-admin` wired up: 48 call sites, `/activity` feed page, 30-day lazy purge. |

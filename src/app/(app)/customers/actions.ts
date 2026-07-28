@@ -5,6 +5,7 @@ import { customers, customer_history } from "@/db/schema";
 import { ilike, or, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { resolvedIdentityNameLegacy } from "@/lib/agent-identity";
+import { logActivity } from "@/lib/activity-log";
 
 export async function getCustomers(search?: string) {
   console.log(`Fetching customers: search=${search}`);
@@ -70,9 +71,23 @@ export async function updateCustomer(id: number, data: Partial<typeof customers.
       .where(eq(customers.id, id));
     
     revalidatePath("/customers");
+    await logActivity({
+      action: "update",
+      entityType: "customer",
+      entityId: id,
+      entityLabel: (data as any).name ?? null,
+      fields: Object.keys(data),
+    });
     return { success: true };
   } catch (error) {
     console.error("Database error in updateCustomer:", error);
+    await logActivity({
+      action: "update",
+      entityType: "customer",
+      entityId: id,
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }

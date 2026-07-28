@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { ilike, or, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { logActivity } from "@/lib/activity-log";
 import { pushAgentUpdateToBubble, syncProfilesFromBubble, syncSingleProfileFromBubble } from "@/lib/bubble";
 import fs from "fs";
 import path from "path";
@@ -22,6 +23,13 @@ export async function triggerProfileSync() {
   if (result.success) {
     revalidatePath("/users");
   }
+  await logActivity({
+    action: "sync",
+    entityType: "user",
+    description: "User profile sync run",
+    status: result.success ? "success" : "failed",
+    errorMessage: result.success ? undefined : String((result as any).error ?? ""),
+  });
   return result;
 }
 
@@ -34,9 +42,17 @@ export async function syncUserFromBubble(bubbleId: string, agentBubbleId?: strin
       await syncSingleProfileFromBubble(agentBubbleId, 'agent');
     }
     revalidatePath("/users");
+    await logActivity({
+      action: "sync",
+      entityType: "user",
+      entityId: bubbleId,
+      description: `Manual profile sync for ${bubbleId}`,
+      metadata: { bubble_id: bubbleId, agent_bubble_id: agentBubbleId ?? null },
+    });
     return { success: true };
   } catch (error) {
     console.error("Manual sync error:", error);
+    await logActivity({ action: "sync", entityType: "user", entityId: bubbleId, status: "failed", errorMessage: String(error) });
     return { success: false, error: String(error) };
   }
 }
@@ -166,9 +182,19 @@ export async function uploadUserLetter(userId: number, letterType: UserLetterTyp
       .where(eq(users.id, userId));
 
     revalidatePath("/users");
+    await logActivity({
+      action: "upload",
+      entityType: "user_letter",
+      entityId: userId,
+      entityLabel: user.name ?? null,
+      fields: [letterType],
+      description: `${letterType.replace("_", " ")} uploaded for ${user.name ?? `user ${userId}`}`,
+      metadata: { letter_type: letterType, filename: sanitizedFilename },
+    });
     return { success: true, url: fileUrl };
   } catch (error) {
     console.error("uploadUserLetter error:", error);
+    await logActivity({ action: "upload", entityType: "user_letter", entityId: userId, status: "failed", errorMessage: String(error), metadata: { letter_type: letterType } });
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
@@ -219,9 +245,17 @@ export async function updateUserProfile(userId: number, agentData: UserProfileDa
     }
 
     revalidatePath("/users");
+    await logActivity({
+      action: "update",
+      entityType: "user",
+      entityId: userId,
+      entityLabel: agentData.name ?? user.name ?? null,
+      fields: [...Object.keys(agentData), ...(tags ? ["access_level"] : [])],
+    });
     return { success: true };
   } catch (error) {
     console.error("updateUserProfile error:", error);
+    await logActivity({ action: "update", entityType: "user", entityId: userId, status: "failed", errorMessage: String(error) });
     return { success: false, error: `Database error: ${String(error)}` };
   }
 }
@@ -255,9 +289,17 @@ export async function activateUser(userId: number) {
       .where(eq(users.id, userId));
 
     revalidatePath("/users");
+    await logActivity({
+      action: "activate",
+      entityType: "user",
+      entityId: userId,
+      entityLabel: user.name ?? null,
+      fields: ["user_signed_up"],
+    });
     return { success: true };
   } catch (error) {
     console.error("activateUser error:", error);
+    await logActivity({ action: "activate", entityType: "user", entityId: userId, status: "failed", errorMessage: String(error) });
     return { success: false, error: `Failed to activate user: ${String(error)}` };
   }
 }

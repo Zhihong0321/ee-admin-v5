@@ -5,6 +5,7 @@ import { invoices, sedaRegistration, customers, users, invoice_audit_log } from 
 import { eq, sql, and, desc, or, ilike, inArray } from "drizzle-orm";
 import { getUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { logActivity } from "@/lib/activity-log";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
@@ -460,9 +461,26 @@ export async function uploadEngineeringFile(
     await logDrawingAudit({ invoiceBubbleId, actionType: 'upload', fileType, fileUrl });
 
     revalidatePath("/engineering");
+    await logActivity({
+      action: "upload",
+      entityType: "attachment",
+      entityId: invoiceBubbleId,
+      entityLabel: file.name,
+      description: `${fileType} file "${file.name}" uploaded to invoice ${invoiceBubbleId}`,
+      metadata: { file_type: fileType, seda_bubble_id: sedaBubbleId, surface: "engineering-v1" },
+    });
     return { success: true, url: fileUrl };
   } catch (error) {
     console.error("Error uploading engineering file:", error);
+    await logActivity({
+      action: "upload",
+      entityType: "attachment",
+      entityId: invoiceBubbleId,
+      entityLabel: file.name,
+      status: "failed",
+      errorMessage: String(error),
+      metadata: { file_type: fileType, surface: "engineering-v1" },
+    });
     return { success: false, error: String(error) };
   }
 }
@@ -528,9 +546,25 @@ export async function deleteEngineeringFile(
     await logDrawingAudit({ invoiceBubbleId, actionType: 'delete', fileType, fileUrl });
 
     revalidatePath("/engineering");
+    await logActivity({
+      action: "delete",
+      entityType: "attachment",
+      entityId: invoiceBubbleId,
+      entityLabel: fileUrl.split("/").pop() ?? fileUrl,
+      description: `${fileType} file removed from invoice ${invoiceBubbleId}`,
+      metadata: { file_type: fileType, file_url: fileUrl, surface: "engineering-v1" },
+    });
     return { success: true };
   } catch (error) {
     console.error("Error deleting engineering file:", error);
+    await logActivity({
+      action: "delete",
+      entityType: "attachment",
+      entityId: invoiceBubbleId,
+      status: "failed",
+      errorMessage: String(error),
+      metadata: { file_type: fileType, file_url: fileUrl, surface: "engineering-v1" },
+    });
     return { success: false, error: String(error) };
   }
 }

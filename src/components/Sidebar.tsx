@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, Layers, UserPlus, Headset, ScanSearch, Hammer, GitBranch, FileClock, ExternalLink, type LucideIcon } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, Layers, UserPlus, Headset, ScanSearch, Hammer, GitBranch, FileClock, ExternalLink, Activity, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 import { logoutAction } from "@/app/auth-actions";
@@ -33,6 +33,7 @@ const menuItems: MenuItem[] = [
       { name: "Department Management", href: "/users/department-management", icon: Building2 },
     ],
   },
+  { name: "Activity Log", href: "/activity", icon: Activity },
   { name: "Manage Company", href: "/manage-company", icon: Building2 },
   { name: "Customer Service", href: "/customer-service", icon: Headset },
   { name: "Sync Center", href: "/sync", icon: RefreshCw },

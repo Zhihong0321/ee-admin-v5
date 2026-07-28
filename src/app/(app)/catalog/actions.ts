@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { products, packages } from "@/db/schema";
 import { ilike, or, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { logActivity } from "@/lib/activity-log";
 
 export async function getProducts(search?: string) {
     try {
@@ -40,9 +41,17 @@ export async function updateProduct(id: number, data: Partial<typeof products.$i
             .where(eq(products.id, id));
 
         revalidatePath("/catalog");
+        await logActivity({
+            action: "update",
+            entityType: "product",
+            entityId: id,
+            entityLabel: (data as any).name ?? null,
+            fields: Object.keys(data),
+        });
         return { success: true };
     } catch (error) {
         console.error("Database error in updateProduct:", error);
+        await logActivity({ action: "update", entityType: "product", entityId: id, status: "failed", errorMessage: String(error) });
         return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
@@ -56,9 +65,15 @@ export async function createProduct(data: typeof products.$inferInsert) {
         });
 
         revalidatePath("/catalog");
+        await logActivity({
+            action: "create",
+            entityType: "product",
+            entityLabel: (data as any).name ?? null,
+        });
         return { success: true };
     } catch (error) {
         console.error("Database error in createProduct:", error);
+        await logActivity({ action: "create", entityType: "product", status: "failed", errorMessage: String(error) });
         return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
@@ -67,9 +82,11 @@ export async function deleteProduct(id: number) {
     try {
         await db.delete(products).where(eq(products.id, id));
         revalidatePath("/catalog");
+        await logActivity({ action: "delete", entityType: "product", entityId: id });
         return { success: true };
     } catch (error) {
         console.error("Database error in deleteProduct:", error);
+        await logActivity({ action: "delete", entityType: "product", entityId: id, status: "failed", errorMessage: String(error) });
         return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
@@ -109,9 +126,17 @@ export async function updatePackage(id: number, data: Partial<typeof packages.$i
             .where(eq(packages.id, id));
 
         revalidatePath("/catalog");
+        await logActivity({
+            action: "update",
+            entityType: "package",
+            entityId: id,
+            entityLabel: (data as any).package_name ?? null,
+            fields: Object.keys(data),
+        });
         return { success: true };
     } catch (error) {
         console.error("Database error in updatePackage:", error);
+        await logActivity({ action: "update", entityType: "package", entityId: id, status: "failed", errorMessage: String(error) });
         return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
@@ -125,9 +150,15 @@ export async function createPackage(data: typeof packages.$inferInsert) {
         });
 
         revalidatePath("/catalog");
+        await logActivity({
+            action: "create",
+            entityType: "package",
+            entityLabel: (data as any).package_name ?? null,
+        });
         return { success: true };
     } catch (error) {
         console.error("Database error in createPackage:", error);
+        await logActivity({ action: "create", entityType: "package", status: "failed", errorMessage: String(error) });
         return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
@@ -136,9 +167,11 @@ export async function deletePackage(id: number) {
     try {
         await db.delete(packages).where(eq(packages.id, id));
         revalidatePath("/catalog");
+        await logActivity({ action: "delete", entityType: "package", entityId: id });
         return { success: true };
     } catch (error) {
         console.error("Database error in deletePackage:", error);
+        await logActivity({ action: "delete", entityType: "package", entityId: id, status: "failed", errorMessage: String(error) });
         return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }
@@ -154,9 +187,17 @@ export async function bulkTogglePackagesActive(ids: number[], active: boolean) {
             .where(inArray(packages.id, ids));
 
         revalidatePath("/catalog");
+        await logActivity({
+            action: "update",
+            entityType: "package",
+            fields: ["active"],
+            description: `${ids.length} package${ids.length === 1 ? "" : "s"} set ${active ? "active" : "inactive"}`,
+            metadata: { package_ids: ids, active },
+        });
         return { success: true };
     } catch (error) {
         console.error("Database error in bulkTogglePackagesActive:", error);
+        await logActivity({ action: "update", entityType: "package", fields: ["active"], status: "failed", errorMessage: String(error), metadata: { package_ids: ids, active } });
         return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
 }

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { invoices, invoice_audit_log, users } from "@/db/schema";
 import { sql, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { logActivity } from "@/lib/activity-log";
 import { getUser } from "@/lib/auth";
 import crypto from "crypto";
 import fs from "fs";
@@ -164,9 +165,26 @@ export async function uploadAttachment(
         }
 
         revalidatePath("/engineering-v2");
+        await logActivity({
+            action: "upload",
+            entityType: "attachment",
+            entityId: invoiceBubbleId,
+            entityLabel: file.name,
+            description: `${uploadType} attachment "${file.name}" uploaded to invoice ${invoiceBubbleId}`,
+            metadata: { upload_type: uploadType, surface: "engineering-v2" },
+        });
         return { success: true, url: fileUrl };
     } catch (err: any) {
         console.error("[engineering-v2/upload]", err);
+        await logActivity({
+            action: "upload",
+            entityType: "attachment",
+            entityId: invoiceBubbleId,
+            entityLabel: file?.name ?? null,
+            status: "failed",
+            errorMessage: err?.message ?? String(err),
+            metadata: { upload_type: uploadType, surface: "engineering-v2" },
+        });
         return { success: false, error: err?.message ?? String(err) };
     }
 }

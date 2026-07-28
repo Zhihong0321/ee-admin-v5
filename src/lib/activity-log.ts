@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { activity_log } from "@/db/schema";
 import { resolveActor } from "@/lib/invoice-edit-logger";
 import { headers } from "next/headers";
+import { sql } from "drizzle-orm";
 
 /**
  * Cross-app activity log writer. See SOP-SCHEMA-Activity-log.md.
@@ -144,10 +145,69 @@ export async function logActivity(params: ActivityParams): Promise<void> {
       user_agent: ctx.userAgent ?? null,
       metadata: params.metadata ?? {},
     });
+
+    // Not awaited: the daily purge must not add latency to a user's save.
+    void maybePurgeExpired();
   } catch (error) {
     // Swallowed on purpose. A missing activity row is a gap in a feed; a throw
     // here would turn it into a failed user action.
     console.error("[activity-log] failed to record activity:", error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Retention
+// ---------------------------------------------------------------------------
+
+export const RETENTION_DAYS = 30;
+
+const PURGE_SETTING_KEY = "activity_log_last_purge";
+const PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const CHECK_INTERVAL_MS = 60 * 60 * 1000;
+
+/** In-process throttle so a busy server doesn't query app_settings on every
+ *  single write. The app_settings row is still the real lock — this only keeps
+ *  us from asking it too often. */
+let lastCheckedAt = 0;
+
+/**
+ * Delete rows past the retention window, at most once a day across all server
+ * instances. There is no cron in this project, so the purge rides along on
+ * writes; `app_settings` is the cross-instance lock.
+ *
+ * Never throws.
+ */
+export async function maybePurgeExpired(): Promise<void> {
+  const now = Date.now();
+  if (now - lastCheckedAt < CHECK_INTERVAL_MS) return;
+  lastCheckedAt = now;
+
+  try {
+    const cutoff = new Date(now - PURGE_INTERVAL_MS).toISOString();
+    const stamp = new Date(now).toISOString();
+
+    // Atomic claim: the UPDATE only fires if the stored timestamp is older than
+    // the cutoff, so exactly one instance wins and the rest get zero rows back.
+    const claimed = await db.execute(sql`
+      INSERT INTO app_settings (key, value)
+      VALUES (${PURGE_SETTING_KEY}, ${stamp})
+      ON CONFLICT (key) DO UPDATE
+        SET value = ${stamp}, updated_at = now()
+        WHERE app_settings.value < ${cutoff}
+      RETURNING key
+    `);
+
+    if (claimed.rowCount === 0) return;
+
+    const deleted = await db.execute(sql`
+      DELETE FROM activity_log
+      WHERE occurred_at < now() - (${RETENTION_DAYS} || ' days')::interval
+        AND retain_until IS NULL
+    `);
+
+    console.log(`[activity-log] purged ${deleted.rowCount ?? 0} row(s) older than ${RETENTION_DAYS} days`);
+  } catch (error) {
+    console.error("[activity-log] purge failed:", error);
   }
 }
 
