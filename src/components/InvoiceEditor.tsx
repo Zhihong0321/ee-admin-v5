@@ -134,9 +134,10 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
       const result = await getAgentsForSelection();
       if (result.success && result.agents) {
         setAgents(result.agents);
-        // Set current agent
-        if (invoiceData?.linked_agent) {
-          const currentAgent = result.agents.find(a => a.bubble_id === invoiceData.linked_agent);
+        // Default to the already-assigned agent, falling back to the invoice creator
+        const defaultBubbleId = invoiceData?.linked_agent || invoiceData?.created_by;
+        if (defaultBubbleId) {
+          const currentAgent = result.agents.find(a => a.bubble_id === defaultBubbleId);
           if (currentAgent) {
             setSelectedAgentId(currentAgent.bubble_id);
           }
@@ -144,7 +145,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
       }
     }
     loadAgents();
-  }, [invoiceData?.linked_agent]);
+  }, [invoiceData?.linked_agent, invoiceData?.created_by]);
 
   // Update preview when invoiceData changes
   useEffect(() => {
