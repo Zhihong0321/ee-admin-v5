@@ -15,7 +15,7 @@ import { db } from "@/lib/db";
 import { invoices, payments, sedaRegistration, invoice_items, users, agents, submitted_payments, packages, products } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
 import { eq, or } from "drizzle-orm";
-import { writeAgentProfileToUser } from "./agent-profile";
+import { writeAgentProfileToUser, resolveAgentBubbleId } from "./agent-profile";
 import { patchSchemaFromJson, type SchemaPatchResult } from "./schema-patcher";
 import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
 
@@ -294,7 +294,7 @@ async function syncInvoice(inv: any): Promise<{ updated: boolean; reason?: strin
       invoice_id: inv["Invoice ID"] ? Number(inv["Invoice ID"]) : null,
       invoice_number: inv["Invoice Number"] || String(inv["Invoice ID"] || ""),
       linked_customer: inv["Linked Customer"] || null,
-      linked_agent: inv["Linked Agent"] || null,
+      linked_agent: await resolveAgentBubbleId(inv["Linked Agent"] || null),
       linked_payment: linkedPayment,
       linked_seda_registration: inv["Linked SEDA registration"] || inv["Linked SEDA Registration"] || null,
       linked_invoice_item: linkedInvoiceItem,
@@ -349,7 +349,7 @@ async function syncPayment(pay: any): Promise<{ updated: boolean; reason?: strin
       payment_method: pay["Payment Method"] || pay["Payment Method V2"] || pay["Payment Method v2"] || null,
       payment_method_v2: pay["Payment Method V2"] || pay["Payment Method v2"] || null,
       remark: pay["Remark"] || null,
-      linked_agent: pay["Linked Agent"] || null,
+      linked_agent: await resolveAgentBubbleId(pay["Linked Agent"] || null),
       linked_customer: pay["Linked Customer"] || null,
       linked_invoice: pay["Linked Invoice"] || null,
       created_by: pay["Created By"] || null,
@@ -624,7 +624,7 @@ async function syncSubmittedPayment(submittedPay: any): Promise<{ updated: boole
       payment_method: submittedPay["Payment Method"] || submittedPay["Payment Method V2"] || submittedPay["Payment Method v2"] || null,
       payment_method_v2: submittedPay["Payment Method V2"] || submittedPay["Payment Method v2"] || null,
       remark: submittedPay["Remark"] || null,
-      linked_agent: submittedPay["Linked Agent"] || null,
+      linked_agent: await resolveAgentBubbleId(submittedPay["Linked Agent"] || null),
       linked_customer: submittedPay["Linked Customer"] || null,
       linked_invoice: submittedPay["Linked Invoice"] || null,
       created_by: submittedPay["Created By"] || null,

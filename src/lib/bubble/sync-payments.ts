@@ -9,7 +9,7 @@
  * File: src/lib/bubble/sync-payments.ts
  */
 
-import { writeAgentProfileToUser } from "./agent-profile";
+import { writeAgentProfileToUser, resolveAgentBubbleId } from "./agent-profile";
 import { db } from "@/lib/db";
 import { payments, submitted_payments, invoices, customers, agents } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
@@ -147,13 +147,13 @@ export async function syncPaymentsFromBubble() {
 
     // Step 3: Sync all payment records from Bubble (overwrite)
     logSyncActivity('Step 3: Syncing payment records from Bubble...', 'INFO');
-    await syncTable('payment', payments, payments.bubble_id, (b) => ({
+    await syncTable('payment', payments, payments.bubble_id, async (b) => ({
       amount: b.Amount?.toString(),
       payment_date: b["Payment Date"] ? new Date(b["Payment Date"]) : null,
       payment_method: b["Payment Method"] || b["Payment Method V2"],
       payment_method_v2: b["Payment Method V2"],
       remark: b.Remark,
-      linked_agent: b["Linked Agent"],
+      linked_agent: await resolveAgentBubbleId(b["Linked Agent"]),
       linked_customer: b["Linked Customer"],
       linked_invoice: b["Linked Invoice"],
       attachment: b.Attachment ? (Array.isArray(b.Attachment) ? b.Attachment : [b.Attachment]) : null,
@@ -168,7 +168,7 @@ export async function syncPaymentsFromBubble() {
 
     // Step 4: Sync all submit_payment records from Bubble (overwrite)
     logSyncActivity('Step 4: Syncing submitted payment records from Bubble...', 'INFO');
-    await syncTable('submit_payment', submitted_payments, submitted_payments.bubble_id, (b) => {
+    await syncTable('submit_payment', submitted_payments, submitted_payments.bubble_id, async (b) => {
       // 🚫 CRITICAL VALIDATION: Skip payments without attachment (payment proof required)
       if (!b.Attachment || (Array.isArray(b.Attachment) && b.Attachment.length === 0)) {
         logSyncActivity(`SKIPPED: Payment ${b._id} has no attachment (payment proof required)`, 'WARN');
@@ -182,7 +182,7 @@ export async function syncPaymentsFromBubble() {
         payment_method: b["Payment Method"] || b["Payment Method V2"],
         payment_method_v2: b["Payment Method V2"],
         remark: b.Remark,
-        linked_agent: b["Linked Agent"],
+        linked_agent: await resolveAgentBubbleId(b["Linked Agent"]),
         linked_customer: b["Linked Customer"],
         linked_invoice: b["Linked Invoice"],
         attachment: Array.isArray(b.Attachment) ? b.Attachment : [b.Attachment],
@@ -270,7 +270,7 @@ export async function syncPaymentsFromBubble() {
             invoice_id: invoice["Invoice ID"] || invoice.invoice_id || null,
             invoice_number: invoice["Invoice Number"] || invoice.invoice_number || null,
             linked_customer: invoice["Linked Customer"] || null,
-            linked_agent: invoice["Linked Agent"] || null,
+            linked_agent: await resolveAgentBubbleId(invoice["Linked Agent"] || null),
             linked_payment: invoice["Linked Payment"] || null,
             linked_seda_registration: invoice["Linked SEDA Registration"] || null,
             linked_invoice_item: linkedItems,
@@ -369,7 +369,7 @@ export async function syncPaymentsFromBubble() {
  *
  * Generic sync function (duplicated for module independence).
  */
-async function syncTable(typeName: string, table: any, conflictCol: any, mapFn: (b: any) => any, results: any) {
+async function syncTable(typeName: string, table: any, conflictCol: any, mapFn: (b: any) => any | Promise<any>, results: any) {
   let cursor = 0;
   let remaining = 1;
 
@@ -386,7 +386,7 @@ async function syncTable(typeName: string, table: any, conflictCol: any, mapFn: 
 
       for (const b of records) {
         try {
-          const vals = mapFn(b);
+          const vals = await mapFn(b);
           // Skip records where mapFn returns null (validation failed)
           if (vals === null) continue;
 

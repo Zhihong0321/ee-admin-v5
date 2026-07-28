@@ -27,6 +27,7 @@ import { payments, invoices } from "@/db/schema";
 import { eq, sql, and, isNotNull } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
+import { resolveAgentBubbleId } from "@/lib/bubble/agent-profile";
 
 const STORAGE_ROOT = '/storage';
 const PAYMENT_SYNC_LIST_PATH = path.join(STORAGE_ROOT, 'payment-sync-list.txt');
@@ -354,7 +355,7 @@ export async function syncPaymentsFromBubble() {
           payment_method: bubblePayment["Payment Method"] || null,
           payment_method_v2: bubblePayment["Payment Method V2"] || null,
           remark: bubblePayment.Remark || null,
-          linked_agent: bubblePayment["Linked Agent"] || null,
+          linked_agent: await resolveAgentBubbleId(bubblePayment["Linked Agent"] || null),
           linked_customer: bubblePayment["Linked Customer"] || null,
           linked_invoice: bubblePayment["Linked Invoice"] || null,
           created_by: bubblePayment["Created By"] || null,

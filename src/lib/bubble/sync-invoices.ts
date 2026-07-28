@@ -9,7 +9,7 @@
  * File: src/lib/bubble/sync-invoices.ts
  */
 
-import { writeAgentProfileToUser } from "./agent-profile";
+import { writeAgentProfileToUser, resolveAgentBubbleId } from "./agent-profile";
 import { db } from "@/lib/db";
 import { invoices, customers, users, payments, submitted_payments, sedaRegistration, invoice_templates } from "@/db/schema";
 import { logSyncActivity } from "@/lib/logger";
@@ -323,7 +323,7 @@ async function syncPayment(paymentId: string): Promise<{ success: boolean; isSub
       payment_date: payment["Payment Date"] ? new Date(payment["Payment Date"]) : null,
       payment_method: payment["Payment Method"],
       remark: payment.Remark,
-      linked_agent: payment["Linked Agent"],
+      linked_agent: await resolveAgentBubbleId(payment["Linked Agent"]),
       linked_customer: payment["Linked Customer"],
       linked_invoice: payment["Linked Invoice"],
       attachment: payment.Attachment ? (Array.isArray(payment.Attachment) ? payment.Attachment : [payment.Attachment]) : null,
@@ -346,7 +346,7 @@ async function syncPayment(paymentId: string): Promise<{ success: boolean; isSub
         payment_date: submittedPayment["Payment Date"] ? new Date(submittedPayment["Payment Date"]) : null,
         payment_method: submittedPayment["Payment Method"],
         remark: submittedPayment.Remark,
-        linked_agent: submittedPayment["Linked Agent"],
+        linked_agent: await resolveAgentBubbleId(submittedPayment["Linked Agent"]),
         linked_customer: submittedPayment["Linked Customer"],
         linked_invoice: submittedPayment["Linked Invoice"],
         attachment: submittedPayment.Attachment ? (Array.isArray(submittedPayment.Attachment) ? submittedPayment.Attachment : [submittedPayment.Attachment]) : null,
@@ -413,7 +413,7 @@ async function syncInvoice(inv: BubbleInvoiceRaw): Promise<void> {
     invoice_id: invoiceIdNumber,
     invoice_number: inv["Invoice Number"] || inv.invoice_number || (inv["Invoice ID"] ? String(inv["Invoice ID"]) : null),
     linked_customer: inv["Linked Customer"] || inv.linked_customer || null,
-    linked_agent: inv["Linked Agent"] || inv.linked_agent || null,
+    linked_agent: await resolveAgentBubbleId(inv["Linked Agent"] || inv.linked_agent || null),
     linked_payment: inv["Linked Payment"] || inv.linked_payment || null,
     linked_seda_registration: inv["Linked SEDA Registration"] || inv.linked_seda_registration || null,
     linked_invoice_item: inv["linked_invoice_item"] || null,

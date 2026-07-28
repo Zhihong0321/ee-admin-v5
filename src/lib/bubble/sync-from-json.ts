@@ -15,6 +15,7 @@ import { logSyncActivity } from "@/lib/logger";
 import { eq } from "drizzle-orm";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { resolveAgentBubbleId } from "./agent-profile";
 
 /**
  * ============================================================================
@@ -141,7 +142,7 @@ async function syncInvoiceFromJson(inv: BubbleInvoiceJsonExport): Promise<void> 
 
     // Relations
     linked_customer: inv["Linked Customer"] || null,
-    linked_agent: inv["Linked Agent"] || null,
+    linked_agent: await resolveAgentBubbleId(inv["Linked Agent"] || null),
     linked_payment: linkedPayments,
     linked_seda_registration: inv["Linked SEDA registration"] || null,
     linked_invoice_item: linkedItems,

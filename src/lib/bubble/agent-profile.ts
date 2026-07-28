@@ -29,6 +29,57 @@ export type AgentProfileFields = {
   last_synced_at?: Date;
 };
 
+const agentBubbleIdCache = new Map<string, string | null>();
+
+/**
+ * Resolve a raw Bubble "Linked Agent" reference to the user.bubble_id that
+ * invoice/payment/submitted_payment.linked_agent must hold.
+ *
+ * Bubble links these records to its own Agent data type, so every sync pulls a
+ * value in agent-identity space (`agent.bubble_id`), not `user.bubble_id`. The
+ * 2026-07-20b migration repointed all existing rows once, but every subsequent
+ * sync writes the raw agent id straight back in — this is what undoes that
+ * migration on every re-sync. Route every write through this first.
+ *
+ * Resolution order — DELIBERATELY prefers the back-linked user over a
+ * self-promoted one, not the reverse:
+ *   1. A DISTINCT user with `linked_agent_profile = raw` (bubble_id <> raw) —
+ *      an agent with a real login. Checked first because the 2026-07-20b
+ *      migration's orphan test only looked at `agent.linked_user_login`
+ *      (Bubble's own field), which was stale/empty for 17 of the 34 agents it
+ *      promoted — those 17 already had a real, distinct, logged-in user whose
+ *      `linked_agent_profile` correctly pointed at them. Promoting anyway
+ *      created a second "ghost" user row with `bubble_id = agent.bubble_id`,
+ *      same display name, no login. Resolving to bubble_id first (as an
+ *      earlier version of this function did) picks that ghost every time —
+ *      silently fragmenting the real user's invoices/payments onto a second,
+ *      loginless identity. Never reorder these two checks without re-reading
+ *      migrations/2026-07-20b-retire-agent-table-user-only.sql.
+ *   2. `user.bubble_id = raw` — a true promoted orphan (no distinct back-link
+ *      exists), where the promoted row IS the canonical user.
+ *   3. Unresolvable (agent not yet imported as a user) — return the raw value
+ *      unchanged so nothing is dropped; it will show as an orphan until that
+ *      agent is promoted, same as today.
+ *
+ * Cached per raw id for the lifetime of the process/request, so bulk syncs
+ * don't re-query per row for repeat agents.
+ */
+export async function resolveAgentBubbleId(raw: string | null | undefined): Promise<string | null> {
+  if (!raw) return null;
+  if (agentBubbleIdCache.has(raw)) return agentBubbleIdCache.get(raw)!;
+
+  const candidates = await db.query.users.findMany({
+    where: or(eq(users.linked_agent_profile, raw), eq(users.bubble_id, raw)),
+    columns: { bubble_id: true },
+  });
+
+  const viaProfile = candidates.find(u => u.bubble_id !== raw);
+  const viaPromotedSelf = candidates.find(u => u.bubble_id === raw);
+  const resolved = viaProfile?.bubble_id ?? viaPromotedSelf?.bubble_id ?? raw;
+  agentBubbleIdCache.set(raw, resolved);
+  return resolved;
+}
+
 export async function writeAgentProfileToUser(
   agentBubbleId: string,
   vals: AgentProfileFields & Record<string, unknown>,

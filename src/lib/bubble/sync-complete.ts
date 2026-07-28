@@ -16,6 +16,7 @@ import { logSyncActivity } from "@/lib/logger";
 import { createProgressSession, updateProgress, getProgress } from "@/lib/progress-tracker";
 import { BUBBLE_BASE_URL, BUBBLE_API_HEADERS } from "./client";
 import { syncAgentProfilesOntoUsers } from "./sync-profiles";
+import { resolveAgentBubbleId } from "./agent-profile";
 import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
 
 /**
@@ -66,7 +67,7 @@ import { mapSedaRegistrationFields } from "../complete-bubble-mappings";
  * - Requires: db, table definitions, BUBBLE_BASE_URL
  * - Used by: syncCompleteInvoicePackage (all tables)
  */
-async function syncTable(typeName: string, table: any, conflictCol: any, mapFn: (b: any) => any, results: any) {
+async function syncTable(typeName: string, table: any, conflictCol: any, mapFn: (b: any) => any | Promise<any>, results: any) {
   let cursor = 0;
   let remaining = 1;
   logSyncActivity(`Sync Engine: Syncing ${typeName}...`, 'INFO');
@@ -87,7 +88,7 @@ async function syncTable(typeName: string, table: any, conflictCol: any, mapFn: 
 
       for (const b of records) {
         try {
-          const vals = mapFn(b);
+          const vals = await mapFn(b);
           await db.insert(table).values({ bubble_id: b._id, ...vals })
             .onConflictDoUpdate({
               target: conflictCol,
@@ -241,11 +242,11 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
     }), results);
 
     // 4. Sync Invoices
-    await syncTable('invoice', invoices, invoices.bubble_id, (b) => ({
+    await syncTable('invoice', invoices, invoices.bubble_id, async (b) => ({
       invoice_id: b["Invoice ID"] || b.invoice_id || null,
       invoice_number: b["Invoice Number"] || b.invoice_number || (b["Invoice ID"] ? b["Invoice ID"].toString() : null),
       linked_customer: b["Linked Customer"] || b.linked_customer || null,
-      linked_agent: b["Linked Agent"] || b.linked_agent || null,
+      linked_agent: await resolveAgentBubbleId(b["Linked Agent"] || b.linked_agent || null),
       linked_payment: b["Linked Payment"] || b.linked_payment || null,
       linked_seda_registration: b["Linked SEDA Registration"] || b.linked_seda_registration || null,
       linked_invoice_item: b["Linked Invoice Item"] || b["Linked invoice item"] || null,
@@ -285,13 +286,13 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
     }), results);
 
     // 7. Sync Payments
-    await syncTable('payment', payments, payments.bubble_id, (b) => ({
+    await syncTable('payment', payments, payments.bubble_id, async (b) => ({
       amount: b.Amount?.toString(),
       payment_date: b["Payment Date"] ? new Date(b["Payment Date"]) : null,
       payment_method: b["Payment Method"] || b["Payment Method V2"],
       payment_method_v2: b["Payment Method V2"],
       remark: b.Remark,
-      linked_agent: b["Linked Agent"],
+      linked_agent: await resolveAgentBubbleId(b["Linked Agent"]),
       linked_customer: b["Linked Customer"],
       linked_invoice: b["Linked Invoice"],
       issuer_bank: b["Issuer Bank"],
@@ -305,13 +306,13 @@ export async function syncCompleteInvoicePackage(dateFrom?: string, dateTo?: str
     }), results);
 
     // 8. Sync Submitted Payments
-    await syncTable('submit_payment', submitted_payments, submitted_payments.bubble_id, (b) => ({
+    await syncTable('submit_payment', submitted_payments, submitted_payments.bubble_id, async (b) => ({
       amount: b.Amount?.toString(),
       payment_date: b["Payment Date"] ? new Date(b["Payment Date"]) : null,
       payment_method: b["Payment Method"] || b["Payment Method V2"],
       payment_method_v2: b["Payment Method V2"],
       remark: b.Remark,
-      linked_agent: b["Linked Agent"],
+      linked_agent: await resolveAgentBubbleId(b["Linked Agent"]),
       linked_customer: b["Linked Customer"],
       linked_invoice: b["Linked Invoice"],
       issuer_bank: b["Issuer Bank"],
