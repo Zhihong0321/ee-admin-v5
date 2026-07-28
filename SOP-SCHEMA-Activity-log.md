@@ -296,6 +296,7 @@ Keep this list current. Add a row when your app starts writing.
 | `app` | System | Owner |
 |---|---|---|
 | `ee-admin` | EE-Admin-v5 (Next.js) | — |
+| `agent-os` | Solar Calculator v2 (Node/Express) | — |
 | _(add yours)_ | | |
 
 ---
@@ -322,3 +323,4 @@ Keep this list current. Add a row when your app starts writing.
 |---|---|
 | 2026-07-28 | Table created in `prod_main` with 4 indexes. Verified with an insert/delete round-trip. |
 | 2026-07-28 | `ee-admin` wired up: 48 call sites, `/activity` feed page, 30-day lazy purge. |
+| 2026-07-28 | `agent-os` (Solar Calculator v2) wired up Phase 1 pilot: invoice create, customer create, claim receipt submit. Verified with an insert/delete round-trip against `prod_main`. |
