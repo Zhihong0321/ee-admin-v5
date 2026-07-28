@@ -134,13 +134,18 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
       const result = await getAgentsForSelection();
       if (result.success && result.agents) {
         setAgents(result.agents);
-        // Default to the already-assigned agent, falling back to the invoice creator
-        const defaultBubbleId = invoiceData?.linked_agent || invoiceData?.created_by;
-        if (defaultBubbleId) {
-          const currentAgent = result.agents.find(a => a.bubble_id === defaultBubbleId);
-          if (currentAgent) {
-            setSelectedAgentId(currentAgent.bubble_id);
-          }
+        // Default to the already-assigned agent, but only if it actually resolves to a
+        // known user — linked_agent frequently points at a stale bubble_id from the
+        // retired `agent` table, in which case fall back to the invoice creator.
+        const linkedMatch = invoiceData?.linked_agent
+          ? result.agents.find(a => a.bubble_id === invoiceData.linked_agent)
+          : undefined;
+        const creatorMatch = invoiceData?.created_by
+          ? result.agents.find(a => a.bubble_id === invoiceData.created_by)
+          : undefined;
+        const defaultAgent = linkedMatch || creatorMatch;
+        if (defaultAgent) {
+          setSelectedAgentId(defaultAgent.bubble_id);
         }
       }
     }
