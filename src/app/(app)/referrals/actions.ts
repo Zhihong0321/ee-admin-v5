@@ -22,7 +22,46 @@ type ReferralEditRow = {
   linked_agent: string | null;
   linked_invoice: string | null;
   preferred_agent_log: string | null;
+  name: string | null;
+  relationship: string | null;
+  mobile_number: string | null;
+  linked_customer_profile: string | null;
+  deal_value: string | null;
+  commission_earned: string | null;
+  project_type: string | null;
 };
+
+/** Columns only an admin may write. Everything else in `referral` (id, bubble_id,
+ *  created_at, updated_at, status, linked_agent, linked_invoice) is either
+ *  immutable or already editable by any agent via the existing edit modal. */
+const ADMIN_ONLY_REFERRAL_FIELDS = [
+  "name",
+  "relationship",
+  "mobile_number",
+  "linked_customer_profile",
+  "deal_value",
+  "commission_earned",
+  "project_type",
+] as const;
+
+function isReferralAdmin(user: Awaited<ReturnType<typeof getUser>>) {
+  return (
+    user?.isAdmin === true ||
+    user?.role === "owner" ||
+    (user?.tags || []).map((tag) => tag.toLowerCase()).includes("admin")
+  );
+}
+
+function coerceNumericField(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return null;
+  const trimmed = String(value).trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+function coerceTextField(value: string | null | undefined) {
+  const trimmed = (value || "").trim();
+  return trimmed === "" ? null : trimmed;
+}
 
 type ReferralInvoiceSearchContext = {
   id: number;
@@ -461,10 +500,25 @@ export async function updateReferral(
     status?: string;
     linked_agent?: string | null;
     linked_invoice?: string | null;
+    name?: string | null;
+    relationship?: string | null;
+    mobile_number?: string | null;
+    linked_customer_profile?: string | null;
+    deal_value?: string | number | null;
+    commission_earned?: string | number | null;
+    project_type?: string | null;
   },
 ) {
   try {
     const user = await getUser();
+    const requestedAdminFields = ADMIN_ONLY_REFERRAL_FIELDS.filter((field) => field in data);
+    if (requestedAdminFields.length > 0 && !isReferralAdmin(user)) {
+      return {
+        success: false,
+        error: `Admin permission required to edit: ${requestedAdminFields.join(", ")}`,
+      };
+    }
+
     const actorName = user?.name || user?.phone || user?.userId || "System Admin";
     const hasPreferredAgentLog = await hasReferralPreferredAgentLogColumn();
     const shouldEnsureInvoiceLink = Boolean(data.linked_invoice?.trim());
@@ -483,6 +537,13 @@ export async function updateReferral(
           status,
           linked_agent,
           linked_invoice,
+          name,
+          relationship,
+          mobile_number,
+          linked_customer_profile,
+          CAST(deal_value AS TEXT) AS deal_value,
+          CAST(commission_earned AS TEXT) AS commission_earned,
+          project_type,
           ${hasPreferredAgentLog
             ? sql`${sql.identifier("preferred_agent_log")}`
             : sql`NULL::text`} AS preferred_agent_log
@@ -506,6 +567,18 @@ export async function updateReferral(
       const nextStatus = data.status ?? current.status;
       const nextUpdatedAt = new Date();
       const referralLinkKey = current.bubble_id?.trim() || String(current.id);
+
+      const nextName = "name" in data ? coerceTextField(data.name) : current.name;
+      const nextRelationship = "relationship" in data ? coerceTextField(data.relationship) : current.relationship;
+      const nextMobileNumber = "mobile_number" in data ? coerceTextField(data.mobile_number) : current.mobile_number;
+      const nextCustomerProfile =
+        "linked_customer_profile" in data
+          ? coerceTextField(data.linked_customer_profile)
+          : current.linked_customer_profile;
+      const nextProjectType = "project_type" in data ? coerceTextField(data.project_type) : current.project_type;
+      const nextDealValue = "deal_value" in data ? coerceNumericField(data.deal_value) : current.deal_value;
+      const nextCommissionEarned =
+        "commission_earned" in data ? coerceNumericField(data.commission_earned) : current.commission_earned;
 
       let updatedLog = current.preferred_agent_log;
 
@@ -582,6 +655,13 @@ export async function updateReferral(
             linked_agent = ${newAgentId},
             linked_invoice = ${newInvoiceId},
             preferred_agent_log = ${updatedLog},
+            name = ${nextName},
+            relationship = ${nextRelationship},
+            mobile_number = ${nextMobileNumber},
+            linked_customer_profile = ${nextCustomerProfile},
+            deal_value = ${nextDealValue},
+            commission_earned = ${nextCommissionEarned},
+            project_type = ${nextProjectType},
             updated_at = ${nextUpdatedAt}
           WHERE id = ${id}
         `);
@@ -592,6 +672,13 @@ export async function updateReferral(
             status: nextStatus,
             linked_agent: newAgentId,
             linked_invoice: newInvoiceId,
+            name: nextName,
+            relationship: nextRelationship,
+            mobile_number: nextMobileNumber,
+            linked_customer_profile: nextCustomerProfile,
+            deal_value: nextDealValue,
+            commission_earned: nextCommissionEarned,
+            project_type: nextProjectType,
             updated_at: nextUpdatedAt,
           })
           .where(eq(referrals.id, id));
