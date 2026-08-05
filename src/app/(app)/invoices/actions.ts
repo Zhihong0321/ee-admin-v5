@@ -826,11 +826,22 @@ export async function updateInvoiceAgent(invoiceId: number, agentBubbleId: strin
       return { success: false, error: "Agent not found" };
     }
 
-    // Update invoice
+    // Resolve old creator name (created_by also stores a user bubble_id)
+    let oldCreatorName: string | null = null;
+    if (currentInvoice.created_by) {
+      const oldCreator = await db.query.users.findFirst({
+        where: eq(users.bubble_id, currentInvoice.created_by),
+      });
+      oldCreatorName = oldCreator?.name || null;
+    }
+
+    // Update invoice — the sales agent is also the invoice creator of record,
+    // so created_by moves with linked_agent.
     const updated = await db
       .update(invoices)
       .set({
         linked_agent: agentBubbleId,
+        created_by: agentBubbleId,
         updated_at: new Date(),
       })
       .where(eq(invoices.id, invoiceId))
@@ -847,9 +858,19 @@ export async function updateInvoiceAgent(invoiceId: number, agentBubbleId: strin
       entityType: "invoice",
       entityId: currentInvoice.bubble_id,
       actionType: "update",
-      before: { linked_agent: currentInvoice.linked_agent, agent_name: oldAgentName },
-      after: { linked_agent: agentBubbleId, agent_name: agent.name },
-      fields: ["linked_agent", "agent_name"],
+      before: {
+        linked_agent: currentInvoice.linked_agent,
+        agent_name: oldAgentName,
+        created_by: currentInvoice.created_by,
+        created_by_name: oldCreatorName,
+      },
+      after: {
+        linked_agent: agentBubbleId,
+        agent_name: agent.name,
+        created_by: agentBubbleId,
+        created_by_name: agent.name,
+      },
+      fields: ["linked_agent", "agent_name", "created_by", "created_by_name"],
     });
 
     revalidatePath("/invoices");
@@ -858,8 +879,8 @@ export async function updateInvoiceAgent(invoiceId: number, agentBubbleId: strin
       entityType: "invoice",
       entityId: invoiceId,
       entityLabel: currentInvoice.invoice_number ?? null,
-      fields: ["linked_agent"],
-      description: `Agent changed from ${oldAgentName ?? "—"} to ${agent.name ?? agentBubbleId} on invoice ${currentInvoice.invoice_number ?? invoiceId}`,
+      fields: ["linked_agent", "created_by"],
+      description: `Agent changed from ${oldAgentName ?? "—"} to ${agent.name ?? agentBubbleId} on invoice ${currentInvoice.invoice_number ?? invoiceId} (creator also set to ${agent.name ?? agentBubbleId}, was ${oldCreatorName ?? "—"})`,
     });
     return { success: true, invoice: updated[0] };
   } catch (error) {
@@ -868,7 +889,7 @@ export async function updateInvoiceAgent(invoiceId: number, agentBubbleId: strin
       action: "update",
       entityType: "invoice",
       entityId: invoiceId,
-      fields: ["linked_agent"],
+      fields: ["linked_agent", "created_by"],
       status: "failed",
       errorMessage: String(error),
     });
