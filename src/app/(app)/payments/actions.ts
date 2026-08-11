@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { payments, submitted_payments, customers, invoices, invoice_templates, users, invoice_items, vouchers, invoice_audit_log } from "@/db/schema";
-import { ilike, or, desc, eq, and, sql, inArray, isNull, isNotNull, gte, lte } from "drizzle-orm";
+import { ilike, or, asc, desc, eq, and, sql, inArray, isNull, isNotNull, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 /**
@@ -146,9 +146,50 @@ export async function getSubmittedPayments(search?: string, status: string = 'pe
   }
 }
 
-export async function getVerifiedPayments(search?: string) {
+// Not exported: a "use server" module may only export async functions.
+const VERIFIED_PAGE_SIZE = 50;
+
+type VerifiedPaymentsPage = {
+  rows: any[];
+  hasMore: boolean;
+  /** Only computed on the first page (offset 0); null on subsequent pages. */
+  total: number | null;
+};
+
+/**
+ * One page of verified payments.
+ *
+ * Search, payment-method filter and sort order are all applied in SQL so the
+ * client never has to hold the whole table to filter or sort it.
+ */
+export async function getVerifiedPayments(
+  search?: string,
+  opts?: {
+    limit?: number;
+    offset?: number;
+    sortOrder?: "asc" | "desc";
+    /** "all" or empty means no filter. */
+    paymentMethod?: string;
+  }
+): Promise<VerifiedPaymentsPage> {
   try {
-    const filters = search
+    const limit = Math.min(Math.max(opts?.limit ?? VERIFIED_PAGE_SIZE, 1), 200);
+    const offset = Math.max(opts?.offset ?? 0, 0);
+    const dir = opts?.sortOrder === "asc" ? asc : desc;
+    const method =
+      opts?.paymentMethod && opts.paymentMethod !== "all" ? opts.paymentMethod : null;
+
+    // The table cell renders `payment_method || payment_method_v2`, so the
+    // filter has to match on that same effective value, not on one column.
+    const effectiveMethod = sql`COALESCE(NULLIF(${payments.payment_method}, ''), ${payments.payment_method_v2})`;
+    // Reproduces the order the page used to build client-side from
+    // `payment_date || created_at`. The client treated a missing date as epoch
+    // 0, so null sorts last descending / first ascending — both the opposite of
+    // the Postgres default, hence the explicit NULLS placement.
+    const nullsPlacement = opts?.sortOrder === "asc" ? sql`ASC NULLS FIRST` : sql`DESC NULLS LAST`;
+    const sortKey = sql`COALESCE(${payments.payment_date}, ${payments.created_at}) ${nullsPlacement}`;
+
+    const searchFilter = search
       ? or(
         ilike(payments.remark, `%${search}%`),
         ilike(payments.payment_method, `%${search}%`),
@@ -160,6 +201,53 @@ export async function getVerifiedPayments(search?: string) {
         sql`CAST(${payments.created_by} AS TEXT) ILIKE ${`%${search}%`}`
       )
       : undefined;
+
+    const methodFilter = method
+      ? sql`LOWER(${effectiveMethod}) = LOWER(${method})`
+      : undefined;
+
+    const whereClause = and(searchFilter, methodFilter);
+
+    // Resolve the page's ids first. The invoice join below is an OR/CAST join
+    // that cannot use an index, so it must only ever run over one page of rows
+    // — joining it before the LIMIT is what made this take seconds.
+    const pageKeys = await db
+      .select({ id: payments.id })
+      .from(payments)
+      .leftJoin(users, eq(payments.created_by, users.bubble_id))
+      .leftJoin(agentUser, eq(payments.linked_agent, agentUser.bubble_id))
+      .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
+      .where(whereClause)
+      .orderBy(sortKey, dir(payments.id))
+      .limit(limit + 1) // one extra row tells us whether another page exists
+      .offset(offset);
+
+    const seen = new Set<number>();
+    const orderedIds: number[] = [];
+    for (const row of pageKeys) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        orderedIds.push(row.id);
+      }
+    }
+    const hasMore = orderedIds.length > limit;
+    const ids = orderedIds.slice(0, limit);
+
+    let total: number | null = null;
+    if (offset === 0) {
+      const countRows = await db
+        .select({ n: sql<number>`COUNT(DISTINCT ${payments.id})` })
+        .from(payments)
+        .leftJoin(users, eq(payments.created_by, users.bubble_id))
+        .leftJoin(agentUser, eq(payments.linked_agent, agentUser.bubble_id))
+        .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
+        .where(whereClause);
+      total = Number(countRows[0]?.n ?? 0);
+    }
+
+    if (ids.length === 0) {
+      return { rows: [], hasMore: false, total };
+    }
 
     const data = await db
       .select({
@@ -193,14 +281,36 @@ export async function getVerifiedPayments(search?: string) {
       .leftJoin(agentUser, eq(payments.linked_agent, agentUser.bubble_id))
       .leftJoin(customers, eq(payments.linked_customer, customers.customer_id))
       .leftJoin(invoices, sql`${payments.linked_invoice} = ${invoices.bubble_id} OR ${payments.linked_invoice} = CAST(${invoices.invoice_id} AS TEXT)`)
-      .where(filters)
-      .orderBy(desc(payments.payment_date), desc(payments.created_at))
-      .limit(5000);
+      .where(inArray(payments.id, ids))
+      .orderBy(sortKey, dir(payments.id));
 
-    return data;
+    return { rows: data, hasMore, total };
   } catch (error) {
     console.error("Database error in getVerifiedPayments:", error);
     throw error;
+  }
+}
+
+/**
+ * Distinct payment methods across all verified payments, so the filter
+ * dropdown is not limited to the rows currently loaded on screen.
+ */
+export async function getVerifiedPaymentMethods(): Promise<string[]> {
+  try {
+    const effectiveMethod = sql<string>`COALESCE(NULLIF(${payments.payment_method}, ''), ${payments.payment_method_v2})`;
+
+    const rows = await db
+      .selectDistinct({ method: effectiveMethod })
+      .from(payments)
+      .where(sql`COALESCE(NULLIF(${payments.payment_method}, ''), NULLIF(${payments.payment_method_v2}, '')) IS NOT NULL`);
+
+    return rows
+      .map((r) => r.method)
+      .filter((m): m is string => Boolean(m))
+      .sort((a, b) => a.localeCompare(b));
+  } catch (error) {
+    console.error("Database error in getVerifiedPaymentMethods:", error);
+    return [];
   }
 }
 

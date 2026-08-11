@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Search,
   Filter,
@@ -36,6 +36,7 @@ import {
 import {
   getSubmittedPayments,
   getVerifiedPayments,
+  getVerifiedPaymentMethods,
   getFullyPaidInvoices,
   getFullyPaidInvoicesByAgent,
   getEppPayments,
@@ -108,6 +109,9 @@ function formatPhoneE164(raw: string | null | undefined): { display: string; waU
   return { display, waUrl };
 }
 
+/** Rows pulled per lazy-load batch on the Verified tab. */
+const VERIFIED_PAGE_SIZE = 50;
+
 export default function PaymentsPage() {
   const [activeTab, setActiveTab] = useState<"pending" | "verified" | "fully-paid" | "update-method" | "epp-costs">("pending");
   const [search, setSearch] = useState("");
@@ -163,24 +167,62 @@ export default function PaymentsPage() {
   const imgRef = useRef<HTMLImageElement>(null);
   const inlineInvoiceRef = useRef<HTMLIFrameElement>(null);
 
+  // Lazy loading (Verified tab only)
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [verifiedMethodOptions, setVerifiedMethodOptions] = useState<string[]>([]);
+  const loadedCountRef = useRef(0);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  const isVerifiedTab = activeTab === "verified";
+
+  // On the Verified tab the server does the filtering and sorting, so those two
+  // controls have to re-run the query instead of re-slicing a local array.
+  const queryKey = isVerifiedTab
+    ? `verified|${sortOrder}|${paymentMethodFilter}`
+    : `${activeTab}|${viewMode}|${selectedMonth}|${selectedYear}`;
+
   useEffect(() => {
     fetchData();
-  }, [activeTab, viewMode, selectedMonth, selectedYear]); // Note: sort and filter are applied client-side after fetch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryKey]);
 
-  // Apply client-side sorting and filtering
-  const filteredAndSortedPayments = payments
-    .filter(payment => {
-      if (paymentMethodFilter === "all") return true;
-      const method = payment.payment_method || payment.payment_method_v2 || "";
-      return method.toLowerCase() === paymentMethodFilter.toLowerCase();
-    })
-    .sort((a, b) => {
-      const dateA = a.payment_date || a.created_at;
-      const dateB = b.payment_date || b.created_at;
-      const timeA = dateA ? (dateA instanceof Date ? dateA.getTime() : new Date(dateA).getTime()) : 0;
-      const timeB = dateB ? (dateB instanceof Date ? dateB.getTime() : new Date(dateB).getTime()) : 0;
-      return sortOrder === "desc" ? timeB - timeA : timeA - timeB;
-    });
+  // Filter options must cover the whole table, not just the loaded page.
+  useEffect(() => {
+    if (!isVerifiedTab) return;
+    let cancelled = false;
+    getVerifiedPaymentMethods()
+      .then(methods => { if (!cancelled) setVerifiedMethodOptions(methods); })
+      .catch(() => { /* dropdown just stays empty */ });
+    return () => { cancelled = true; };
+  }, [isVerifiedTab]);
+
+  // Apply client-side sorting and filtering.
+  // The Verified tab arrives already filtered and sorted by SQL.
+  const filteredAndSortedPayments = useMemo(() => {
+    if (isVerifiedTab) return payments;
+    return payments
+      .filter(payment => {
+        if (paymentMethodFilter === "all") return true;
+        const method = payment.payment_method || payment.payment_method_v2 || "";
+        return method.toLowerCase() === paymentMethodFilter.toLowerCase();
+      })
+      .sort((a, b) => {
+        const dateA = a.payment_date || a.created_at;
+        const dateB = b.payment_date || b.created_at;
+        const timeA = dateA ? (dateA instanceof Date ? dateA.getTime() : new Date(dateA).getTime()) : 0;
+        const timeB = dateB ? (dateB instanceof Date ? dateB.getTime() : new Date(dateB).getTime()) : 0;
+        return sortOrder === "desc" ? timeB - timeA : timeA - timeB;
+      });
+  }, [payments, isVerifiedTab, paymentMethodFilter, sortOrder]);
+
+  const methodFilterOptions = useMemo(() => {
+    if (isVerifiedTab) return verifiedMethodOptions;
+    return Array.from(
+      new Set(payments.flatMap(p => [p.payment_method, p.payment_method_v2]).filter(Boolean))
+    ).sort() as string[];
+  }, [isVerifiedTab, verifiedMethodOptions, payments]);
 
   useEffect(() => {
     if (inlineInvoiceRef.current && selectedInvoice && showInvoiceInline) {
@@ -236,8 +278,25 @@ export default function PaymentsPage() {
     try {
       let data;
       if (activeTab === "verified") {
-        data = await getVerifiedPayments(search);
-      } else if (activeTab === "fully-paid") {
+        const page = await getVerifiedPayments(search, {
+          limit: VERIFIED_PAGE_SIZE,
+          offset: 0,
+          sortOrder,
+          paymentMethod: paymentMethodFilter,
+        });
+        loadedCountRef.current = page.rows.length;
+        setHasMore(page.hasMore);
+        setTotalCount(page.total);
+        setPayments(page.rows);
+        return;
+      }
+
+      // Other tabs still load in full; reset the lazy-load footer state.
+      loadedCountRef.current = 0;
+      setHasMore(false);
+      setTotalCount(null);
+
+      if (activeTab === "fully-paid") {
         if (viewMode === "by-agent") {
           data = await getFullyPaidInvoicesByAgent(selectedMonth, selectedYear, search);
           setGroupedInvoices(data);
@@ -264,6 +323,45 @@ export default function PaymentsPage() {
       setLoading(false);
     }
   }
+
+  async function loadMoreVerified() {
+    if (!isVerifiedTab || loading || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await getVerifiedPayments(search, {
+        limit: VERIFIED_PAGE_SIZE,
+        offset: loadedCountRef.current,
+        sortOrder,
+        paymentMethod: paymentMethodFilter,
+      });
+      loadedCountRef.current += page.rows.length;
+      setHasMore(page.hasMore);
+      // Guard against a row shifting across the page boundary between requests.
+      setPayments(prev => {
+        const seen = new Set(prev.map(p => p.id));
+        return [...prev, ...page.rows.filter(r => !seen.has(r.id))];
+      });
+    } catch (error) {
+      console.error("Failed to load more payments", error);
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  // Pull the next batch when the sentinel below the table comes into view.
+  useEffect(() => {
+    if (!isVerifiedTab || !hasMore || loading) return;
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0]?.isIntersecting) loadMoreVerified(); },
+      { rootMargin: "400px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVerifiedTab, hasMore, loading, loadingMore, payments.length, search, sortOrder, paymentMethodFilter]);
 
   async function handleReconcile() {
     if (!confirm("This will match pending submissions with verified payments (5-column match) and mark them as deleted. Continue?")) return;
@@ -897,8 +995,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                           <span>All Methods</span>
                           {paymentMethodFilter === "all" && <CheckCircle className="h-4 w-4 text-primary-600" />}
                         </button>
-                        {Array.from(new Set(payments.flatMap(p => [p.payment_method, p.payment_method_v2]).filter(Boolean)))
-                          .sort()
+                        {methodFilterOptions
                           .map(method => (
                             <button
                               key={method}
@@ -1655,11 +1752,34 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
           )}
         </div>
 
+        {/* Lazy-load sentinel (Verified tab) */}
+        {isVerifiedTab && !loading && hasMore && (
+          <div ref={loadMoreRef} className="flex items-center justify-center py-6">
+            {loadingMore ? (
+              <span className="flex items-center gap-2 text-sm text-secondary-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading more…
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={loadMoreVerified}
+                className="btn-secondary text-sm"
+              >
+                Load more
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Pagination */}
         <div className="p-6 border-t border-secondary-200 bg-secondary-50/30 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <p className="text-sm text-secondary-600">
-              Showing <span className="font-semibold text-secondary-900">{filteredAndSortedPayments.length}</span> results
+              Showing <span className="font-semibold text-secondary-900">{filteredAndSortedPayments.length}</span>
+              {isVerifiedTab && totalCount !== null && (
+                <> of <span className="font-semibold text-secondary-900">{totalCount}</span></>
+              )} results
             </p>
           </div>
           <div className="flex items-center gap-2">
