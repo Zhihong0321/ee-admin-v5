@@ -14,12 +14,20 @@ import {
   Phone,
   Search,
   Sparkles,
+  Trash2,
   User,
   Users,
   UserPlus,
   X,
 } from "lucide-react";
-import { getReferralAgents, getReferrals, searchReferralInvoices, updateReferral } from "./actions";
+import {
+  deleteReferral,
+  getReferralAgents,
+  getReferralReferrers,
+  getReferrals,
+  searchReferralInvoices,
+  updateReferral,
+} from "./actions";
 
 type ReferralRow = {
   id: number;
@@ -134,11 +142,15 @@ function getInvoiceReferralLinkBadge(invoice: InvoiceOption) {
 export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [assignedAgentFilter, setAssignedAgentFilter] = useState("all");
+  const [referrerFilter, setReferrerFilter] = useState("");
   const [referrals, setReferrals] = useState<ReferralRow[]>([]);
   const [agents, setAgents] = useState<AgentOption[]>([]);
+  const [referrers, setReferrers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
@@ -155,6 +167,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     fetchData(1, search, statusFilter);
     loadAgents();
+    loadReferrers();
   }, []);
 
   async function loadAgents() {
@@ -169,12 +182,28 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
     }
   }
 
-  async function fetchData(page = currentPage, searchTerm = search, status = statusFilter) {
+  async function loadReferrers() {
+    try {
+      setReferrers(await getReferralReferrers());
+    } catch (error) {
+      console.error("Failed to fetch referrers", error);
+    }
+  }
+
+  async function fetchData(
+    page = currentPage,
+    searchTerm = search,
+    status = statusFilter,
+    assignedAgent = assignedAgentFilter,
+    referrer = referrerFilter,
+  ) {
     setLoading(true);
     try {
       const data = await getReferrals({
         search: searchTerm,
         status,
+        assignedAgent,
+        referrer,
         page,
         pageSize,
       });
@@ -242,13 +271,25 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
-    fetchData(1, search, statusFilter);
+    fetchData(1, search, statusFilter, assignedAgentFilter, referrerFilter);
   };
 
   const handleStatusFilterChange = (value: string) => {
     setStatusFilter(value);
     setCurrentPage(1);
-    fetchData(1, search, value);
+    fetchData(1, search, value, assignedAgentFilter, referrerFilter);
+  };
+
+  const handleAssignedAgentFilterChange = (value: string) => {
+    setAssignedAgentFilter(value);
+    setCurrentPage(1);
+    fetchData(1, search, statusFilter, value, referrerFilter);
+  };
+
+  const handleReferrerFilterChange = (value: string) => {
+    setReferrerFilter(value);
+    setCurrentPage(1);
+    fetchData(1, search, statusFilter, assignedAgentFilter, value);
   };
 
   const handleEditClick = (referral: ReferralRow) => {
@@ -287,7 +328,10 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
 
       if (result.success) {
         setIsEditModalOpen(false);
-        await fetchData(currentPage, search, statusFilter);
+        await Promise.all([
+          fetchData(currentPage, search, statusFilter, assignedAgentFilter, referrerFilter),
+          loadReferrers(),
+        ]);
       } else {
         alert(result.error || "Failed to update referral");
       }
@@ -299,11 +343,37 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
+  const handleDeleteReferral = async (referral: ReferralRow) => {
+    const label = referral.name || referral.bubble_id || `Referral #${referral.id}`;
+    if (!window.confirm(`Delete ${label}? This permanently removes the lead and cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingId(referral.id);
+    try {
+      const result = await deleteReferral(referral.id);
+      if (!result.success) {
+        alert(result.error || "Failed to delete referral");
+        return;
+      }
+
+      await Promise.all([
+        fetchData(currentPage, search, statusFilter, assignedAgentFilter, referrerFilter),
+        loadReferrers(),
+      ]);
+    } catch (error) {
+      console.error("Failed to delete referral", error);
+      alert("Failed to delete referral");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const startResult = totalRows === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endResult = totalRows === 0 ? 0 : Math.min(currentPage * pageSize, totalRows);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="min-w-0 max-w-full space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold text-secondary-900">Referral Management</h1>
@@ -312,10 +382,10 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={() => fetchData(currentPage, search, statusFilter)}
+            onClick={() => fetchData(currentPage, search, statusFilter, assignedAgentFilter, referrerFilter)}
             className="btn-secondary flex items-center gap-2"
           >
             <Sparkles className="h-4 w-4" />
@@ -363,10 +433,10 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
         </div>
       </div>
 
-      <div className="card">
+      <div className="card min-w-0 max-w-full overflow-hidden">
         <div className="p-6 border-b border-secondary-200 bg-gradient-to-r from-secondary-50/50 to-white">
-          <form onSubmit={handleSearch} className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative w-full xl:max-w-xl">
+          <form onSubmit={handleSearch} className="space-y-4">
+            <div className="relative w-full">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary-400 w-5 h-5" />
               <input
                 type="text"
@@ -377,13 +447,13 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
               />
             </div>
 
-            <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-secondary-500" />
+            <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+              <div className="flex min-w-0 w-full items-center gap-2 md:w-auto">
+                <Filter className="h-4 w-4 shrink-0 text-secondary-500" />
                 <select
                   value={statusFilter}
                   onChange={(e) => handleStatusFilterChange(e.target.value)}
-                  className="input min-w-[180px] py-2.5"
+                  className="input min-w-0 flex-1 py-2.5 md:w-auto md:min-w-[180px] md:flex-none"
                 >
                   {STATUS_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -393,7 +463,36 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                 </select>
               </div>
 
-              <button type="button" onClick={() => fetchData(1, search, statusFilter)} className="btn-secondary flex items-center gap-2">
+              <select
+                value={assignedAgentFilter}
+                onChange={(e) => handleAssignedAgentFilterChange(e.target.value)}
+                className="input w-full min-w-0 py-2.5 md:w-auto md:min-w-[220px]"
+                aria-label="Filter by assigned agent"
+              >
+                <option value="all">All assigned agents</option>
+                <option value="unassigned">Unassigned only</option>
+                {agents.map((agent) => (
+                  <option key={agent.value} value={agent.value}>
+                    {agent.name || agent.email || agent.value}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={referrerFilter}
+                onChange={(e) => handleReferrerFilterChange(e.target.value)}
+                className="input w-full min-w-0 py-2.5 md:w-auto md:min-w-[220px]"
+                aria-label="Filter by referrer"
+              >
+                <option value="">All referrers</option>
+                {referrers.map((referrer) => (
+                  <option key={referrer} value={referrer}>
+                    {referrer}
+                  </option>
+                ))}
+              </select>
+
+              <button type="submit" className="btn-secondary flex items-center gap-2">
                 <ArrowUpDown className="w-4 h-4" />
                 Apply Filters
               </button>
@@ -401,134 +500,133 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
           </form>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Referral</th>
-                <th>Customer</th>
-                <th>Agent</th>
-                <th>Contact</th>
-                <th>Status</th>
-                <th>Deal / Commission</th>
-                <th>Dates</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 6 }).map((_, index) => (
-                  <tr key={index} className="animate-pulse">
-                    <td colSpan={8} className="px-6 py-6">
-                      <div className="h-4 rounded bg-secondary-200 w-3/4" />
-                    </td>
-                  </tr>
-                ))
-              ) : referrals.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="p-4 bg-secondary-100 rounded-full">
-                        <UserPlus className="h-8 w-8 text-secondary-400" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-secondary-900 mb-1">No referrals found</p>
-                        <p className="text-sm text-secondary-600">
-                          {search || statusFilter !== "All"
-                            ? "Try adjusting the search or status filter"
-                            : "There are no referral records yet"}
-                        </p>
-                      </div>
+        <div className="min-w-0 p-4 sm:p-6">
+          {loading ? (
+            <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="min-w-0 animate-pulse rounded-2xl border border-secondary-200 p-5">
+                  <div className="h-5 w-2/5 rounded bg-secondary-200" />
+                  <div className="mt-4 h-4 w-full rounded bg-secondary-100" />
+                  <div className="mt-3 h-4 w-3/4 rounded bg-secondary-100" />
+                </div>
+              ))}
+            </div>
+          ) : referrals.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
+              <div className="rounded-full bg-secondary-100 p-4">
+                <UserPlus className="h-8 w-8 text-secondary-400" />
+              </div>
+              <div>
+                <p className="mb-1 font-medium text-secondary-900">No referrals found</p>
+                <p className="text-sm text-secondary-600">
+                  {search || statusFilter !== "All" || assignedAgentFilter !== "all" || referrerFilter
+                    ? "Try adjusting the search or filters"
+                    : "There are no referral records yet"}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+              {referrals.map((referral) => (
+                <article
+                  key={referral.id}
+                  className="min-w-0 overflow-hidden rounded-2xl border border-secondary-200 bg-white p-4 shadow-sm sm:p-5"
+                >
+                  <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <h2 className="break-words font-semibold text-secondary-900 [overflow-wrap:anywhere]">
+                        {referral.name || "Unnamed referrer"}
+                      </h2>
+                      <p className="mt-1 break-all font-mono text-xs text-secondary-500">
+                        {referral.bubble_id || "No bubble id"}
+                      </p>
+                      <p className="mt-1 break-words text-xs text-secondary-400 [overflow-wrap:anywhere]">
+                        {referral.relationship || "No relationship noted"}
+                      </p>
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                referrals.map((referral) => (
-                  <tr key={referral.id}>
-                    <td>
-                      <div className="space-y-1">
-                        <div className="font-semibold text-secondary-900">{referral.name || "Unnamed referral"}</div>
-                        <div className="text-xs text-secondary-500 flex items-center gap-1.5">
-                          <span className="font-mono">{referral.bubble_id || "No bubble id"}</span>
-                        </div>
-                        <div className="text-[11px] text-secondary-400">
-                          {referral.relationship || "No relationship noted"}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="space-y-1">
-                        <div className="text-sm font-medium text-secondary-900">
-                          {referral.customer_name || referral.linked_customer_profile || "Unlinked customer"}
-                        </div>
-                        <div className="text-xs text-secondary-500">
-                          {referral.project_type || "No project type"}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <div className="h-9 w-9 rounded-full bg-primary-50 flex items-center justify-center">
+                    <span className={`inline-flex w-fit shrink-0 items-center rounded-lg border px-2.5 py-1 text-xs font-bold ${getStatusClasses(referral.status)}`}>
+                      {referral.status || "Pending"}
+                    </span>
+                  </div>
+
+                  <div className="mt-5 grid min-w-0 gap-4 border-y border-secondary-100 py-4 sm:grid-cols-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-secondary-400">Customer</p>
+                      <p className="mt-1 break-words text-sm font-medium text-secondary-900 [overflow-wrap:anywhere]">
+                        {referral.customer_name || referral.linked_customer_profile || "Unlinked customer"}
+                      </p>
+                      <p className="mt-1 break-words text-xs text-secondary-500 [overflow-wrap:anywhere]">
+                        {referral.project_type || "No project type"}
+                      </p>
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-secondary-400">Assigned agent</p>
+                      <div className="mt-1 flex min-w-0 items-start gap-2">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-50">
                           <User className="h-4 w-4 text-primary-600" />
                         </div>
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-medium text-secondary-900">
+                          <p className="break-words text-sm font-medium text-secondary-900 [overflow-wrap:anywhere]">
                             {referral.agent_name || "Unassigned"}
-                          </div>
-                          <div className="truncate text-[11px] text-secondary-500">
+                          </p>
+                          <p className="mt-0.5 break-all text-[11px] text-secondary-500">
                             {referral.agent_bubble_id ? `Agent ID: ${referral.agent_bubble_id}` : "No assigned agent"}
-                          </div>
+                          </p>
                         </div>
                       </div>
-                    </td>
-                    <td>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm text-secondary-600">
-                          <Phone className="h-3.5 w-3.5" />
-                          {referral.mobile_number || "No phone"}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-secondary-600">
-                          <Mail className="h-3.5 w-3.5" />
-                          {referral.customer_email || "No email"}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${getStatusClasses(referral.status)}`}>
-                        {referral.status || "Pending"}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="space-y-1 text-sm">
-                        <div className="font-medium text-secondary-900">{formatMoney(referral.deal_value)}</div>
-                        <div className="text-xs text-secondary-500">
-                          Commission {formatMoney(referral.commission_earned)}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="space-y-1 text-xs text-secondary-500">
-                        <div>Created: {formatDate(referral.created_at)}</div>
-                        <div>Updated: {formatDate(referral.updated_at)}</div>
-                      </div>
-                    </td>
-                    <td className="text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-secondary-400">Contact</p>
+                      <p className="mt-1 flex min-w-0 items-start gap-2 text-sm text-secondary-600">
+                        <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span className="min-w-0 break-all">{referral.mobile_number || "No phone"}</span>
+                      </p>
+                      <p className="mt-1 flex min-w-0 items-start gap-2 text-sm text-secondary-600">
+                        <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span className="min-w-0 break-all">{referral.customer_email || "No email"}</span>
+                      </p>
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-secondary-400">Deal</p>
+                      <p className="mt-1 text-sm font-medium text-secondary-900">{formatMoney(referral.deal_value)}</p>
+                      <p className="mt-1 text-xs text-secondary-500">Commission {formatMoney(referral.commission_earned)}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="min-w-0 space-y-1 text-xs text-secondary-500">
+                      <p className="break-words">Created: {formatDate(referral.created_at)}</p>
+                      <p className="break-words">Updated: {formatDate(referral.updated_at)}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleEditClick(referral)}
+                        className="btn-ghost flex items-center gap-1.5 text-primary-600 hover:text-primary-700"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        Edit
+                      </button>
+                      {isAdmin && (
                         <button
                           type="button"
-                          onClick={() => handleEditClick(referral)}
-                          className="btn-ghost text-primary-600 hover:text-primary-700 flex items-center gap-1.5"
+                          onClick={() => handleDeleteReferral(referral)}
+                          disabled={deletingId === referral.id}
+                          className="btn-ghost flex items-center gap-1.5 text-red-600 hover:text-red-700 disabled:opacity-50"
                         >
-                          <Sparkles className="h-4 w-4" />
-                          Edit
+                          <Trash2 className="h-4 w-4" />
+                          {deletingId === referral.id ? "Deleting..." : "Delete"}
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="p-6 border-t border-secondary-200 bg-secondary-50/30 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -540,7 +638,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => fetchData(currentPage - 1, search, statusFilter)}
+              onClick={() => fetchData(currentPage - 1, search, statusFilter, assignedAgentFilter, referrerFilter)}
               disabled={loading || currentPage <= 1}
               className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
               aria-label="Previous page"
@@ -552,7 +650,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
             </span>
             <button
               type="button"
-              onClick={() => fetchData(currentPage + 1, search, statusFilter)}
+              onClick={() => fetchData(currentPage + 1, search, statusFilter, assignedAgentFilter, referrerFilter)}
               disabled={loading || currentPage >= totalPages}
               className="p-2 rounded-lg border border-secondary-200 bg-white text-secondary-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-secondary-50 transition-colors"
               aria-label="Next page"
@@ -621,7 +719,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold text-secondary-700">Referral Name</label>
+                      <label className="text-sm font-semibold text-secondary-700">Referrer Name</label>
                       <input
                         type="text"
                         className={`input ${isAdmin ? "" : "bg-secondary-50"}`}

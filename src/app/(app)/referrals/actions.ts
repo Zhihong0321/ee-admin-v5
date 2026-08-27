@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity-log";
 import { db } from "@/lib/db";
@@ -11,6 +11,8 @@ import { resolvedIdentityContact, resolvedIdentityName } from "@/lib/agent-ident
 type GetReferralsParams = {
   search?: string;
   status?: string;
+  assignedAgent?: string;
+  referrer?: string;
   page?: number;
   pageSize?: number;
 };
@@ -260,6 +262,24 @@ export async function getReferralAgents() {
   }
 }
 
+export async function getReferralReferrers() {
+  try {
+    const result = await db.execute(sql`
+      SELECT DISTINCT TRIM(name) AS name
+      FROM referral
+      WHERE name IS NOT NULL AND TRIM(name) <> ''
+      ORDER BY name ASC
+    `);
+
+    return result.rows
+      .map((row) => (row as { name: string | null }).name)
+      .filter((name): name is string => Boolean(name));
+  } catch (error) {
+    console.error("Database error in getReferralReferrers:", error);
+    throw error;
+  }
+}
+
 function formatLogTimestamp(date = new Date()) {
   return date.toISOString().replace("T", " ").replace("Z", " UTC");
 }
@@ -269,7 +289,14 @@ function appendPreferredAgentLog(existingLog: string | null | undefined, entry: 
   return normalizedExisting ? `${normalizedExisting}\n${entry}` : entry;
 }
 
-export async function getReferrals({ search, status, page = 1, pageSize = 50 }: GetReferralsParams = {}) {
+export async function getReferrals({
+  search,
+  status,
+  assignedAgent,
+  referrer,
+  page = 1,
+  pageSize = 50,
+}: GetReferralsParams = {}) {
   try {
     const currentPage = Math.max(1, page);
     const safePageSize = Math.max(1, Math.min(pageSize, 100));
@@ -302,6 +329,16 @@ export async function getReferrals({ search, status, page = 1, pageSize = 50 }: 
 
     if (status && status.toLowerCase() !== "all") {
       filters.push(eq(referrals.status, status));
+    }
+
+    if (assignedAgent === "unassigned") {
+      filters.push(or(isNull(referrals.linked_agent), eq(referrals.linked_agent, "")));
+    } else if (assignedAgent && assignedAgent !== "all") {
+      filters.push(eq(referrals.linked_agent, assignedAgent));
+    }
+
+    if (referrer?.trim()) {
+      filters.push(eq(referrals.name, referrer.trim()));
     }
 
     const whereClause = filters.length > 0 ? and(...filters) : undefined;
@@ -725,6 +762,79 @@ export async function updateReferral(
       entityType: "referral",
       entityId: id,
       fields: Object.keys(data),
+      status: "failed",
+      errorMessage: String(error),
+    });
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function deleteReferral(id: number) {
+  try {
+    const user = await getUser();
+    if (!isReferralAdmin(user)) {
+      return { success: false, error: "Admin permission required to delete a referral" };
+    }
+
+    const hasLinkedReferralColumn = await hasInvoiceLinkedReferralColumn();
+    let deletedReferral: ReferralEditRow | null = null;
+
+    await db.transaction(async (tx) => {
+      const existingResult = await tx.execute(sql`
+        SELECT
+          id,
+          bubble_id,
+          status,
+          linked_agent,
+          linked_invoice,
+          name,
+          relationship,
+          mobile_number,
+          linked_customer_profile,
+          CAST(deal_value AS TEXT) AS deal_value,
+          CAST(commission_earned AS TEXT) AS commission_earned,
+          project_type,
+          NULL::text AS preferred_agent_log
+        FROM referral
+        WHERE id = ${id}
+        FOR UPDATE
+      `);
+
+      const current = (existingResult.rows[0] as ReferralEditRow | undefined) ?? null;
+      if (!current) {
+        throw new Error("Referral not found");
+      }
+
+      deletedReferral = current;
+      const referralLinkKey = current.bubble_id?.trim() || String(current.id);
+
+      if (hasLinkedReferralColumn) {
+        await tx.execute(sql`
+          UPDATE invoice
+          SET linked_referral = NULL, updated_at = ${new Date()}
+          WHERE linked_referral = ${referralLinkKey}
+        `);
+      }
+
+      await tx.delete(referrals).where(eq(referrals.id, id));
+    });
+
+    revalidatePath("/referrals");
+    revalidatePath("/invoices");
+    await logActivity({
+      action: "delete",
+      entityType: "referral",
+      entityId: id,
+      metadata: { referral: deletedReferral },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Database error in deleteReferral:", error);
+    await logActivity({
+      action: "delete",
+      entityType: "referral",
+      entityId: id,
       status: "failed",
       errorMessage: String(error),
     });
