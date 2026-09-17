@@ -103,6 +103,7 @@ export default function UsersPage() {
         address: editingUser.agent_address,
         banker: editingUser.agent_banker,
         bankin_account: editingUser.agent_bankin_account,
+        agent_code: editingUser.agent_code?.trim() || null,
       }, editingUser.access_level);
 
       if (result.success) {
@@ -714,9 +715,10 @@ export default function UsersPage() {
                   <label className="text-sm font-semibold text-secondary-700">Agent Code</label>
                   <input
                     type="text"
-                    disabled
-                    className="input bg-secondary-50 cursor-not-allowed"
+                    className="input"
+                    placeholder="e.g. A-001"
                     value={editingUser?.agent_code || ""}
+                    onChange={(e) => setEditingUser({ ...editingUser, agent_code: e.target.value })}
                   />
                 </div>
                 <div className="md:col-span-2 space-y-2">
@@ -768,6 +770,7 @@ export default function UsersPage() {
                         address: editingUser.agent_address,
                         banker: editingUser.agent_banker,
                         bankin_account: editingUser.agent_bankin_account,
+                        agent_code: editingUser.agent_code?.trim() || null,
                       }, editingUser.access_level);
 
                       if (result.success) {
@@ -786,6 +789,7 @@ export default function UsersPage() {
                             address: editingUser.agent_address,
                             banker: editingUser.agent_banker,
                             bankin_account: editingUser.agent_bankin_account,
+                            agent_code: editingUser.agent_code?.trim() || null,
                           });
                           
                           if (createResult.success) {

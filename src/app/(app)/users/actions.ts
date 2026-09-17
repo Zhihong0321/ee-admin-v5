@@ -212,6 +212,7 @@ type UserProfileData = {
   banker?: string | null;
   bankin_account?: string | null;
   agent_type?: string | null;
+  agent_code?: string | null;
 };
 
 /**
