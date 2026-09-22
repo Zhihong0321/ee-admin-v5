@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { logActivity } from '@/lib/activity-log';
 
 const STORAGE_ROOT = '/storage';
 
@@ -88,6 +89,18 @@ export async function GET(
     '.jpeg': 'image/jpeg',
     '.pdf': 'application/pdf',
   };
+
+  // Log attachment views for engineering paths only. Fire-and-forget: the
+  // response is already built and must not be delayed by the log insert.
+  if (pathSegments[0]?.startsWith('engineering')) {
+    void logActivity({
+      action: 'view',
+      entityType: 'attachment',
+      entityLabel: pathSegments[pathSegments.length - 1] ?? null,
+      description: `Attachment viewed: ${pathSegments.join('/')}`,
+      metadata: { path: pathSegments.join('/'), surface: pathSegments[0] },
+    });
+  }
 
   return new NextResponse(fileBuffer, {
     headers: {

@@ -667,15 +667,15 @@ export async function recalculateInvoicePaymentStatus() {
   logSyncActivity(`Step 3: Recalculating invoice payment status...`, 'INFO');
 
   try {
-    // Step 1: Fetch all invoices with linked payments
+    // Step 1: Fetch all invoices that have verified payments linked via payment.linked_invoice
+    // (FK direction is authoritative: the invoice.linked_payment array is known to miss payments)
     const allInvoices = await db.select({
       id: invoices.id,
       bubble_id: invoices.bubble_id,
-      total_amount: invoices.total_amount,
-      linked_payment: invoices.linked_payment
+      total_amount: invoices.total_amount
     })
     .from(invoices)
-    .where(sql`${invoices.linked_payment} IS NOT NULL AND array_length(${invoices.linked_payment}, 1) > 0`);
+    .where(sql`exists (select 1 from ${payments} p where p.linked_invoice = ${invoices.bubble_id})`);
 
     logSyncActivity(`Found ${allInvoices.length} invoices with linked payments`, 'INFO');
 
@@ -685,6 +685,11 @@ export async function recalculateInvoicePaymentStatus() {
     // Step 2: Process each invoice
     for (const invoice of allInvoices) {
       try {
+        if (!invoice.bubble_id) {
+          logSyncActivity(`Skipping invoice id=${invoice.id}: no bubble_id`, 'WARN');
+          continue;
+        }
+
         const totalAmount = parseFloat(invoice.total_amount || '0');
 
         // Skip if total_amount is 0 or null
@@ -693,31 +698,23 @@ export async function recalculateInvoicePaymentStatus() {
           continue;
         }
 
-        // Sum up all linked payments
-        let totalPaid = 0;
-        const linkedPayments = invoice.linked_payment || [];
+        // Sum up all verified payments linked to this invoice (same source as the verify flow)
+        const sums = await db
+          .select({ paid: sql<string>`coalesce(sum(${payments.amount}::numeric), 0)` })
+          .from(payments)
+          .where(eq(payments.linked_invoice, invoice.bubble_id));
 
-        for (const paymentBubbleId of linkedPayments) {
-          const payment = await db.query.payments.findFirst({
-            where: eq(payments.bubble_id, paymentBubbleId)
-          });
-
-          if (payment && payment.amount) {
-            totalPaid += parseFloat(payment.amount);
-          } else {
-            logSyncActivity(`Payment ${paymentBubbleId} not found for invoice ${invoice.bubble_id}`, 'WARN');
-          }
-        }
+        const totalPaid = parseFloat(sums[0]?.paid ?? '0');
 
         // Calculate percentage
         const percentage = (totalPaid / totalAmount) * 100;
         const isPaid = percentage >= 100;
-        const balanceDue = totalAmount - totalPaid;
 
         // Update invoice
         await db.update(invoices)
           .set({
             percent_of_total_amount: percentage.toString(),
+            paid_amount: totalPaid.toFixed(2),
             updated_at: new Date()
           })
           .where(eq(invoices.id, invoice.id));
