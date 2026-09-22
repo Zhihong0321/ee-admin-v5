@@ -80,10 +80,8 @@ type ReferralInvoiceSearchContext = {
   id: number;
   bubble_id: string | null;
   linked_customer_profile: string | null;
-  /** Lead name (referral.name) — the prospect on this reflead_* record. */
+  /** Lead name (referral.name) — the prospect whose invoices we link. */
   lead_name: string | null;
-  /** Referrer 介绍人 — name from linked_customer_profile. */
-  referrer_name: string | null;
   linked_invoice: string | null;
 };
 
@@ -213,33 +211,10 @@ function scoreInvoiceCandidate(
     score += 500;
   }
 
-  if (
-    referral.linked_customer_profile &&
-    invoice.linked_customer &&
-    referral.linked_customer_profile === invoice.linked_customer
-  ) {
-    score += 300;
-  }
-
-  // Mis-stored customer id in linked_invoice → still boost that customer's invoices.
-  if (
-    looksLikeCustomerId(referral.linked_invoice) &&
-    invoice.linked_customer &&
-    referral.linked_invoice === invoice.linked_customer
-  ) {
-    score += 280;
-  }
-
-  const referrerName = normalizeSearchText(referral.referrer_name);
+  // Lead name on the invoice customer — this is who Invoice Link is for.
   const leadName = normalizeSearchText(referral.lead_name);
-
-  // 介绍人 name match on the invoice's customer (referrer is a customer profile).
-  if (referrerName && customerName.includes(referrerName)) {
-    score += 200;
-  }
-
   if (leadName && customerName.includes(leadName)) {
-    score += 140;
+    score += 300;
   }
 
   if (query) {
@@ -482,11 +457,9 @@ export async function searchReferralInvoices(referralId: number, search?: string
         bubble_id: referrals.bubble_id,
         linked_customer_profile: referrals.linked_customer_profile,
         lead_name: referrals.name,
-        referrer_name: customers.name,
         linked_invoice: referrals.linked_invoice,
       })
       .from(referrals)
-      .leftJoin(customers, eq(customers.customer_id, referrals.linked_customer_profile))
       .where(eq(referrals.id, referralId))
       .limit(1);
 
@@ -498,17 +471,14 @@ export async function searchReferralInvoices(referralId: number, search?: string
 
     const hasLinkedReferralColumn = await hasInvoiceLinkedReferralColumn();
     const query = search?.trim() || "";
-    const customerId = referral.linked_customer_profile?.trim() || "";
     const rawLinkedInvoice = referral.linked_invoice?.trim() || "";
     const linkedInvoiceId = looksLikeInvoiceId(rawLinkedInvoice) ? rawLinkedInvoice : "";
-    // Bubble sometimes wrote a customer id into linked_invoice — treat it as a customer hint.
-    const misstoredCustomerId = looksLikeCustomerId(rawLinkedInvoice) ? rawLinkedInvoice : "";
-    const referrerName = referral.referrer_name?.trim() || "";
+    const leadName = referral.lead_name?.trim() || "";
 
     const conditions = [];
 
     if (query) {
-      // Same shape as /invoices search — must find "koh keng" the same way.
+      // Free-text search — same shape as /invoices.
       const ilikeTerm = `%${query}%`;
       conditions.push(sql`c.name ILIKE ${ilikeTerm}`);
       conditions.push(sql`i.invoice_number ILIKE ${ilikeTerm}`);
@@ -516,15 +486,10 @@ export async function searchReferralInvoices(referralId: number, search?: string
       conditions.push(sql`i.bubble_id ILIKE ${ilikeTerm}`);
       conditions.push(sql`i.linked_customer ILIKE ${ilikeTerm}`);
     } else {
-      // Opening the tab with no typed query: referrer + linked customer + direct links.
-      if (referrerName) {
-        conditions.push(sql`c.name ILIKE ${`%${referrerName}%`}`);
-      }
-      if (customerId) {
-        conditions.push(sql`i.linked_customer = ${customerId}`);
-      }
-      if (misstoredCustomerId && misstoredCustomerId !== customerId) {
-        conditions.push(sql`i.linked_customer = ${misstoredCustomerId}`);
+      // Default: this lead's invoices by name + any already-linked real invoice.
+      // Do NOT search linked_customer_profile — that is the 介绍人, not the lead.
+      if (leadName) {
+        conditions.push(sql`c.name ILIKE ${`%${leadName}%`}`);
       }
       if (linkedInvoiceId) {
         conditions.push(sql`i.bubble_id = ${linkedInvoiceId}`);
@@ -578,7 +543,7 @@ export async function searchReferralInvoices(referralId: number, search?: string
           linked_referral: row.linked_referral,
           linked_referral_name: row.linked_referral_name,
           is_linked_elsewhere: isLinkedElsewhere,
-          score: scoreInvoiceCandidate(row, referral, query || referrerName),
+          score: scoreInvoiceCandidate(row, referral, query || leadName),
         };
       })
       .sort((a, b) => b.score - a.score || b.id - a.id)

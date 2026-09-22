@@ -313,9 +313,8 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
       linked_agent: referral.agent_bubble_id || referral.linked_agent || null,
     });
     setAgentSearch(referral.agent_name || "");
-    // Invoice Link defaults to the referrer (linked customer) — find their invoices.
-    const initialInvoiceSearch =
-      referral.customer_name?.trim() || referral.linked_customer_profile?.trim() || "";
+    // Invoice Link is for this lead's invoices — not the 介绍人.
+    const initialInvoiceSearch = referral.name?.trim() || "";
     setInvoiceSearch(initialInvoiceSearch);
     setInvoiceResults([]);
     setActiveTab("details");
@@ -943,7 +942,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                       <div>
                         <h3 className="text-lg font-semibold text-secondary-900">Link Invoice To Referral</h3>
                         <p className="text-sm text-secondary-600">
-                          Search existing invoices by customer name or invoice number, then attach the invoice to this referral for referral fee tracking.
+                          Find invoices for this lead, then attach one for referral fee tracking. Do not use the 介绍人&apos;s invoices.
                         </p>
                       </div>
                       <div className="text-xs text-secondary-500 space-y-1 text-right">
@@ -1036,7 +1035,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                         </button>
                       </div>
                       <p className="text-xs text-secondary-500">
-                        Defaults to the referrer (介绍人) customer name. Search works like the invoices page.
+                        Defaults to this lead&apos;s name (not the 介绍人). Also includes a real linked invoice if one exists.
                       </p>
                     </div>
                   </div>
