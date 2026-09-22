@@ -250,8 +250,8 @@ export const RECEIPT_TEMPLATE_HTML = `
       <div class="footer-title">Refund Policy :</div>
       <ul class="footer-points">
         <li>1. 5% Downpayment Refund (Before ATAP /SELCO Application) - Refund will exclude a non-refundable administrative fee of RM600.</li>
-        <li>2. 5% + 60% Refund (After ATAP/SELCO Application) - Refund will be subject to deductions on non-refundable charges (RM1,500)</li>
-        <li>3. 35% Payment After Installation Complete (Non-Refundable) - This amount covers the cost of products and services provided by Eternalgy and includes any applicable warranties for the installed solar PV system.</li>
+        <li>2. 5% + 75% Refund (After ATAP/SELCO Application) - Refund will be subject to deductions on non-refundable charges (RM1,500)</li>
+        <li>3. 20% Payment After Installation Complete (Non-Refundable) - This amount covers the cost of products and services provided by Eternalgy and includes any applicable warranties for the installed solar PV system.</li>
         <li>4. For Oversize customer Assessment Fee RM 1,000 (non-refundable).For submited CCC/PSS application form to TNB.</li>
       </ul>
       <div class="footer-sig">ETERNALGY SDN. BHD.</div>
