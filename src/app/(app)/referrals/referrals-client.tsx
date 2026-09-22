@@ -293,14 +293,21 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
   };
 
   const handleEditClick = (referral: ReferralRow) => {
-    setEditingReferral({ ...referral });
+    // Seed the draft with the canonical bubble_id the list resolved, not the raw
+    // linked_agent text: rows Bubble stored as an integer user.id would otherwise
+    // show no agent selected in the picker, and saving would rewrite the same
+    // unresolvable value. Falls back to the raw text when it resolves to nobody,
+    // so an unassignable reference is never silently cleared.
+    setEditingReferral({
+      ...referral,
+      linked_agent: referral.agent_bubble_id || referral.linked_agent || null,
+    });
     setAgentSearch(referral.agent_name || "");
-    const initialInvoiceSearch = referral.customer_name || referral.name || referral.linked_customer_profile || "";
-    setInvoiceSearch(initialInvoiceSearch);
+    setInvoiceSearch("");
     setInvoiceResults([]);
     setActiveTab("details");
     setIsEditModalOpen(true);
-    void loadInvoiceMatches(referral.id, initialInvoiceSearch);
+    void loadInvoiceMatches(referral.id, "");
   };
 
   const handleSaveReferral = async (e: React.FormEvent) => {
@@ -568,7 +575,10 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                         </div>
                         <div className="min-w-0">
                           <p className="break-words text-sm font-medium text-secondary-900 [overflow-wrap:anywhere]">
-                            {referral.agent_name || "Unassigned"}
+                            {referral.agent_name ||
+                              (referral.linked_agent?.trim()
+                                ? `Unknown agent (${referral.linked_agent.trim()})`
+                                : "Unassigned")}
                           </p>
                           <p className="mt-0.5 break-all text-[11px] text-secondary-500">
                             {referral.agent_bubble_id ? `Agent ID: ${referral.agent_bubble_id}` : "No assigned agent"}
@@ -917,7 +927,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                         </p>
                       </div>
                       <div className="text-xs text-secondary-500">
-                        Customer: <span className="font-medium text-secondary-700">{editingReferral.customer_name || editingReferral.name || "N/A"}</span>
+                        Customer: <span className="font-medium text-secondary-700">{editingReferral.customer_name || editingReferral.linked_customer_profile || "No linked customer"}</span>
                       </div>
                     </div>
 
@@ -982,7 +992,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                         </button>
                       </div>
                       <p className="text-xs text-secondary-500">
-                        Matching is biased toward the linked customer profile and similar customer names.
+                        Shows invoices already linked to this customer. Search by customer name or invoice number only if you need a different invoice.
                       </p>
                     </div>
                   </div>

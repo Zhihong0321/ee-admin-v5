@@ -1,12 +1,23 @@
 "use server";
 
-import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
+/**
+ * Referrals read and write agent identity exclusively through `user` (bubble_id and,
+ * for legacy Bubble rows, integer user.id). The retired `agent` table must not be
+ * queried or joined here — see src/lib/agent-identity.ts.
+ */
+
+import { and, desc, eq, ilike, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity-log";
 import { db } from "@/lib/db";
-import { customers, referrals } from "@/db/schema";
+import { customers, referrals, users } from "@/db/schema";
 import { getUser } from "@/lib/auth";
-import { resolvedIdentityContact, resolvedIdentityName } from "@/lib/agent-identity";
+import {
+  resolveUserRefToBubbleId,
+  resolvedIdentityBubbleIdLoose,
+  resolvedIdentityContactLoose,
+  resolvedIdentityNameLoose,
+} from "@/lib/agent-identity";
 
 type GetReferralsParams = {
   search?: string;
@@ -69,7 +80,6 @@ type ReferralInvoiceSearchContext = {
   id: number;
   bubble_id: string | null;
   linked_customer_profile: string | null;
-  referral_name: string | null;
   customer_name: string | null;
   linked_invoice: string | null;
 };
@@ -194,14 +204,9 @@ function scoreInvoiceCandidate(
   }
 
   const referralCustomerName = normalizeSearchText(referral.customer_name);
-  const referralName = normalizeSearchText(referral.referral_name);
 
   if (referralCustomerName && customerName.includes(referralCustomerName)) {
     score += 140;
-  }
-
-  if (referralName && customerName.includes(referralName)) {
-    score += 100;
   }
 
   if (query) {
@@ -231,31 +236,31 @@ function scoreInvoiceCandidate(
 export async function getReferralAgents() {
   try {
     // Every assignable agent is a user row. The 34 agents that had no login were
-    // promoted to users in migration 2026-07-20b, so no agent-table union is needed.
-    const result = await db.execute(sql`
-      SELECT
-        u.id         AS id,
-        u.bubble_id  AS value,
-        u.bubble_id  AS bubble_id,
-        u.name       AS name,
-        u.contact    AS contact,
-        u.email      AS email,
-        u.agent_type AS agent_type
-      FROM "user" u
-      WHERE u.bubble_id IS NOT NULL AND u.bubble_id <> ''
-      ORDER BY u.name ASC NULLS LAST
-    `);
+    // promoted to users in migration 2026-07-20b — no agent-table union or join.
+    const rows = await db
+      .select({
+        id: users.id,
+        bubble_id: users.bubble_id,
+        name: users.name,
+        contact: users.contact,
+        email: users.email,
+        agent_type: users.agent_type,
+      })
+      .from(users)
+      .where(and(isNotNull(users.bubble_id), ne(users.bubble_id, "")))
+      .orderBy(users.name);
 
-    return result.rows as Array<{
-      id: number;
-      value: string;
-      bubble_id: string | null;
-      name: string | null;
-      contact: string | null;
-      email: string | null;
-      agent_type: string | null;
-
-    }>;
+    return rows
+      .filter((row): row is typeof row & { bubble_id: string } => Boolean(row.bubble_id?.trim()))
+      .map((row) => ({
+        id: row.id,
+        value: row.bubble_id,
+        bubble_id: row.bubble_id,
+        name: row.name,
+        contact: row.contact,
+        email: row.email,
+        agent_type: row.agent_type,
+      }));
   } catch (error) {
     console.error("Database error in getReferralAgents:", error);
     throw error;
@@ -302,9 +307,19 @@ export async function getReferrals({
     const safePageSize = Math.max(1, Math.min(pageSize, 100));
     const hasPreferredAgentLog = await hasReferralPreferredAgentLogColumn();
 
-    // linked_agent holds a user.bubble_id and resolves against `user` alone.
-    const agentNameExpr = resolvedIdentityName(sql`${referrals.linked_agent}`);
-    const agentContactExpr = resolvedIdentityContact(sql`${referrals.linked_agent}`);
+    // linked_agent resolves against `user` alone — but not against one keyspace.
+    // Bubble has been writing the integer `user.id` here since 2026-07-22 (80 live
+    // rows), while everything older holds a `user.bubble_id`. A bubble_id-only read
+    // rendered every recent lead as "Unassigned", so resolve both and display the
+    // canonical bubble_id. See src/lib/agent-identity.ts.
+    const agentNameExpr = resolvedIdentityNameLoose(sql`${referrals.linked_agent}`);
+    const agentContactExpr = resolvedIdentityContactLoose(sql`${referrals.linked_agent}`);
+    // Falls back to the raw stored value when it resolves to no user at all, so an
+    // assignment we cannot interpret still surfaces instead of looking unassigned.
+    const agentCanonicalRefExpr = sql<string | null>`COALESCE(
+      ${resolvedIdentityBubbleIdLoose(sql`${referrals.linked_agent}`)},
+      ${referrals.linked_agent}
+    )`;
 
     const filters = [];
 
@@ -334,7 +349,9 @@ export async function getReferrals({
     if (assignedAgent === "unassigned") {
       filters.push(or(isNull(referrals.linked_agent), eq(referrals.linked_agent, "")));
     } else if (assignedAgent && assignedAgent !== "all") {
-      filters.push(eq(referrals.linked_agent, assignedAgent));
+      // Match on the canonical bubble_id, not the stored text: the dropdown offers
+      // bubble_ids while recent rows store the agent's integer user.id.
+      filters.push(sql`${agentCanonicalRefExpr} = ${assignedAgent}`);
     }
 
     if (referrer?.trim()) {
@@ -380,7 +397,7 @@ export async function getReferrals({
         customer_email: customers.email,
         agent_name: agentNameExpr,
         agent_contact: agentContactExpr,
-        agent_bubble_id: referrals.linked_agent,
+        agent_bubble_id: agentCanonicalRefExpr,
       })
       .from(referrals)
       .leftJoin(customers, eq(customers.customer_id, referrals.linked_customer_profile));
@@ -428,7 +445,6 @@ export async function searchReferralInvoices(referralId: number, search?: string
         id: referrals.id,
         bubble_id: referrals.bubble_id,
         linked_customer_profile: referrals.linked_customer_profile,
-        referral_name: referrals.name,
         customer_name: customers.name,
         linked_invoice: referrals.linked_invoice,
       })
@@ -445,33 +461,33 @@ export async function searchReferralInvoices(referralId: number, search?: string
 
     const hasLinkedReferralColumn = await hasInvoiceLinkedReferralColumn();
     const query = search?.trim() || "";
-    const queryTerms = buildUniqueSearchTerms(
-      query,
-      referral.customer_name,
-      referral.referral_name,
-      referral.linked_customer_profile,
-    );
+    const customerId = referral.linked_customer_profile?.trim() || "";
+    const linkedInvoiceId = referral.linked_invoice?.trim() || "";
 
     const conditions = [];
 
-    if (referral.linked_customer_profile) {
-      conditions.push(sql`i.linked_customer = ${referral.linked_customer_profile}`);
+    // Primary match: invoices already owned by this lead/customer.
+    if (customerId) {
+      conditions.push(sql`i.linked_customer = ${customerId}`);
     }
 
-    if (referral.linked_invoice) {
-      conditions.push(sql`i.bubble_id = ${referral.linked_invoice}`);
+    if (linkedInvoiceId) {
+      conditions.push(sql`i.bubble_id = ${linkedInvoiceId}`);
     }
 
-    for (const term of queryTerms) {
-      const ilikeTerm = `%${term}%`;
+    // Manual search is the typed query only. Never the referrer name.
+    if (query) {
+      const ilikeTerm = `%${query}%`;
       conditions.push(sql`c.name ILIKE ${ilikeTerm}`);
       conditions.push(sql`i.invoice_number ILIKE ${ilikeTerm}`);
       conditions.push(sql`i.linked_customer ILIKE ${ilikeTerm}`);
     }
 
-    const whereClause = conditions.length > 0
-      ? sql`AND (${sql.join(conditions, sql` OR `)})`
-      : sql``;
+    if (conditions.length === 0) {
+      return { success: true, invoices: [] };
+    }
+
+    const whereClause = sql`AND (${sql.join(conditions, sql` OR `)})`;
 
     const result = await db.execute(sql`
       SELECT
@@ -596,10 +612,17 @@ export async function updateReferral(
       }
 
       const oldAgentId = current.linked_agent?.trim() || null;
-      const newAgentId = data.linked_agent?.trim() || null;
+      const requestedAgentId = data.linked_agent?.trim() || null;
       const oldInvoiceId = current.linked_invoice?.trim() || null;
       const newInvoiceId = data.linked_invoice?.trim() || null;
-      const agentChanged = oldAgentId !== newAgentId;
+      // Fold both sides onto the canonical user.bubble_id before comparing and before
+      // writing. Bubble writes recent rows as the integer user.id, so without this an
+      // admin re-picking the same agent would log a phantom change, and the row would
+      // keep a value no read path can resolve. Anything unresolvable is kept verbatim
+      // rather than dropped.
+      const oldAgentRef = await resolveUserRefToBubbleId(oldAgentId);
+      const newAgentRef = await resolveUserRefToBubbleId(requestedAgentId);
+      const agentChanged = oldAgentRef !== newAgentRef;
       const invoiceChanged = oldInvoiceId !== newInvoiceId;
       const nextStatus = data.status ?? current.status;
       const nextUpdatedAt = new Date();
@@ -620,11 +643,9 @@ export async function updateReferral(
       let updatedLog = current.preferred_agent_log;
 
       if (agentChanged) {
-        // Resolve labels through the shared identity rule rather than by parsing the
-        // value as an agent.id — the value is a bubble_id for anything written since
-        // the identity normalisation, and only legacy rows are still integers.
+        // Resolve labels via user.bubble_id / user.id only (never the retired agent table).
         const refsToResolve = Array.from(
-          new Set([oldAgentId, newAgentId].filter((value): value is string => Boolean(value))),
+          new Set([oldAgentRef, newAgentRef].filter((value): value is string => Boolean(value))),
         );
 
         const labels = new Map<string, string>();
@@ -632,7 +653,7 @@ export async function updateReferral(
         if (refsToResolve.length > 0) {
           const resolved = await tx.execute(sql`
             SELECT r.ref,
-                   ${resolvedIdentityName(sql`r.ref`)} AS name
+                   ${resolvedIdentityNameLoose(sql`r.ref`)} AS name
             FROM UNNEST(ARRAY[${sql.join(refsToResolve.map((v) => sql`${v}`), sql`, `)}]::text[]) AS r(ref)
           `);
 
@@ -641,8 +662,8 @@ export async function updateReferral(
           }
         }
 
-        const oldLabel = oldAgentId ? labels.get(oldAgentId) || `Agent #${oldAgentId}` : "Unassigned";
-        const newLabel = newAgentId ? labels.get(newAgentId) || `Agent #${newAgentId}` : "Unassigned";
+        const oldLabel = oldAgentRef ? labels.get(oldAgentRef) || `Agent #${oldAgentRef}` : "Unassigned";
+        const newLabel = newAgentRef ? labels.get(newAgentRef) || `Agent #${newAgentRef}` : "Unassigned";
         const entry = `${formatLogTimestamp()} - ${actorName} updated the preferred agent from ${oldLabel} to ${newLabel}.`;
 
         updatedLog = appendPreferredAgentLog(current.preferred_agent_log, entry);
@@ -689,7 +710,7 @@ export async function updateReferral(
           UPDATE referral
           SET
             status = ${nextStatus},
-            linked_agent = ${newAgentId},
+            linked_agent = ${newAgentRef},
             linked_invoice = ${newInvoiceId},
             preferred_agent_log = ${updatedLog},
             name = ${nextName},
@@ -707,7 +728,7 @@ export async function updateReferral(
           .update(referrals)
           .set({
             status: nextStatus,
-            linked_agent: newAgentId,
+            linked_agent: newAgentRef,
             linked_invoice: newInvoiceId,
             name: nextName,
             relationship: nextRelationship,

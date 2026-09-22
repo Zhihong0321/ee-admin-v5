@@ -997,6 +997,7 @@ async function recalculateInvoicePaymentStatus(invoiceBubbleId: string, triggere
     await db.update(invoices)
       .set({
         percent_of_total_amount: percentage.toString(),
+        paid_amount: totalPaid.toFixed(2),
         paid: isFullyPaid,
         first_payment_date: firstPaymentDate,
         full_payment_date: fullPaymentDate,
@@ -1109,6 +1110,16 @@ export async function updateVerifiedPayment(id: number, updates: UpdatePaymentPa
       }),
       actorName: user,
     });
+
+    // Keep the invoice's calculated fields (percent_of_total_amount, paid_amount,
+    // paid, payment dates) in sync after a verified payment's amount/date changes.
+    if (current.linked_invoice && (updates.amount || updates.payment_date)) {
+      try {
+        await recalculateInvoicePaymentStatus(current.linked_invoice, user);
+      } catch (recalcErr) {
+        console.error(`Recalculation failed for invoice ${current.linked_invoice} after payment ${id} update:`, recalcErr);
+      }
+    }
 
     revalidatePath("/payments");
     await logActivity({
