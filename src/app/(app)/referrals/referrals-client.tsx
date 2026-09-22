@@ -268,6 +268,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
       } else {
         console.error("Failed to fetch invoices", result.error);
         setInvoiceResults([]);
+        alert(result.error || "Failed to search invoices");
       }
     } catch (error) {
       console.error("Failed to fetch invoices", error);
@@ -312,11 +313,13 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
       linked_agent: referral.agent_bubble_id || referral.linked_agent || null,
     });
     setAgentSearch(referral.agent_name || "");
-    setInvoiceSearch("");
+    // Seed with referrer name — Invoice Link is for finding the referrer's invoices.
+    const initialInvoiceSearch = referral.name?.trim() || "";
+    setInvoiceSearch(initialInvoiceSearch);
     setInvoiceResults([]);
     setActiveTab("details");
     setIsEditModalOpen(true);
-    void loadInvoiceMatches(referral.id, "");
+    void loadInvoiceMatches(referral.id, initialInvoiceSearch);
   };
 
   const handleSaveReferral = async (e: React.FormEvent) => {
@@ -937,8 +940,21 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                           Search existing invoices by customer name or invoice number, then attach the invoice to this referral for referral fee tracking.
                         </p>
                       </div>
-                      <div className="text-xs text-secondary-500">
-                        Customer: <span className="font-medium text-secondary-700">{editingReferral.customer_name || editingReferral.linked_customer_profile || "No linked customer"}</span>
+                      <div className="text-xs text-secondary-500 space-y-1 text-right">
+                        <div>
+                          Referrer:{" "}
+                          <span className="font-medium text-secondary-700">
+                            {editingReferral.name || "N/A"}
+                          </span>
+                        </div>
+                        <div>
+                          Customer:{" "}
+                          <span className="font-medium text-secondary-700">
+                            {editingReferral.customer_name ||
+                              editingReferral.linked_customer_profile ||
+                              "No linked customer"}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -975,7 +991,18 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                           </div>
                         ) : editingReferral.linked_invoice ? (
                           <div className="text-sm text-secondary-500">
-                            Linked invoice ID: <span className="font-mono text-secondary-700">{editingReferral.linked_invoice}</span>
+                            {/^cust(omer)?_/i.test(editingReferral.linked_invoice) ? (
+                              <>
+                                Invalid invoice link (customer id stored):{" "}
+                                <span className="font-mono text-amber-700">{editingReferral.linked_invoice}</span>
+                                . Pick a real invoice below, then save.
+                              </>
+                            ) : (
+                              <>
+                                Linked invoice ID:{" "}
+                                <span className="font-mono text-secondary-700">{editingReferral.linked_invoice}</span>
+                              </>
+                            )}
                           </div>
                         ) : (
                           <div className="text-sm text-secondary-500">No invoice linked yet.</div>
@@ -1003,7 +1030,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                         </button>
                       </div>
                       <p className="text-xs text-secondary-500">
-                        Shows invoices already linked to this customer. Search by customer name or invoice number only if you need a different invoice.
+                        Defaults to the referrer name. Also matches this lead&apos;s linked customer invoices when present.
                       </p>
                     </div>
                   </div>
