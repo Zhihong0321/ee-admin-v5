@@ -554,7 +554,10 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                 >
                   <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                      <h2 className="break-words font-semibold text-secondary-900 [overflow-wrap:anywhere]">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-secondary-400">
+                        Lead (Potential Customer)
+                      </p>
+                      <h2 className="mt-1 break-words font-semibold text-secondary-900 [overflow-wrap:anywhere]">
                         {formatNamedPersonDisplay(referral.name, referral.mobile_number)}
                       </h2>
                       <p className="mt-1 break-all font-mono text-xs text-secondary-500">
