@@ -91,8 +91,8 @@ function formatMoney(value: string | number | null | undefined) {
   }).format(Number.isFinite(numericValue) ? numericValue : 0);
 }
 
-/** Referrer display: name when present, otherwise phone + "(no name recorded)". */
-function formatReferrerDisplay(name: string | null | undefined, phone: string | null | undefined) {
+/** Display name, or phone + "(no name recorded)" when the name is blank. */
+function formatNamedPersonDisplay(name: string | null | undefined, phone: string | null | undefined) {
   const trimmedName = (name || "").trim();
   if (trimmedName) return trimmedName;
   const trimmedPhone = (phone || "").trim();
@@ -313,8 +313,9 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
       linked_agent: referral.agent_bubble_id || referral.linked_agent || null,
     });
     setAgentSearch(referral.agent_name || "");
-    // Seed with referrer name — Invoice Link is for finding the referrer's invoices.
-    const initialInvoiceSearch = referral.name?.trim() || "";
+    // Invoice Link defaults to the referrer (linked customer) — find their invoices.
+    const initialInvoiceSearch =
+      referral.customer_name?.trim() || referral.linked_customer_profile?.trim() || "";
     setInvoiceSearch(initialInvoiceSearch);
     setInvoiceResults([]);
     setActiveTab("details");
@@ -553,11 +554,8 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                 >
                   <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-secondary-400">
-                        Referrer (介绍人)
-                      </p>
-                      <h2 className="mt-1 break-words font-semibold text-secondary-900 [overflow-wrap:anywhere]">
-                        {formatReferrerDisplay(referral.name, referral.mobile_number)}
+                      <h2 className="break-words font-semibold text-secondary-900 [overflow-wrap:anywhere]">
+                        {formatNamedPersonDisplay(referral.name, referral.mobile_number)}
                       </h2>
                       <p className="mt-1 break-all font-mono text-xs text-secondary-500">
                         {referral.bubble_id || "No bubble id"}
@@ -573,9 +571,13 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
 
                   <div className="mt-5 grid min-w-0 gap-4 border-y border-secondary-100 py-4 sm:grid-cols-2">
                     <div className="min-w-0">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-secondary-400">Customer</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-secondary-400">
+                        Referrer (介绍人)
+                      </p>
                       <p className="mt-1 break-words text-sm font-medium text-secondary-900 [overflow-wrap:anywhere]">
-                        {referral.customer_name || referral.linked_customer_profile || "Unlinked customer"}
+                        {referral.customer_name?.trim() || referral.customer_phone?.trim()
+                          ? formatNamedPersonDisplay(referral.customer_name, referral.customer_phone)
+                          : referral.linked_customer_profile?.trim() || "(no name recorded)"}
                       </p>
                       <p className="mt-1 break-words text-xs text-secondary-500 [overflow-wrap:anywhere]">
                         {referral.project_type || "No project type"}
@@ -744,7 +746,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold text-secondary-700">Referrer Name</label>
+                      <label className="text-sm font-semibold text-secondary-700">Lead Name</label>
                       <input
                         type="text"
                         className={`input ${isAdmin ? "" : "bg-secondary-50"}`}
@@ -764,7 +766,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold text-secondary-700">Customer Profile</label>
+                      <label className="text-sm font-semibold text-secondary-700">Referrer (介绍人) — Customer Profile</label>
                       <input
                         type="text"
                         className={`input ${isAdmin ? "" : "bg-secondary-50"}`}
@@ -943,17 +945,17 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                       <div className="text-xs text-secondary-500 space-y-1 text-right">
                         <div>
-                          Referrer:{" "}
+                          Lead:{" "}
                           <span className="font-medium text-secondary-700">
                             {editingReferral.name || "N/A"}
                           </span>
                         </div>
                         <div>
-                          Customer:{" "}
+                          Referrer (介绍人):{" "}
                           <span className="font-medium text-secondary-700">
                             {editingReferral.customer_name ||
                               editingReferral.linked_customer_profile ||
-                              "No linked customer"}
+                              "No linked referrer"}
                           </span>
                         </div>
                       </div>
@@ -1031,7 +1033,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                         </button>
                       </div>
                       <p className="text-xs text-secondary-500">
-                        Defaults to the referrer name. Also matches this lead&apos;s linked customer invoices when present.
+                        Defaults to the referrer (介绍人) customer name. Search works like the invoices page.
                       </p>
                     </div>
                   </div>

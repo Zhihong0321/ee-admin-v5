@@ -80,9 +80,10 @@ type ReferralInvoiceSearchContext = {
   id: number;
   bubble_id: string | null;
   linked_customer_profile: string | null;
-  /** Referrer name (referral.name) — the person who referred the lead. */
+  /** Lead name (referral.name) — the prospect on this reflead_* record. */
+  lead_name: string | null;
+  /** Referrer 介绍人 — name from linked_customer_profile. */
   referrer_name: string | null;
-  customer_name: string | null;
   linked_invoice: string | null;
 };
 
@@ -230,13 +231,14 @@ function scoreInvoiceCandidate(
   }
 
   const referrerName = normalizeSearchText(referral.referrer_name);
-  const referralCustomerName = normalizeSearchText(referral.customer_name);
+  const leadName = normalizeSearchText(referral.lead_name);
 
+  // 介绍人 name match on the invoice's customer (referrer is a customer profile).
   if (referrerName && customerName.includes(referrerName)) {
     score += 200;
   }
 
-  if (referralCustomerName && customerName.includes(referralCustomerName)) {
+  if (leadName && customerName.includes(leadName)) {
     score += 140;
   }
 
@@ -300,10 +302,12 @@ export async function getReferralAgents() {
 
 export async function getReferralReferrers() {
   try {
+    // 介绍人 = linked customer profile on the lead, not referral.name (that is the lead).
     const result = await db.execute(sql`
-      SELECT DISTINCT TRIM(name) AS name
-      FROM referral
-      WHERE name IS NOT NULL AND TRIM(name) <> ''
+      SELECT DISTINCT TRIM(c.name) AS name
+      FROM referral r
+      INNER JOIN customer c ON c.customer_id = r.linked_customer_profile
+      WHERE c.name IS NOT NULL AND TRIM(c.name) <> ''
       ORDER BY name ASC
     `);
 
@@ -386,7 +390,8 @@ export async function getReferrals({
     }
 
     if (referrer?.trim()) {
-      filters.push(eq(referrals.name, referrer.trim()));
+      // 介绍人 filter matches the linked customer name, not the lead (referral.name).
+      filters.push(eq(customers.name, referrer.trim()));
     }
 
     const whereClause = filters.length > 0 ? and(...filters) : undefined;
@@ -476,8 +481,8 @@ export async function searchReferralInvoices(referralId: number, search?: string
         id: referrals.id,
         bubble_id: referrals.bubble_id,
         linked_customer_profile: referrals.linked_customer_profile,
-        referrer_name: referrals.name,
-        customer_name: customers.name,
+        lead_name: referrals.name,
+        referrer_name: customers.name,
         linked_invoice: referrals.linked_invoice,
       })
       .from(referrals)
