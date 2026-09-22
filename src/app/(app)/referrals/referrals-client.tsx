@@ -553,8 +553,11 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                 >
                   <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                      <h2 className="break-words font-semibold text-secondary-900 [overflow-wrap:anywhere]">
-                        {referral.customer_name || referral.linked_customer_profile || "Unlinked customer"}
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-secondary-400">
+                        Referrer (介绍人)
+                      </p>
+                      <h2 className="mt-1 break-words font-semibold text-secondary-900 [overflow-wrap:anywhere]">
+                        {formatReferrerDisplay(referral.name, referral.mobile_number)}
                       </h2>
                       <p className="mt-1 break-all font-mono text-xs text-secondary-500">
                         {referral.bubble_id || "No bubble id"}
@@ -570,11 +573,9 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
 
                   <div className="mt-5 grid min-w-0 gap-4 border-y border-secondary-100 py-4 sm:grid-cols-2">
                     <div className="min-w-0">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-secondary-400">
-                        Referrer (介绍人)
-                      </p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-secondary-400">Customer</p>
                       <p className="mt-1 break-words text-sm font-medium text-secondary-900 [overflow-wrap:anywhere]">
-                        {formatReferrerDisplay(referral.name, referral.mobile_number)}
+                        {referral.customer_name || referral.linked_customer_profile || "Unlinked customer"}
                       </p>
                       <p className="mt-1 break-words text-xs text-secondary-500 [overflow-wrap:anywhere]">
                         {referral.project_type || "No project type"}
