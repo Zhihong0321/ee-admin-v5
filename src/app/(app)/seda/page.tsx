@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock, ListChecks, Bell, AlertTriangle, GitCompare, X, ShieldCheck } from "lucide-react";
+import { Search, Loader2, Eye, Receipt, AlertCircle, CheckCircle, XCircle, Clock, ListChecks, Bell, AlertTriangle, GitCompare, X, ShieldCheck, ChevronLeft, ChevronRight } from "lucide-react";
 
 const AUTO_PROCESSED_TAB = "Auto Processed Task";
 const PENDING_TASKS_TAB = "Pending Task List";
+const PAGE_SIZE = 50;
 
 interface SedaRegistration {
   id: number;
@@ -131,6 +132,10 @@ export default function SedaListPage() {
   const [activeTab, setActiveTab] = useState<string>("Pending");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [attentionCount, setAttentionCount] = useState<number>(0);
   const [autoProcessedTasks, setAutoProcessedTasks] = useState<AutoProcessedTask[]>([]);
@@ -157,7 +162,7 @@ export default function SedaListPage() {
     } else {
       fetchData();
     }
-  }, [search, activeTab]);
+  }, [search, activeTab, page]);
 
   useEffect(() => {
     // Fetch once on mount so the "needs attention" badge is visible
@@ -177,15 +182,14 @@ export default function SedaListPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      // In this new registrations-only view, we might want to filter by status or show all
-      // For now, let's show all and filter in JS if activeTab is set, 
-      // or use the API statusFilter if available.
       if (activeTab && activeTab !== "All") {
         params.append("status", activeTab);
       }
       if (search) {
         params.append("search", search);
       }
+      params.append("page", String(page));
+      params.append("pageSize", String(PAGE_SIZE));
 
       const response = await fetch(`/api/seda/registrations?${params}`);
       if (!response.ok) throw new Error("Failed to fetch");
@@ -193,6 +197,9 @@ export default function SedaListPage() {
       const result = await response.json();
       setData(result.groups || []);
       setAttentionCount(result.attentionCount || 0);
+      setTotalCount(result.totalCount || 0);
+      setTotalPages(Math.max(1, result.totalPages || 1));
+      setPageSize(result.pageSize || PAGE_SIZE);
     } catch (error) {
       console.error("Error fetching SEDA registrations:", error);
       alert("Failed to load SEDA registrations. Please try again.");
@@ -297,6 +304,7 @@ export default function SedaListPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setPage(1);
     setSearch(searchInput);
   };
 
@@ -385,8 +393,6 @@ export default function SedaListPage() {
     }
   ];
 
-  const totalCount = data.reduce((sum, group) => sum + group.count, 0);
-
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -428,6 +434,7 @@ export default function SedaListPage() {
                 key={tab.id}
                 onClick={() => {
                   setActiveTab(tab.id);
+                  setPage(1);
                   setExpandedGroups(new Set());
                 }}
                 className={`
@@ -672,6 +679,7 @@ export default function SedaListPage() {
             </div>
           </div>
         ) : (
+          <>
           <div className="space-y-3">
             {data.map((group) => (
               <div key={group.seda_status} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -900,6 +908,39 @@ export default function SedaListPage() {
               </div>
             ))}
           </div>
+          {totalCount > 0 && (
+            <div className="mt-4 bg-white border border-slate-200 rounded-xl shadow-sm px-6 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm text-slate-600">
+                Showing <span className="font-semibold text-slate-900">{totalCount === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{" "}
+                <span className="font-semibold text-slate-900">{Math.min(page * pageSize, totalCount)}</span> of{" "}
+                <span className="font-semibold text-slate-900">{totalCount}</span> registrations
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  disabled={loading || page <= 1}
+                  className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                  disabled={loading || page >= totalPages}
+                  className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
         )}
       </div>
 

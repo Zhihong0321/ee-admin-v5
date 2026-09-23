@@ -1,7 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sedaRegistration, customers, invoices, users } from "@/db/schema";
-import { desc, eq, sql, or, and, isNull, gte } from "drizzle-orm";
+import { desc, eq, sql, or, and, isNull, gte, ilike } from "drizzle-orm";
+
+function normalizeSedaStatus(raw: string | null | undefined): string {
+  const value = (raw || "").trim().toLowerCase();
+  if (!value || value === "pending" || value === "not set") return "Pending";
+  if (value === "submitted") return "Submitted";
+  if (value === "approved" || value === "approved by seda") return "Approved";
+  return (raw || "").trim();
+}
+
+function statusFilterCondition(statusFilter: string | null) {
+  if (!statusFilter || statusFilter.toLowerCase() === "all") return undefined;
+
+  const status = statusFilter.toLowerCase();
+  if (status === "pending") {
+    return or(
+      isNull(sedaRegistration.seda_status),
+      sql`${sedaRegistration.seda_status} = ''`,
+      sql`LOWER(${sedaRegistration.seda_status}) = 'pending'`,
+      sql`LOWER(${sedaRegistration.seda_status}) = 'not set'`
+    );
+  }
+  if (status === "submitted") {
+    return sql`LOWER(${sedaRegistration.seda_status}) = 'submitted'`;
+  }
+  if (status === "approved") {
+    return or(
+      sql`LOWER(${sedaRegistration.seda_status}) = 'approved'`,
+      sql`LOWER(${sedaRegistration.seda_status}) = 'approved by seda'`
+    );
+  }
+  return sql`LOWER(${sedaRegistration.seda_status}) = ${status}`;
+}
+
+const statusKeySql = sql<string>`CASE
+  WHEN ${sedaRegistration.seda_status} IS NULL
+    OR BTRIM(${sedaRegistration.seda_status}) = ''
+    OR LOWER(${sedaRegistration.seda_status}) IN ('pending', 'not set')
+  THEN 'Pending'
+  WHEN LOWER(${sedaRegistration.seda_status}) = 'submitted' THEN 'Submitted'
+  WHEN LOWER(${sedaRegistration.seda_status}) IN ('approved', 'approved by seda') THEN 'Approved'
+  ELSE ${sedaRegistration.seda_status}
+END`;
 
 /**
  * GET /api/seda/registrations
@@ -11,13 +53,39 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const statusFilter = searchParams.get("status");
-    const searchValue = searchParams.get("search");
-    const searchQuery = searchValue ? searchValue.toLowerCase() : "";
+    const searchValue = searchParams.get("search")?.trim() || "";
     const agentUserIdFilter = searchParams.get("agent_user_id") || searchParams.get("user_id");
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const pageSize = Math.min(200, Math.max(1, parseInt(searchParams.get("pageSize") || "50")));
 
-    const [results, attentionResult] = await Promise.all([
+    const likePattern = searchValue ? `%${searchValue}%` : "";
+    const searchCondition = searchValue
+      ? or(
+          ilike(sedaRegistration.installation_address, likePattern),
+          ilike(sedaRegistration.ic_no, likePattern),
+          ilike(sedaRegistration.email, likePattern),
+          ilike(customers.name, likePattern),
+          ilike(sedaRegistration.agent, likePattern),
+          ilike(users.email, likePattern),
+          ilike(users.agent_code, likePattern),
+          ilike(sedaRegistration.bubble_id, likePattern),
+          ilike(invoices.invoice_number, likePattern)
+        )
+      : undefined;
+
+    const whereClause = and(
+      gte(invoices.percent_of_total_amount, "4"),
+      statusFilterCondition(statusFilter),
+      searchCondition,
+      agentUserIdFilter ? eq(sedaRegistration.agent, agentUserIdFilter) : undefined
+    );
+
+    const invoiceSedaJoin = or(
+      eq(invoices.linked_seda_registration, sedaRegistration.bubble_id),
+      sql`${invoices.bubble_id} = ANY(${sedaRegistration.linked_invoice})`
+    );
+
+    const [results, attentionResult, countResult, statusCountResult] = await Promise.all([
       db
         .select({
           id: sedaRegistration.id,
@@ -75,13 +143,10 @@ export async function GET(request: NextRequest) {
           invoice_bubble_id: invoices.bubble_id
         })
         .from(invoices)
-        .innerJoin(sedaRegistration, or(
-          eq(invoices.linked_seda_registration, sedaRegistration.bubble_id),
-          sql`${invoices.bubble_id} = ANY(${sedaRegistration.linked_invoice})`
-        ))
+        .innerJoin(sedaRegistration, invoiceSedaJoin)
         .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
         .leftJoin(users, eq(sedaRegistration.agent, users.bubble_id))
-        .where(gte(invoices.percent_of_total_amount, "4"))
+        .where(whereClause)
         .orderBy(desc(sedaRegistration.created_date))
         .limit(pageSize)
         .offset((page - 1) * pageSize),
@@ -102,15 +167,40 @@ export async function GET(request: NextRequest) {
             )
           )
         ),
+
+      db
+        .select({ count: sql<number>`COUNT(DISTINCT ${sedaRegistration.bubble_id})` })
+        .from(invoices)
+        .innerJoin(sedaRegistration, invoiceSedaJoin)
+        .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
+        .leftJoin(users, eq(sedaRegistration.agent, users.bubble_id))
+        .where(whereClause),
+
+      db
+        .select({
+          seda_status: statusKeySql,
+          count: sql<number>`COUNT(DISTINCT ${sedaRegistration.bubble_id})`,
+        })
+        .from(invoices)
+        .innerJoin(sedaRegistration, invoiceSedaJoin)
+        .leftJoin(customers, eq(invoices.linked_customer, customers.customer_id))
+        .leftJoin(users, eq(sedaRegistration.agent, users.bubble_id))
+        .where(whereClause)
+        .groupBy(statusKeySql),
     ]);
 
-    const attentionCount = attentionResult[0]?.count || 0;
+    const attentionCount = Number(attentionResult[0]?.count || 0);
+    const totalCount = Number(countResult[0]?.count || 0);
+    const statusCountMap = new Map<string, number>();
+    for (const row of statusCountResult) {
+      statusCountMap.set(normalizeSedaStatus(row.seda_status), Number(row.count || 0));
+    }
 
     // Remove duplicates if multiple invoices point to the same SEDA registration
     const seenSedaIds = new Set<string>();
     const uniqueSeda = results.filter(row => {
-      if (seenSedaIds.has(row.bubble_id!)) return false;
-      seenSedaIds.add(row.bubble_id!);
+      if (!row.bubble_id || seenSedaIds.has(row.bubble_id)) return false;
+      seenSedaIds.add(row.bubble_id);
       return true;
     });
 
@@ -139,7 +229,7 @@ export async function GET(request: NextRequest) {
 
       return {
         ...seda,
-        seda_status: seda.seda_status || "Pending", // Treat null as Pending
+        seda_status: normalizeSedaStatus(seda.seda_status),
         percent_of_total_amount: parseFloat(seda.percent_of_total_amount || "0"),
         completed_count,
         total_checkpoints: checklist.length,
@@ -148,37 +238,8 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Filter by search/status remaining in JS
-    let filtered = enrichedSeda;
-
-    if (statusFilter && statusFilter.toLowerCase() !== "all") {
-      filtered = filtered.filter(s => s.seda_status === statusFilter);
-    }
-
-    if (agentUserIdFilter) {
-      filtered = filtered.filter(s => s.agent_user_id === agentUserIdFilter);
-    }
-
-    if (searchQuery) {
-      filtered = filtered.filter(s =>
-        (s.installation_address?.toLowerCase().includes(searchQuery)) ||
-        (s.ic_no?.toLowerCase().includes(searchQuery)) ||
-        (s.tin_number?.toLowerCase().includes(searchQuery)) ||
-        (s.email?.toLowerCase().includes(searchQuery)) ||
-        (s.customer_name?.toLowerCase().includes(searchQuery)) ||
-        (s.agent_user_id?.toLowerCase().includes(searchQuery)) ||
-        (s.agent_user_email?.toLowerCase().includes(searchQuery)) ||
-        (s.agent_code?.toLowerCase().includes(searchQuery))
-      );
-    }
-
-    // Group by seda_status
-    const totalCount = filtered.length;
-    const offset = (page - 1) * pageSize;
-    const paginated = filtered.slice(offset, offset + pageSize);
-
-    const grouped: Record<string, any[]> = {};
-    paginated.forEach(seda => {
+    const grouped: Record<string, typeof enrichedSeda> = {};
+    enrichedSeda.forEach(seda => {
       const status = seda.seda_status || "Pending";
       if (!grouped[status]) grouped[status] = [];
       grouped[status].push(seda);
@@ -186,7 +247,7 @@ export async function GET(request: NextRequest) {
 
     const groups = Object.entries(grouped).map(([status, sedas]) => ({
       seda_status: status,
-      count: sedas.length,
+      count: statusCountMap.get(status) ?? sedas.length,
       registrations: sedas
     }));
 
@@ -202,7 +263,7 @@ export async function GET(request: NextRequest) {
       totalCount,
       page,
       pageSize,
-      totalPages: Math.ceil(totalCount / pageSize),
+      totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
     });
   } catch (error: any) {
     console.error(error);
