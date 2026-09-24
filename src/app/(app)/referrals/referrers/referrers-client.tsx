@@ -80,7 +80,7 @@ function InvoiceFeeEditor({ invoice }: { invoice: ReferrerFeeInvoice }) {
     <div className="flex flex-col gap-2 rounded-lg bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 text-xs text-secondary-600">
         <span className="font-semibold text-secondary-800">{invoice.invoiceNumber || `Invoice #${invoice.id}`}</span>
-        <span className="ml-2">Customer paid {invoice.customerPaidPercent.toLocaleString("en-MY", { maximumFractionDigits: 2 })}%</span>
+        <span className="ml-2">Buyer paid {invoice.customerPaidPercent.toLocaleString("en-MY", { maximumFractionDigits: 2 })}%</span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-2 text-xs font-medium text-secondary-600">
@@ -124,8 +124,8 @@ function ReferrerCard({ referrer }: { referrer: ReferrerFeeSummary }) {
     <article className="overflow-hidden rounded-2xl border border-secondary-200 bg-white shadow-sm">
       <div className="flex flex-col gap-4 border-b border-secondary-100 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
         <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-primary-700">Referrer · introduced these leads</p>
           <h3 className="break-words text-xl font-semibold text-secondary-900">{referrer.name || "Unnamed referrer"}</h3>
-          <p className="mt-1 break-all font-mono text-xs text-secondary-400">Customer ID: {referrer.customerId}</p>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-secondary-600">
             {referrer.phone ? <span className="inline-flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" />{referrer.phone}</span> : <span>No phone recorded</span>}
             {referrer.email && <span className="break-all">{referrer.email}</span>}
@@ -148,6 +148,7 @@ function ReferrerCard({ referrer }: { referrer: ReferrerFeeSummary }) {
           <div key={lead.referralId} className="rounded-xl border border-secondary-100 bg-secondary-50/50 p-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-secondary-400">Referred lead · potential buyer</p>
                 <p className="break-words font-semibold text-secondary-900">{lead.name?.trim() || "Unnamed lead"}</p>
                 <p className="mt-1 text-xs text-secondary-600">
                   {[lead.mobileNumber, lead.relationship, lead.projectType].filter(Boolean).join(" · ") || "No lead details recorded"}
@@ -212,10 +213,10 @@ export default function ReferrersClient({ referrers }: { referrers: ReferrerFeeS
             <ArrowLeft className="h-4 w-4" />Referral leads
           </Link>
           <h1 className="text-3xl font-bold text-secondary-900">Referrer Fee Follow-up</h1>
-          <p className="mt-1 text-secondary-600">Referrers with an invoice that has received a customer payment. Referral fees show the amount recorded as paid.</p>
+          <p className="mt-1 text-secondary-600">Each card is the referrer—the person who introduced the leads. The leads and their buyer invoices appear inside the card. Referral fees show the amount recorded as paid.</p>
         </div>
         <div className="rounded-xl border border-secondary-200 bg-white px-4 py-3 text-sm text-secondary-600">
-          {referrers.length} referrers · {missingInfo.length} need details · {allComplete.length} complete
+          {referrers.length} referrers · {missingInfo.length} need lead details · {allComplete.length} complete
         </div>
       </header>
 
@@ -229,7 +230,7 @@ export default function ReferrersClient({ referrers }: { referrers: ReferrerFeeS
         <div className="space-y-8">
           <section className="space-y-4">
             <div className="flex items-center justify-between border-b border-secondary-200 pb-2">
-              <h2 className="text-xl font-bold text-amber-800">Missing referral details</h2>
+              <h2 className="text-xl font-bold text-amber-800">Missing lead details</h2>
               <span className="text-sm text-secondary-500">{missingInfo.length} referrers</span>
             </div>
             {missingInfo.length === 0 ? (
@@ -241,7 +242,7 @@ export default function ReferrersClient({ referrers }: { referrers: ReferrerFeeS
 
           <section className="space-y-4">
             <div className="flex items-center justify-between border-b border-secondary-200 pb-2">
-              <h2 className="text-xl font-bold text-emerald-800">All details complete</h2>
+              <h2 className="text-xl font-bold text-emerald-800">Lead details complete</h2>
               <span className="text-sm text-secondary-500">{allComplete.length} referrers</span>
             </div>
             {allComplete.length === 0 ? (
