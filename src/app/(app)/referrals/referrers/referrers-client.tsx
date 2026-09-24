@@ -21,11 +21,13 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
-function getSuggestedReferralFee(projectType: string | null) {
+type SuggestedReferralFee = { label: string; ratePercent: number };
+
+function getSuggestedReferralFee(projectType: string | null): SuggestedReferralFee | null {
   const normalized = (projectType || "").normalize("NFKC").toLowerCase().replace(/[^a-z]+/g, " ").trim();
-  if (normalized.includes("residential")) return { label: "Residential", rate: "2%" };
-  if (normalized.includes("shoplot") || normalized.includes("shop lot")) return { label: "Shoplot", rate: "1.5%" };
-  if (normalized.includes("factory")) return { label: "Factory", rate: "1%" };
+  if (normalized.includes("residential")) return { label: "Residential", ratePercent: 2 };
+  if (normalized.includes("shoplot") || normalized.includes("shop lot")) return { label: "Shoplot", ratePercent: 1.5 };
+  if (normalized.includes("factory")) return { label: "Factory", ratePercent: 1 };
   return null;
 }
 
@@ -53,14 +55,19 @@ function getWhatsAppHref(referrer: ReferrerFeeSummary) {
 
 function InvoiceFeeEditor({
   invoice,
+  suggestedFee,
   onQuickView,
   quickViewLoading,
 }: {
   invoice: ReferrerFeeInvoice;
+  suggestedFee: SuggestedReferralFee | null;
   onQuickView: () => void;
   quickViewLoading: boolean;
 }) {
   const router = useRouter();
+  const suggestedAmount = suggestedFee && invoice.totalAmount !== null
+    ? Math.round(invoice.totalAmount * suggestedFee.ratePercent) / 100
+    : null;
   const initialAmount = invoice.referralCommissionPaidAmount.toFixed(2);
   const [amount, setAmount] = useState(initialAmount);
   const [saving, setSaving] = useState(false);
@@ -112,6 +119,13 @@ function InvoiceFeeEditor({
           <span>Buyer paid {invoice.customerPaidPercent.toLocaleString("en-MY", { maximumFractionDigits: 2 })}%</span>
           <span>Linked package type: {invoice.packageTypes.length > 0 ? invoice.packageTypes.join(" + ") : "Not available"}</span>
         </div>
+        {suggestedFee && (
+          <p className="mt-1 font-semibold text-primary-800">
+            Suggested referral fee: {suggestedAmount === null
+              ? `${suggestedFee.ratePercent}% · invoice total unavailable`
+              : `${formatMoney(suggestedAmount)} (${suggestedFee.ratePercent}% of ${formatMoney(invoice.totalAmount!)})`}
+          </p>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-2 text-xs font-medium text-secondary-600">
@@ -196,7 +210,7 @@ function ReferrerCard({
                   </p>
                   <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs text-primary-800">
                     <span className="font-semibold">Suggested referrer fee:</span>
-                    {suggestedFee ? `${suggestedFee.label} · ${suggestedFee.rate}` : "No rate set for this lead type"}
+                    {suggestedFee ? `${suggestedFee.label} · ${suggestedFee.ratePercent}%` : "No rate set for this lead type"}
                   </p>
                 </div>
                 {lead.missingFields.length > 0 ? (
@@ -215,6 +229,7 @@ function ReferrerCard({
                     <InvoiceFeeEditor
                       key={invoice.id}
                       invoice={invoice}
+                      suggestedFee={suggestedFee}
                       onQuickView={() => onQuickViewInvoice(invoice.id)}
                       quickViewLoading={loadingQuickViewId === invoice.id}
                     />

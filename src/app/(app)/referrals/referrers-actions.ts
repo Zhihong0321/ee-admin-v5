@@ -22,6 +22,7 @@ export type ReferrerFeeLead = {
 export type ReferrerFeeInvoice = {
   id: number;
   invoiceNumber: string | null;
+  totalAmount: number | null;
   customerPaidPercent: number;
   referralCommissionPaidAmount: number;
   packageTypes: string[];
@@ -59,6 +60,7 @@ type PaidReferralInvoiceRow = {
   project_type: string | null;
   invoice_id: number;
   invoice_number: string | null;
+  invoice_total_amount: string | number | null;
   percent_of_total_amount: string | number | null;
   referral_commission_paid_amount: string | number | null;
   linked_package_types: string[] | null;
@@ -94,6 +96,7 @@ export async function getReferrerFeeSummary(): Promise<ReferrerFeeSummary[]> {
       r.project_type,
       i.id AS invoice_id,
       i.invoice_number,
+      CAST(COALESCE(i.total_amount, i.amount) AS TEXT) AS invoice_total_amount,
       CAST(i.percent_of_total_amount AS TEXT) AS percent_of_total_amount,
       CAST(i.referral_commission_paid_amount AS TEXT) AS referral_commission_paid_amount,
       ARRAY(
@@ -171,9 +174,11 @@ export async function getReferrerFeeSummary(): Promise<ReferrerFeeSummary[]> {
     const lead = referrer._leads.get(row.referral_id)!;
     const paidAmount = Number(row.referral_commission_paid_amount || 0);
     const paidPercent = Number(row.percent_of_total_amount || 0);
+    const totalAmount = row.invoice_total_amount == null ? Number.NaN : Number(row.invoice_total_amount);
     const invoice = {
       id: row.invoice_id,
       invoiceNumber: row.invoice_number,
+      totalAmount: Number.isFinite(totalAmount) ? totalAmount : null,
       customerPaidPercent: Number.isFinite(paidPercent) ? paidPercent : 0,
       referralCommissionPaidAmount: Number.isFinite(paidAmount) ? Math.round(paidAmount * 100) / 100 : 0,
       packageTypes: Array.isArray(row.linked_package_types) ? row.linked_package_types : [],
