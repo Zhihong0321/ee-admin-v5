@@ -158,7 +158,7 @@ function hasMissingReferralDetails(referral: ReferralRow) {
 
 function getWhatsAppMessage(referral: ReferralRow, formUrl: string) {
   const referrerName = referral.customer_name?.trim() || "there";
-  return `Hi ${referrerName}, could you please complete the missing details for your referral using this secure form? Your submission will update our referral record directly.\n\n${formUrl}\n\n您好，请通过此表格补充推荐资料。提交后，资料会直接更新到我们的记录中。谢谢！`;
+  return `Hi ${referrerName}, please review and complete the referral details using this form. You can correct existing details or fill in anything missing. Please submit the form so our referral record is updated.\n\n${formUrl}\n\n您好，请通过此表格确认并填写推荐资料。如有需要，请更正已有资料或补充缺失内容。提交后，资料会直接更新到我们的记录中。谢谢！`;
 }
 
 function getStatusClasses(status: string | null | undefined) {
@@ -451,7 +451,6 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
     setReferrerUpdateUrl(null);
     setReferrerUpdateUrlError("");
     setLoadingReferrerUpdateUrl(false);
-    if (!hasMissingReferralDetails(referral)) return;
 
     setLoadingReferrerUpdateUrl(true);
     try {
@@ -972,7 +971,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                 {waHref ? (
                   <a href={waHref} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700">
                     <MessageCircle className="h-4 w-4" />
-                    {hasMissingReferralDetails(viewingReferrer) ? "WhatsApp form link" : "WhatsApp referrer"}
+                    WhatsApp form link
                   </a>
                 ) : loadingReferrerUpdateUrl ? (
                   <button type="button" disabled className="btn-secondary inline-flex cursor-wait items-center justify-center gap-2 opacity-60">

@@ -87,10 +87,7 @@ export async function updateReferralDetailsFromLink(
       for (const item of normalized) {
         const [current] = await tx
           .select({
-            name: referrals.name,
-            mobile_number: referrals.mobile_number,
-            relationship: referrals.relationship,
-            project_type: referrals.project_type,
+            id: referrals.id,
           })
           .from(referrals)
           .where(and(
@@ -102,10 +99,10 @@ export async function updateReferralDetailsFromLink(
         if (!current) throw new Error("A referral is no longer linked to this referrer");
 
         const next = {
-          name: current.name?.trim() ? current.name : item.name,
-          mobile_number: current.mobile_number?.trim() ? current.mobile_number : item.mobile_number,
-          relationship: current.relationship?.trim() ? current.relationship : item.relationship,
-          project_type: current.project_type?.trim() ? current.project_type : item.project_type,
+          name: item.name,
+          mobile_number: item.mobile_number,
+          relationship: item.relationship,
+          project_type: item.project_type,
         };
         if (
           !next.name || next.name.length > 200 ||
@@ -113,7 +110,7 @@ export async function updateReferralDetailsFromLink(
           !next.relationship || next.relationship.length > 120 ||
           !next.project_type || next.project_type.length > 120
         ) {
-          throw new Error("Please complete all missing fields and check their length");
+          throw new Error("Please complete all required fields and check their length");
         }
 
         const updated = await tx

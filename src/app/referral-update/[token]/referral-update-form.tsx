@@ -59,7 +59,7 @@ export default function ReferralUpdateForm({
               <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Complete referral details</h1>
             </div>
           </div>
-          <p className="mt-4 text-sm text-primary-50">Hello {referrerName}. Please check and complete the lead details below.</p>
+          <p className="mt-4 text-sm text-primary-50">Hello {referrerName}. Please review and complete all required details below. You may correct any existing information.</p>
         </header>
 
         {saved ? (
@@ -76,42 +76,38 @@ export default function ReferralUpdateForm({
               <section key={lead.id} className="space-y-4 rounded-2xl border border-secondary-200 bg-white p-5 shadow-sm sm:p-6">
                 <div className="border-b border-secondary-100 pb-3">
                   <p className="text-xs font-bold uppercase tracking-wider text-secondary-400">Referral lead {index + 1}</p>
-                  <p className="mt-1 text-sm text-secondary-600">Please provide the best available details for this person.</p>
+                  <p className="mt-1 text-sm text-secondary-600">Please provide accurate information for this person. All fields are required.</p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="space-y-1.5 text-sm font-medium text-secondary-700">
-                    Lead name {!lead.name?.trim() && <span className="text-red-500">*</span>}
+                    Lead name <span className="text-red-500">*</span>
                     <input
                       required maxLength={200} autoComplete="name"
-                      readOnly={Boolean(lead.name?.trim())}
-                      className={`input ${lead.name?.trim() ? "bg-secondary-50 text-secondary-500" : ""}`} value={lead.name || ""}
+                      className="input" value={lead.name || ""}
                       onChange={(event) => updateLead(lead.id, "name", event.target.value)}
                     />
                   </label>
                   <label className="space-y-1.5 text-sm font-medium text-secondary-700">
-                    Contact number {!lead.mobile_number?.trim() && <span className="text-red-500">*</span>}
+                    Contact number <span className="text-red-500">*</span>
                     <input
                       required maxLength={50} type="tel" autoComplete="tel"
-                      readOnly={Boolean(lead.mobile_number?.trim())}
-                      className={`input ${lead.mobile_number?.trim() ? "bg-secondary-50 text-secondary-500" : ""}`} value={lead.mobile_number || ""}
+                      className="input" value={lead.mobile_number || ""}
                       onChange={(event) => updateLead(lead.id, "mobile_number", event.target.value)}
                     />
                   </label>
                   <label className="space-y-1.5 text-sm font-medium text-secondary-700">
-                    Relationship to you {!lead.relationship?.trim() && <span className="text-red-500">*</span>}
+                    Relationship to you <span className="text-red-500">*</span>
                     <input
                       required maxLength={120}
-                      readOnly={Boolean(lead.relationship?.trim())}
-                      className={`input ${lead.relationship?.trim() ? "bg-secondary-50 text-secondary-500" : ""}`} value={lead.relationship || ""}
+                      className="input" value={lead.relationship || ""}
                       onChange={(event) => updateLead(lead.id, "relationship", event.target.value)}
                     />
                   </label>
                   <label className="space-y-1.5 text-sm font-medium text-secondary-700">
-                    Project type {!lead.project_type?.trim() && <span className="text-red-500">*</span>}
+                    Project type <span className="text-red-500">*</span>
                     <input
                       required maxLength={120}
-                      readOnly={Boolean(lead.project_type?.trim())}
-                      className={`input ${lead.project_type?.trim() ? "bg-secondary-50 text-secondary-500" : ""}`} value={lead.project_type || ""}
+                      className="input" value={lead.project_type || ""}
                       onChange={(event) => updateLead(lead.id, "project_type", event.target.value)}
                     />
                   </label>
@@ -122,7 +118,7 @@ export default function ReferralUpdateForm({
             {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
             <div className="flex flex-col gap-3 rounded-2xl border border-secondary-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-secondary-500">Only missing details can be filled in. Existing details are locked.</p>
+              <p className="text-xs text-secondary-500">Submitting this form saves the details to the referral record.</p>
               <button type="submit" disabled={saving} className="btn-primary inline-flex items-center justify-center gap-2 disabled:opacity-60">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                 {saving ? "Submitting…" : "Submit details"}

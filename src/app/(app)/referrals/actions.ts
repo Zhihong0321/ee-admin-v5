@@ -77,7 +77,7 @@ function coerceTextField(value: string | null | undefined) {
   return trimmed === "" ? null : trimmed;
 }
 
-/** Create a short-lived public form link for one referral's missing lead details. */
+/** Create a short-lived public form link for one referral's lead details. */
 export async function getReferralDetailsUpdateUrl(referralId: number) {
   const user = await getUser();
   if (!isReferralAdmin(user)) {
@@ -91,10 +91,6 @@ export async function getReferralDetailsUpdateUrl(referralId: number) {
     .select({
       id: referrals.id,
       linked_customer_profile: referrals.linked_customer_profile,
-      name: referrals.name,
-      mobile_number: referrals.mobile_number,
-      relationship: referrals.relationship,
-      project_type: referrals.project_type,
     })
     .from(referrals)
     .where(eq(referrals.id, referralId))
@@ -104,14 +100,6 @@ export async function getReferralDetailsUpdateUrl(referralId: number) {
   if (!referral || !referrerCustomerId) {
     return { success: false as const, error: "This referral has no linked referrer" };
   }
-
-  const hasMissingDetails = [
-    referral.name,
-    referral.mobile_number,
-    referral.relationship,
-    referral.project_type,
-  ].some((value) => !value?.trim());
-  if (!hasMissingDetails) return { success: true as const, url: null };
 
   const token = await signReferralUpdateToken({
     referrerCustomerId,
