@@ -10,6 +10,7 @@ import {
   Handshake,
   Link2,
   Mail,
+  MessageCircle,
   MapPin,
   Phone,
   Search,
@@ -25,8 +26,10 @@ import {
   getReferralAgents,
   getReferralReferrers,
   getReferrals,
+  scanReferralInvoices,
   searchReferralInvoices,
   updateReferral,
+  type ReferralInvoiceScanResult,
 } from "./actions";
 
 type ReferralRow = {
@@ -113,6 +116,31 @@ function formatDate(value: string | Date | null | undefined) {
   });
 }
 
+function getWhatsAppDigits(phone: string | null | undefined) {
+  const raw = (phone || "").trim();
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  if (raw.startsWith("+")) return digits;
+  if (digits.startsWith("60")) return digits;
+  if (digits.startsWith("0")) return `60${digits.slice(1)}`;
+  return `60${digits}`;
+}
+
+function getWhatsAppMessage(referral: ReferralRow) {
+  const missing = [
+    !referral.name?.trim() && "lead’s full name",
+    !referral.mobile_number?.trim() && "lead’s contact number",
+    !referral.relationship?.trim() && "relationship to the lead",
+    !referral.project_type?.trim() && "project type",
+  ].filter(Boolean);
+  const leadName = referral.name?.trim() || "the referred lead";
+  const request = missing.length
+    ? `Could you please help us complete the referral details for ${leadName} by sharing the ${missing.join(", ")}?`
+    : `Could you please confirm the referral details for ${leadName} are correct?`;
+  return `Hi ${referral.customer_name?.trim() || "there"}, ${request} Thank you!\n\n您好，想请您协助补充/确认这项推荐资料，谢谢。`;
+}
+
 function getStatusClasses(status: string | null | undefined) {
   const normalized = (status || "Pending").toLowerCase();
   if (normalized.includes("won") || normalized.includes("convert")) {
@@ -161,12 +189,15 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [scanningInvoices, setScanningInvoices] = useState(false);
+  const [invoiceScanResults, setInvoiceScanResults] = useState<Map<number, ReferralInvoiceScanResult>>(new Map());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
   const [totalRows, setTotalRows] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [stats, setStats] = useState({ total: 0, assigned: 0, unassigned: 0, pending: 0 });
   const [editingReferral, setEditingReferral] = useState<ReferralRow | null>(null);
+  const [viewingReferrer, setViewingReferrer] = useState<ReferralRow | null>(null);
   const [agentSearch, setAgentSearch] = useState("");
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceResults, setInvoiceResults] = useState<InvoiceOption[]>([]);
@@ -188,6 +219,19 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
       console.error("Failed to fetch agents", error);
     } finally {
       setLoadingAgents(false);
+    }
+  }
+
+  async function handleScanReferralInvoices() {
+    setScanningInvoices(true);
+    try {
+      const results = await scanReferralInvoices();
+      setInvoiceScanResults(new Map(results.map((result) => [result.referralId, result])));
+    } catch (error) {
+      console.error("Failed to scan referral invoices", error);
+      alert("Failed to scan invoices. Please try again.");
+    } finally {
+      setScanningInvoices(false);
     }
   }
 
@@ -404,6 +448,15 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
+            onClick={handleScanReferralInvoices}
+            disabled={scanningInvoices}
+            className="btn-secondary flex items-center gap-2 disabled:cursor-wait disabled:opacity-60"
+          >
+            <Search className="h-4 w-4" />
+            {scanningInvoices ? "Scanning invoices..." : "Scan referral invoices"}
+          </button>
+          <button
+            type="button"
             onClick={() => fetchData(currentPage, search, statusFilter, assignedAgentFilter, referrerFilter)}
             className="btn-secondary flex items-center gap-2"
           >
@@ -565,6 +618,29 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                       <p className="mt-1 break-words text-xs text-secondary-400 [overflow-wrap:anywhere]">
                         {referral.relationship || "No relationship noted"}
                       </p>
+                      {invoiceScanResults.has(referral.id) && (() => {
+                        const scan = invoiceScanResults.get(referral.id)!;
+                        return (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {scan.linkedInvoice && (
+                              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                                Linked Invoice = {scan.linkedInvoice.invoiceNumber || scan.linkedInvoice.bubbleId || "Invoice"}
+                              </span>
+                            )}
+                            {scan.possibleMatches.map((match) => (
+                              <span
+                                key={`${match.invoiceId}-${match.matchType}`}
+                                className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800"
+                              >
+                                Same {match.matchType === "phone" ? "contact number" : "name"} invoice found: {match.invoiceNumber || match.bubbleId || `#${match.invoiceId}`}
+                              </span>
+                            ))}
+                            {!scan.linkedInvoice && scan.possibleMatches.length === 0 && (
+                              <span className="text-xs text-secondary-400">No matching invoice found</span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <span className={`inline-flex w-fit shrink-0 items-center rounded-lg border px-2.5 py-1 text-xs font-bold ${getStatusClasses(referral.status)}`}>
                       {referral.status || "Pending"}
@@ -584,6 +660,14 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                       <p className="mt-1 break-words text-xs text-secondary-500 [overflow-wrap:anywhere]">
                         {referral.project_type || "No project type"}
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => setViewingReferrer(referral)}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-primary-200 px-2.5 py-1.5 text-xs font-semibold text-primary-700 transition-colors hover:bg-primary-50"
+                      >
+                        <User className="h-3.5 w-3.5" />
+                        Referrer details
+                      </button>
                     </div>
 
                     <div className="min-w-0">
@@ -656,9 +740,92 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
               ))}
             </div>
           )}
-        </div>
+      </div>
 
-        <div className="p-6 border-t border-secondary-200 bg-secondary-50/30 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      {viewingReferrer && (() => {
+        const referrerName = viewingReferrer.customer_name?.trim() || "(no name recorded)";
+        const referrerPhone = viewingReferrer.customer_phone?.trim() || "";
+        const waDigits = getWhatsAppDigits(referrerPhone);
+        const waHref = waDigits
+          ? `https://wa.me/${waDigits}?text=${encodeURIComponent(getWhatsAppMessage(viewingReferrer))}`
+          : null;
+
+        return (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-secondary-950/50 p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setViewingReferrer(null);
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="referrer-detail-title"
+              className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+              <div className="flex items-start justify-between border-b border-secondary-100 p-5 sm:p-6">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-secondary-400">Referrer (介绍人)</p>
+                  <h2 id="referrer-detail-title" className="mt-1 text-xl font-semibold text-secondary-900">{referrerName}</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingReferrer(null)}
+                  className="rounded-lg p-2 text-secondary-500 hover:bg-secondary-100 hover:text-secondary-800"
+                  aria-label="Close referrer details"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4 p-5 sm:p-6">
+                <div className="rounded-xl bg-secondary-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-secondary-400">Customer ID</p>
+                  <p className="mt-1 break-all font-mono text-sm text-secondary-800">
+                    {viewingReferrer.linked_customer_profile || "Not linked"}
+                  </p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-secondary-400">Phone</p>
+                    <p className="mt-1 break-all text-sm text-secondary-800">{referrerPhone || "No phone recorded"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-secondary-400">Email</p>
+                    <p className="mt-1 break-all text-sm text-secondary-800">{viewingReferrer.customer_email || "No email recorded"}</p>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-secondary-200 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-secondary-400">Referral lead</p>
+                  <p className="mt-1 text-sm font-medium text-secondary-900">
+                    {formatNamedPersonDisplay(viewingReferrer.name, viewingReferrer.mobile_number)}
+                  </p>
+                  <p className="mt-1 text-xs text-secondary-500">
+                    {[viewingReferrer.relationship, viewingReferrer.project_type].filter(Boolean).join(" · ") || "No additional details recorded"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 border-t border-secondary-100 bg-secondary-50/50 p-5 sm:flex-row sm:justify-end sm:p-6">
+                <button type="button" onClick={() => setViewingReferrer(null)} className="btn-secondary">Close</button>
+                {waHref ? (
+                  <a href={waHref} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700">
+                    <MessageCircle className="h-4 w-4" />
+                    WhatsApp referrer
+                  </a>
+                ) : (
+                  <button type="button" disabled className="btn-secondary inline-flex cursor-not-allowed items-center justify-center gap-2 opacity-50" title="No referrer phone number is available">
+                    <MessageCircle className="h-4 w-4" />
+                    No WhatsApp number
+                  </button>
+                )}
+              </div>
+            </section>
+          </div>
+        );
+      })()}
+
+      <div className="p-6 border-t border-secondary-200 bg-secondary-50/30 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="text-sm text-secondary-600">
             Showing <span className="font-semibold text-secondary-900">{startResult}</span> to{" "}
             <span className="font-semibold text-secondary-900">{endResult}</span> of{" "}

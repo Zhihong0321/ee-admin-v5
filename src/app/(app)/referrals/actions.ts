@@ -10,7 +10,7 @@ import { and, desc, eq, ilike, isNotNull, isNull, ne, or, sql } from "drizzle-or
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity-log";
 import { db } from "@/lib/db";
-import { customers, referrals, users } from "@/db/schema";
+import { customers, invoices, referrals, users } from "@/db/schema";
 import { getUser } from "@/lib/auth";
 import {
   resolveUserRefToBubbleId,
@@ -445,6 +445,90 @@ export async function getReferrals({
     };
   } catch (error) {
     console.error("Database error in getReferrals:", error);
+    throw error;
+  }
+}
+
+export type ReferralInvoiceScanMatch = {
+  invoiceId: number;
+  invoiceNumber: string | null;
+  bubbleId: string | null;
+  matchType: "phone" | "name";
+};
+
+export type ReferralInvoiceScanResult = {
+  referralId: number;
+  linkedInvoice: { invoiceNumber: string | null; bubbleId: string | null } | null;
+  possibleMatches: ReferralInvoiceScanMatch[];
+};
+
+/** Read-only scan for all referral leads. Direct links come from referral.linked_invoice;
+ *  possible matches compare the lead's own name/phone to the invoice customer. */
+export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[]> {
+  try {
+    const [referralRows, invoiceRows] = await Promise.all([
+      db.select({
+        id: referrals.id,
+        name: referrals.name,
+        mobile_number: referrals.mobile_number,
+        linked_invoice: referrals.linked_invoice,
+      }).from(referrals),
+      db.select({
+        id: invoices.id,
+        bubble_id: invoices.bubble_id,
+        invoice_number: invoices.invoice_number,
+        linked_customer: invoices.linked_customer,
+        customer_name: customers.name,
+        customer_phone: customers.phone,
+      }).from(invoices)
+        .leftJoin(customers, eq(customers.customer_id, invoices.linked_customer)),
+    ]);
+
+    const normalizeName = (value: string | null | undefined) =>
+      (value || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const normalizePhone = (value: string | null | undefined) => {
+      const digits = (value || "").replace(/\D/g, "");
+      return digits.startsWith("60") ? `0${digits.slice(2)}` : digits;
+    };
+    const invoicesByBubbleId = new Map(
+      invoiceRows.filter((invoice) => invoice.bubble_id).map((invoice) => [invoice.bubble_id!, invoice]),
+    );
+
+    return referralRows.map((referral) => {
+      const linkedValue = (referral.linked_invoice || "").trim();
+      const directInvoice = linkedValue && !looksLikeCustomerId(linkedValue)
+        ? invoicesByBubbleId.get(linkedValue)
+        : undefined;
+      const leadName = normalizeName(referral.name);
+      const leadPhone = normalizePhone(referral.mobile_number);
+      const possibleMatches: ReferralInvoiceScanMatch[] = [];
+
+      for (const invoice of invoiceRows) {
+        if (invoice.id === directInvoice?.id) continue;
+        const invoicePhone = normalizePhone(invoice.customer_phone);
+        const invoiceName = normalizeName(invoice.customer_name);
+        const phoneMatches = leadPhone.length >= 7 && invoicePhone.length >= 7 && leadPhone === invoicePhone;
+        const nameMatches = leadName.length >= 3 && invoiceName.length >= 3 && leadName === invoiceName;
+        if (!phoneMatches && !nameMatches) continue;
+
+        possibleMatches.push({
+          invoiceId: invoice.id,
+          invoiceNumber: invoice.invoice_number,
+          bubbleId: invoice.bubble_id,
+          matchType: phoneMatches ? "phone" : "name",
+        });
+      }
+
+      return {
+        referralId: referral.id,
+        linkedInvoice: directInvoice
+          ? { invoiceNumber: directInvoice.invoice_number, bubbleId: directInvoice.bubble_id }
+          : null,
+        possibleMatches: possibleMatches.slice(0, 5),
+      };
+    });
+  } catch (error) {
+    console.error("Database error in scanReferralInvoices:", error);
     throw error;
   }
 }
