@@ -137,7 +137,7 @@ async function hasReferralPreferredAgentLogColumn() {
   return referralPreferredAgentLogColumnPromise;
 }
 
-async function hasInvoiceLinkedReferralColumn() {
+export async function hasInvoiceLinkedReferralColumn() {
   if (!invoiceLinkedReferralColumnPromise) {
     invoiceLinkedReferralColumnPromise = db
       .execute(sql`
@@ -316,6 +316,22 @@ export async function getReferrals({
     const currentPage = Math.max(1, page);
     const safePageSize = Math.max(1, Math.min(pageSize, 100));
     const hasPreferredAgentLog = await hasReferralPreferredAgentLogColumn();
+    const resolvedLinkedInvoiceExpr = sql<ReferralInvoiceScanResult["linkedInvoice"]>`(
+      SELECT jsonb_build_object(
+        'invoiceId', i.id,
+        'invoiceNumber', i.invoice_number,
+        'bubbleId', i.bubble_id
+      )
+      FROM invoice i
+      WHERE btrim(coalesce(${referrals.linked_invoice}, '')) <> ''
+        AND strpos(lower(btrim(${referrals.linked_invoice})), 'cust_') <> 1
+        AND strpos(lower(btrim(${referrals.linked_invoice})), 'customer_') <> 1
+        AND i.bubble_id = btrim(${referrals.linked_invoice})
+        AND i.is_latest IS TRUE
+        AND COALESCE(i.is_deleted, false) = false
+      ORDER BY i.id DESC
+      LIMIT 1
+    )`;
 
     // linked_agent resolves against `user` alone — but not against one keyspace.
     // Bubble has been writing the integer `user.id` here since 2026-07-22 (80 live
@@ -402,6 +418,7 @@ export async function getReferrals({
         deal_value: referrals.deal_value,
         commission_earned: referrals.commission_earned,
         linked_invoice: referrals.linked_invoice,
+        resolved_linked_invoice: resolvedLinkedInvoiceExpr,
         project_type: referrals.project_type,
         customer_name: customers.name,
         customer_phone: customers.phone,
@@ -429,7 +446,10 @@ export async function getReferrals({
     const [stats] = whereClause ? await statsQuery.where(whereClause) : await statsQuery;
 
     return {
-      referrals: data,
+      referrals: data.map((row) => ({
+        ...row,
+        resolved_linked_invoice: parseResolvedLinkedInvoice(row.resolved_linked_invoice),
+      })),
       pagination: {
         page: effectivePage,
         pageSize: safePageSize,
@@ -458,12 +478,32 @@ export type ReferralInvoiceScanMatch = {
 
 export type ReferralInvoiceScanResult = {
   referralId: number;
-  linkedInvoice: { invoiceNumber: string | null; bubbleId: string | null } | null;
+  linkedInvoice: { invoiceId: number; invoiceNumber: string | null; bubbleId: string | null } | null;
   possibleMatches: ReferralInvoiceScanMatch[];
 };
 
-/** Read-only scan for all referral leads. Direct links come from referral.linked_invoice;
- *  possible matches compare the lead's own name/phone to the invoice customer. */
+function parseResolvedLinkedInvoice(value: unknown): ReferralInvoiceScanResult["linkedInvoice"] {
+  if (value == null) return null;
+  let parsed: unknown = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!parsed || typeof parsed !== "object") return null;
+  const row = parsed as Record<string, unknown>;
+  const invoiceId = Number(row.invoiceId);
+  if (!Number.isFinite(invoiceId)) return null;
+  return {
+    invoiceId,
+    invoiceNumber: row.invoiceNumber == null ? null : String(row.invoiceNumber),
+    bubbleId: row.bubbleId == null ? null : String(row.bubbleId),
+  };
+}
+
+/** Read-only match of each lead to invoices for the same person. */
 export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[]> {
   try {
     const [referralRows, invoiceRows] = await Promise.all([
@@ -481,20 +521,24 @@ export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[
         customer_name: customers.name,
         customer_phone: customers.phone,
       }).from(invoices)
-        .leftJoin(customers, eq(customers.customer_id, invoices.linked_customer)),
+        .leftJoin(customers, eq(customers.customer_id, invoices.linked_customer))
+        .where(and(eq(invoices.is_latest, true), sql`COALESCE(${invoices.is_deleted}, false) = false`)),
     ]);
 
     const normalizeName = (value: string | null | undefined) =>
       (value || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
     const normalizePhone = (value: string | null | undefined) => {
       const digits = (value || "").replace(/\D/g, "");
-      return digits.startsWith("60") ? `0${digits.slice(2)}` : digits;
+      const withoutInternationalPrefix = digits.startsWith("0060") ? digits.slice(2) : digits;
+      return withoutInternationalPrefix.startsWith("60")
+        ? `0${withoutInternationalPrefix.slice(2)}`
+        : withoutInternationalPrefix;
     };
     const invoicesByBubbleId = new Map(
       invoiceRows.filter((invoice) => invoice.bubble_id).map((invoice) => [invoice.bubble_id!, invoice]),
     );
 
-    return referralRows.map((referral) => {
+    const results = referralRows.map((referral) => {
       const linkedValue = (referral.linked_invoice || "").trim();
       const directInvoice = linkedValue && !looksLikeCustomerId(linkedValue)
         ? invoicesByBubbleId.get(linkedValue)
@@ -519,17 +563,135 @@ export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[
         });
       }
 
+      possibleMatches.sort((a, b) => {
+        if (a.matchType !== b.matchType) return a.matchType === "phone" ? -1 : 1;
+        return b.invoiceId - a.invoiceId;
+      });
+
       return {
         referralId: referral.id,
         linkedInvoice: directInvoice
-          ? { invoiceNumber: directInvoice.invoice_number, bubbleId: directInvoice.bubble_id }
+          ? {
+              invoiceId: directInvoice.id,
+              invoiceNumber: directInvoice.invoice_number,
+              bubbleId: directInvoice.bubble_id,
+            }
           : null,
         possibleMatches: possibleMatches.slice(0, 5),
       };
     });
+
+    return results;
   } catch (error) {
     console.error("Database error in scanReferralInvoices:", error);
     throw error;
+  }
+}
+
+/** Admin-only override of invoice referral attribution. The billed customer on the
+ *  invoice is intentionally preserved; this only assigns the invoice to a referral. */
+export async function assignInvoiceToReferral(invoiceId: number, referralId: number) {
+  try {
+    const user = await getUser();
+    if (!isReferralAdmin(user)) {
+      return { success: false, error: "Admin permission required to reassign invoice referral attribution" };
+    }
+
+    if (!(await hasInvoiceLinkedReferralColumn())) {
+      return { success: false, error: "Invoice referral attribution is unavailable in the database" };
+    }
+
+    let invoiceNumber: string | null = null;
+    let referralName: string | null = null;
+
+    await db.transaction(async (tx) => {
+      const invoiceResult = await tx.execute(sql`
+        SELECT id, bubble_id, invoice_number
+        FROM invoice
+        WHERE id = ${invoiceId}
+          AND is_latest = true
+          AND COALESCE(is_deleted, false) = false
+        FOR UPDATE
+      `);
+      const invoice = invoiceResult.rows[0] as {
+        id: number;
+        bubble_id: string | null;
+        invoice_number: string | null;
+      } | undefined;
+
+      if (!invoice?.bubble_id) throw new Error("Latest invoice not found");
+
+      const referralResult = await tx.execute(sql`
+        SELECT id, bubble_id, name, linked_invoice
+        FROM referral
+        WHERE id = ${referralId}
+        FOR UPDATE
+      `);
+      const referral = referralResult.rows[0] as {
+        id: number;
+        bubble_id: string | null;
+        name: string | null;
+        linked_invoice: string | null;
+      } | undefined;
+
+      if (!referral) throw new Error("Referral not found");
+
+      const referralLinkKey = referral.bubble_id?.trim() || String(referral.id);
+      const now = new Date();
+
+      const previousInvoiceId = referral.linked_invoice?.trim();
+      if (previousInvoiceId && previousInvoiceId !== invoice.bubble_id) {
+        await tx.execute(sql`
+          UPDATE invoice
+          SET linked_referral = NULL, updated_at = ${now}
+          WHERE bubble_id = ${previousInvoiceId}
+            AND linked_referral = ${referralLinkKey}
+        `);
+      }
+
+      // If this invoice was already linked to another referral, clear that referral's
+      // reverse link before assigning it here. The invoice customer remains unchanged.
+      await tx.execute(sql`
+        UPDATE referral
+        SET linked_invoice = NULL, updated_at = ${now}
+        WHERE linked_invoice = ${invoice.bubble_id}
+          AND id <> ${referral.id}
+      `);
+
+      await tx.execute(sql`
+        UPDATE referral
+        SET linked_invoice = ${invoice.bubble_id}, updated_at = ${now}
+        WHERE id = ${referral.id}
+      `);
+
+      await tx.execute(sql`
+        UPDATE invoice
+        SET linked_referral = ${referralLinkKey}, updated_at = ${now}
+        WHERE id = ${invoice.id}
+      `);
+
+      invoiceNumber = invoice.invoice_number;
+      referralName = referral.name;
+    });
+
+    revalidatePath("/referrals");
+    revalidatePath("/invoices");
+    try {
+      await logActivity({
+        action: "update",
+        entityType: "invoice",
+        entityId: invoiceId,
+        fields: ["linked_referral"],
+        metadata: { referralId, invoiceNumber, referralName, override: true },
+      });
+    } catch (logError) {
+      console.error("Failed to log invoice referral reassignment", logError);
+    }
+
+    return { success: true, invoiceNumber, referralName };
+  } catch (error) {
+    console.error("Database error in assignInvoiceToReferral:", error);
+    return { success: false, error: String(error) };
   }
 }
 

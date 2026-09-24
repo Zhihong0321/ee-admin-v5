@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  Eye,
   FileText,
   Filter,
   Handshake,
@@ -21,7 +23,10 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
+import InvoiceViewer from "@/components/InvoiceViewer";
+import { getInvoiceDetails } from "@/app/(app)/invoices/actions";
 import {
+  assignInvoiceToReferral,
   deleteReferral,
   getReferralAgents,
   getReferralReferrers,
@@ -47,6 +52,7 @@ type ReferralRow = {
   deal_value: string | number | null;
   commission_earned: string | number | null;
   linked_invoice: string | null;
+  resolved_linked_invoice: ReferralInvoiceScanResult["linkedInvoice"];
   project_type: string | null;
   customer_name: string | null;
   customer_phone: string | null;
@@ -55,6 +61,15 @@ type ReferralRow = {
   agent_contact: string | null;
   agent_bubble_id: string | null;
 };
+
+function scanResultFromReferral(referral: ReferralRow): ReferralInvoiceScanResult | null {
+  if (!referral.resolved_linked_invoice) return null;
+  return {
+    referralId: referral.id,
+    linkedInvoice: referral.resolved_linked_invoice,
+    possibleMatches: [],
+  };
+}
 
 type AgentOption = {
   id: number;
@@ -201,6 +216,9 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
   const [agentSearch, setAgentSearch] = useState("");
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceResults, setInvoiceResults] = useState<InvoiceOption[]>([]);
+  const [quickViewInvoice, setQuickViewInvoice] = useState<any | null>(null);
+  const [loadingQuickViewId, setLoadingQuickViewId] = useState<number | null>(null);
+  const [assigningInvoiceId, setAssigningInvoiceId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"details" | "invoice">("details");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
@@ -235,6 +253,50 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
     }
   }
 
+  async function handleQuickViewInvoice(invoiceId: number) {
+    setLoadingQuickViewId(invoiceId);
+    try {
+      const details = await getInvoiceDetails(invoiceId, "v2");
+      if (details) setQuickViewInvoice(details);
+      else alert("Invoice not found.");
+    } catch (error) {
+      console.error("Failed to load invoice preview", error);
+      alert("Failed to load invoice preview. Please try again.");
+    } finally {
+      setLoadingQuickViewId(null);
+    }
+  }
+
+  async function handleAssignInvoiceToReferral(
+    invoiceId: number,
+    invoiceLabel: string,
+    referral: ReferralRow,
+  ) {
+    const leadName = referral.name?.trim() || "this referral lead";
+    const confirmed = window.confirm(
+      `Assign ${invoiceLabel} to ${leadName} for referral fee tracking?\n\nThis replaces any other referral attribution on that invoice and moves this referral's invoice link if it currently points elsewhere. The billed customer on the invoice will stay unchanged.`,
+    );
+    if (!confirmed) return;
+
+    setAssigningInvoiceId(invoiceId);
+    try {
+      const result = await assignInvoiceToReferral(invoiceId, referral.id);
+      if (!result.success) {
+        alert(result.error || "Failed to assign invoice to referral");
+        return;
+      }
+
+      await handleScanReferralInvoices();
+      await fetchData(currentPage, search, statusFilter, assignedAgentFilter, referrerFilter);
+      alert(`${result.invoiceNumber || invoiceLabel} is now attributed to ${result.referralName || leadName}.`);
+    } catch (error) {
+      console.error("Failed to assign invoice to referral", error);
+      alert("Failed to assign invoice to referral. Please try again.");
+    } finally {
+      setAssigningInvoiceId(null);
+    }
+  }
+
   async function loadReferrers() {
     try {
       setReferrers(await getReferralReferrers());
@@ -261,6 +323,14 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
         pageSize,
       });
       setReferrals(data.referrals);
+      setInvoiceScanResults((current) => {
+        const next = new Map(current);
+        for (const referral of data.referrals) {
+          const seeded = scanResultFromReferral(referral);
+          if (seeded) next.set(referral.id, seeded);
+        }
+        return next;
+      });
       setCurrentPage(data.pagination.page);
       setTotalRows(data.pagination.total);
       setTotalPages(data.pagination.totalPages);
@@ -437,6 +507,13 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="min-w-0 max-w-full space-y-6 animate-fade-in">
+      {quickViewInvoice && (
+        <InvoiceViewer
+          invoiceData={quickViewInvoice}
+          onClose={() => setQuickViewInvoice(null)}
+          version="v2"
+        />
+      )}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold text-secondary-900">Referral Management</h1>
@@ -446,6 +523,12 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {isAdmin && (
+            <Link href="/referrals/referrers" className="btn-secondary flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Referrer fee follow-up
+            </Link>
+          )}
           <button
             type="button"
             onClick={handleScanReferralInvoices}
@@ -623,17 +706,46 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                         return (
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {scan.linkedInvoice && (
-                              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                              <button
+                                type="button"
+                                onClick={() => handleQuickViewInvoice(scan.linkedInvoice!.invoiceId)}
+                                disabled={loadingQuickViewId === scan.linkedInvoice.invoiceId}
+                                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
                                 Linked Invoice = {scan.linkedInvoice.invoiceNumber || scan.linkedInvoice.bubbleId || "Invoice"}
-                              </span>
+                              </button>
                             )}
                             {scan.possibleMatches.map((match) => (
-                              <span
+                              <div
                                 key={`${match.invoiceId}-${match.matchType}`}
-                                className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800"
+                                className="inline-flex flex-wrap items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800"
                               >
-                                Same {match.matchType === "phone" ? "contact number" : "name"} invoice found: {match.invoiceNumber || match.bubbleId || `#${match.invoiceId}`}
-                              </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickViewInvoice(match.invoiceId)}
+                                  disabled={loadingQuickViewId === match.invoiceId}
+                                  className="inline-flex items-center gap-1.5 hover:underline disabled:opacity-60"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  Same {match.matchType === "phone" ? "contact number" : "name"} invoice found: {match.invoiceNumber || match.bubbleId || `#${match.invoiceId}`}
+                                </button>
+                                {isAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAssignInvoiceToReferral(
+                                      match.invoiceId,
+                                      match.invoiceNumber || match.bubbleId || `#${match.invoiceId}`,
+                                      referral,
+                                    )}
+                                    disabled={assigningInvoiceId === match.invoiceId}
+                                    className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2 py-0.5 font-semibold hover:bg-amber-100 disabled:opacity-60"
+                                  >
+                                    <Link2 className="h-3 w-3" />
+                                    {assigningInvoiceId === match.invoiceId ? "Assigning…" : "Use for referral fee"}
+                                  </button>
+                                )}
+                              </div>
                             ))}
                             {!scan.linkedInvoice && scan.possibleMatches.length === 0 && (
                               <span className="text-xs text-secondary-400">No matching invoice found</span>

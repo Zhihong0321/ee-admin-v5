@@ -7,6 +7,12 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const APP_BASE_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 export async function middleware(request: NextRequest) {
+  // Public referral update pages use a short-lived signed token and validate it
+  // again in their server actions. They do not require an app login cookie.
+  if (request.nextUrl.pathname.startsWith('/referral-update/')) {
+    return NextResponse.next();
+  }
+
   // DEMO: Skip auth for invoice-log in local development
   if (process.env.NODE_ENV !== 'production' && request.nextUrl.pathname.startsWith('/invoice-log')) {
     return NextResponse.next();

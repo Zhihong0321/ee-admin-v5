@@ -111,6 +111,9 @@ export const invoices = pgTable('invoice', {
   // Commission Eligibility Fields
   amount_eligible_for_comm: numeric('amount_eligible_for_comm'),
   eligible_amount_description: text('eligible_amount_description'),
+  referral_commission_paid_amount: numeric('referral_commission_paid_amount', { precision: 12, scale: 2 })
+    .notNull()
+    .default('0'), // Cumulative referral fee paid for this invoice (MYR)
 
   // Calculated Fields (synced from Bubble)
   percent_of_total_amount: numeric('percent_of_total_amount'), // Payment percentage (0-100)
