@@ -514,6 +514,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
           invoiceData={quickViewInvoice}
           onClose={() => setQuickViewInvoice(null)}
           version="v2"
+          initialTab="details"
         />
       )}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

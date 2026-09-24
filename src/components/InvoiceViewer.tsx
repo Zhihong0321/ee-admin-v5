@@ -6,18 +6,24 @@ import { X, Printer, Download, Loader2, FileText, User, CreditCard, Package, Map
 import { generateInvoicePdf } from "@/app/(app)/invoices/actions";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 
+type Tab = "preview" | "details";
+
 interface InvoiceViewerProps {
   invoiceData: any;
   onClose: () => void;
   version?: "v1" | "v2";
+  initialTab?: Tab;
 }
 
-type Tab = "preview" | "details";
-
-export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: InvoiceViewerProps) {
+export default function InvoiceViewer({
+  invoiceData,
+  onClose,
+  version = "v2",
+  initialTab = "preview",
+}: InvoiceViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [downloading, setDownloading] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("preview");
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const invoiceIdDisplay = getInvoiceIdDisplay(invoiceData);
   const invoiceNumberDisplay = getInvoiceNumberDisplay(invoiceData);
   const showSecondaryInvoiceNumber = Boolean(invoiceNumberDisplay && invoiceNumberDisplay !== invoiceIdDisplay);
@@ -118,7 +124,7 @@ export default function InvoiceViewer({ invoiceData, onClose, version = "v2" }: 
             }`}
           >
             <Info className="w-4 h-4" />
-            Details
+            Details & payments
           </button>
         </div>
 

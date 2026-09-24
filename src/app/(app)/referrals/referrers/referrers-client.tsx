@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Copy, Loader2, MessageCircle, Phone, Save, Users } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Copy, Eye, Loader2, MessageCircle, Phone, Save, Users } from "lucide-react";
+import InvoiceViewer from "@/components/InvoiceViewer";
+import { getInvoiceDetails } from "@/app/(app)/invoices/actions";
 import {
   updateInvoiceReferralCommissionPaidAmount,
   type ReferrerFeeInvoice,
@@ -41,7 +43,15 @@ function getWhatsAppHref(referrer: ReferrerFeeSummary) {
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
 
-function InvoiceFeeEditor({ invoice }: { invoice: ReferrerFeeInvoice }) {
+function InvoiceFeeEditor({
+  invoice,
+  onQuickView,
+  quickViewLoading,
+}: {
+  invoice: ReferrerFeeInvoice;
+  onQuickView: () => void;
+  quickViewLoading: boolean;
+}) {
   const router = useRouter();
   const initialAmount = invoice.referralCommissionPaidAmount.toFixed(2);
   const [amount, setAmount] = useState(initialAmount);
@@ -79,7 +89,17 @@ function InvoiceFeeEditor({ invoice }: { invoice: ReferrerFeeInvoice }) {
   return (
     <div className="flex flex-col gap-2 rounded-lg bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 text-xs text-secondary-600">
-        <span className="font-semibold text-secondary-800">{invoice.invoiceNumber || `Invoice #${invoice.id}`}</span>
+        <button
+          type="button"
+          onClick={onQuickView}
+          disabled={quickViewLoading}
+          className="inline-flex items-center gap-1.5 font-semibold text-primary-700 hover:underline disabled:opacity-60"
+          aria-label={`View ${invoice.invoiceNumber || `invoice ${invoice.id}`} and its payment record`}
+        >
+          {quickViewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+          {invoice.invoiceNumber || `Invoice #${invoice.id}`}
+          <span className="font-normal">· View invoice & payments</span>
+        </button>
         <span className="ml-2">Buyer paid {invoice.customerPaidPercent.toLocaleString("en-MY", { maximumFractionDigits: 2 })}%</span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -104,7 +124,15 @@ function InvoiceFeeEditor({ invoice }: { invoice: ReferrerFeeInvoice }) {
   );
 }
 
-function ReferrerCard({ referrer }: { referrer: ReferrerFeeSummary }) {
+function ReferrerCard({
+  referrer,
+  onQuickViewInvoice,
+  loadingQuickViewId,
+}: {
+  referrer: ReferrerFeeSummary;
+  onQuickViewInvoice: (invoiceId: number) => void;
+  loadingQuickViewId: number | null;
+}) {
   const [copied, setCopied] = useState(false);
   const whatsappHref = getWhatsAppHref(referrer);
 
@@ -166,7 +194,14 @@ function ReferrerCard({ referrer }: { referrer: ReferrerFeeSummary }) {
             </div>
             {lead.invoices.length > 0 && (
               <div className="mt-3 space-y-2">
-                {lead.invoices.map((invoice) => <InvoiceFeeEditor key={invoice.id} invoice={invoice} />)}
+                {lead.invoices.map((invoice) => (
+                  <InvoiceFeeEditor
+                    key={invoice.id}
+                    invoice={invoice}
+                    onQuickView={() => onQuickViewInvoice(invoice.id)}
+                    quickViewLoading={loadingQuickViewId === invoice.id}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -200,13 +235,38 @@ function ReferrerCard({ referrer }: { referrer: ReferrerFeeSummary }) {
 }
 
 export default function ReferrersClient({ referrers }: { referrers: ReferrerFeeSummary[] }) {
+  const [quickViewInvoice, setQuickViewInvoice] = useState<any | null>(null);
+  const [loadingQuickViewId, setLoadingQuickViewId] = useState<number | null>(null);
+
   const { missingInfo, allComplete } = useMemo(() => ({
     missingInfo: referrers.filter((referrer) => referrer.hasMissingInfo),
     allComplete: referrers.filter((referrer) => !referrer.hasMissingInfo),
   }), [referrers]);
 
+  async function handleQuickViewInvoice(invoiceId: number) {
+    setLoadingQuickViewId(invoiceId);
+    try {
+      const details = await getInvoiceDetails(invoiceId, "v2");
+      if (details) setQuickViewInvoice(details);
+      else alert("Invoice not found.");
+    } catch (error) {
+      console.error("Failed to load invoice and payment record", error);
+      alert("Could not load the invoice and payment record. Please try again.");
+    } finally {
+      setLoadingQuickViewId(null);
+    }
+  }
+
   return (
     <main className="min-w-0 max-w-6xl space-y-6">
+      {quickViewInvoice && (
+        <InvoiceViewer
+          invoiceData={quickViewInvoice}
+          onClose={() => setQuickViewInvoice(null)}
+          version="v2"
+          initialTab="details"
+        />
+      )}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Link href="/referrals" className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary-700 hover:text-primary-800">
@@ -236,7 +296,7 @@ export default function ReferrersClient({ referrers }: { referrers: ReferrerFeeS
             {missingInfo.length === 0 ? (
               <p className="rounded-xl bg-white p-5 text-sm text-secondary-500">No incomplete referral details.</p>
             ) : (
-              <div className="grid gap-4 xl:grid-cols-2">{missingInfo.map((referrer) => <ReferrerCard key={referrer.customerId} referrer={referrer} />)}</div>
+              <div className="grid gap-4 xl:grid-cols-2">{missingInfo.map((referrer) => <ReferrerCard key={referrer.customerId} referrer={referrer} onQuickViewInvoice={handleQuickViewInvoice} loadingQuickViewId={loadingQuickViewId} />)}</div>
             )}
           </section>
 
@@ -248,7 +308,7 @@ export default function ReferrersClient({ referrers }: { referrers: ReferrerFeeS
             {allComplete.length === 0 ? (
               <p className="rounded-xl bg-white p-5 text-sm text-secondary-500">No referrers with complete lead details yet.</p>
             ) : (
-              <div className="grid gap-4 xl:grid-cols-2">{allComplete.map((referrer) => <ReferrerCard key={referrer.customerId} referrer={referrer} />)}</div>
+              <div className="grid gap-4 xl:grid-cols-2">{allComplete.map((referrer) => <ReferrerCard key={referrer.customerId} referrer={referrer} onQuickViewInvoice={handleQuickViewInvoice} loadingQuickViewId={loadingQuickViewId} />)}</div>
             )}
           </section>
         </div>
