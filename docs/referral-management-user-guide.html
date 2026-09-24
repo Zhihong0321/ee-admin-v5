@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b6fae">
+  <title>Referral Management — Admin Guide</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #64748b;
+      --blue: #087db9;
+      --blue-dark: #075985;
+      --blue-pale: #eff8ff;
+      --line: #dce5ee;
+      --paper: #ffffff;
+      --canvas: #f4f7fa;
+      --green: #087b59;
+      --green-pale: #ecfbf4;
+      --amber: #9a4d08;
+      --amber-pale: #fffae9;
+      --red: #b42318;
+      --shadow: 0 24px 70px rgba(11, 33, 54, .2);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background:
+        radial-gradient(ellipse at 15% 15%, rgba(8, 125, 185, .12), transparent 34%),
+        radial-gradient(ellipse at 90% 85%, rgba(8, 123, 89, .11), transparent 30%),
+        #eaf0f5;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; }
+    .deck {
+      position: relative;
+      width: min(100%, 440px);
+      height: min(94svh, 782px);
+      min-height: 620px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.9);
+      border-radius: 30px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      isolation: isolate;
+    }
+    .topbar { position: absolute; inset: 0 0 auto; z-index: 2; padding: 20px 22px 14px; background: rgba(255,255,255,.96); }
+    .brandline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .brand { display: flex; align-items: center; gap: 9px; color: var(--blue-dark); font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .brandmark { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 9px; background: var(--blue); color: white; font-size: 16px; }
+    .counter { color: var(--muted); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .track { height: 4px; margin-top: 14px; overflow: hidden; border-radius: 9px; background: #e8eef4; }
+    .track-fill { width: 14.285%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--blue), #14a789); transition: width .25s ease; }
+    .slide {
+      position: absolute;
+      inset: 70px 0 78px;
+      display: flex;
+      flex-direction: column;
+      padding: 22px 23px 12px;
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: #c4d2df transparent;
+      background: var(--paper);
+    }
+    .slide[hidden] { display: none; }
+    .eyebrow { margin: 0 0 9px; color: var(--blue); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2 { margin-bottom: 10px; color: var(--ink); letter-spacing: -.035em; line-height: 1.08; }
+    h1 { font-size: clamp(32px, 9vw, 43px); }
+    h2 { font-size: clamp(28px, 7vw, 35px); }
+    h3 { margin-bottom: 5px; font-size: 16px; line-height: 1.25; }
+    .lead { margin: 0 0 18px; color: #53647a; font-size: 15px; line-height: 1.55; }
+    .small { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .card, .callout, .mock, .step { border: 1px solid var(--line); border-radius: 17px; background: #fff; }
+    .card { padding: 15px; }
+    .callout { padding: 12px 14px; background: var(--blue-pale); border-color: #c8e7fb; color: #174568; font-size: 13px; line-height: 1.45; }
+    .callout.amber { background: var(--amber-pale); border-color: #f3d887; color: #7a3e09; }
+    .callout.green { background: var(--green-pale); border-color: #b6ead4; color: #075f44; }
+    .callout strong { color: inherit; }
+    .stack { display: grid; gap: 11px; }
+    .row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; color: #42536a; background: #f7fafc; font-size: 11px; font-weight: 700; line-height: 1.3; }
+    .pill.green { border-color: #b6ead4; color: var(--green); background: var(--green-pale); }
+    .pill.amber { border-color: #f3d887; color: var(--amber); background: var(--amber-pale); }
+    .pill.blue { border-color: #c8e7fb; color: var(--blue-dark); background: var(--blue-pale); }
+    .label { margin: 0 0 4px; color: #8292a7; font-size: 9px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+    .mock { padding: 14px; background: #fcfdff; box-shadow: 0 5px 14px rgba(23,32,51,.04); }
+    .mock-name { margin: 1px 0 3px; font-size: 23px; font-weight: 750; letter-spacing: -.03em; }
+    .mock-title { color: #50627a; font-size: 12px; line-height: 1.5; }
+    .divider { height: 1px; margin: 12px 0; background: #edf1f5; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .person { display: grid; gap: 2px; }
+    .person strong { font-size: 13px; }
+    .person span { color: #65758b; font-size: 11px; line-height: 1.4; }
+    .tile { padding: 12px; border-radius: 14px; background: #f5f8fb; }
+    .tile.green { background: var(--green-pale); }
+    .tile .number { margin-top: 2px; font-size: 23px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .mini-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 10px; border: 1px solid #c9d8e5; border-radius: 10px; background: white; color: var(--blue-dark); font-size: 11px; font-weight: 750; }
+    .mini-button.green { border-color: #07865d; background: #07865d; color: white; }
+    .mini-button.amber { border-color: #ecc66a; color: #8a4608; }
+    .invoice-row { display: grid; grid-template-columns: 1fr; gap: 9px; padding: 12px; border-radius: 13px; background: white; }
+    .invoice-name { font-size: 14px; font-weight: 800; }
+    .invoice-meta { color: #687990; font-size: 11px; line-height: 1.45; }
+    .formula { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; border-radius: 13px; background: var(--blue-pale); }
+    .formula .equation { color: #184869; font-size: 12px; font-weight: 650; line-height: 1.5; }
+    .formula .answer { flex: 0 0 auto; color: var(--blue-dark); font-size: 20px; font-weight: 850; font-variant-numeric: tabular-nums; }
+    .steps { display: grid; gap: 9px; }
+    .step { display: grid; grid-template-columns: 29px 1fr; gap: 10px; align-items: start; padding: 11px; }
+    .step-no { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 9px; background: var(--blue-pale); color: var(--blue-dark); font-size: 12px; font-weight: 850; }
+    .step p { margin: 0; color: #5b6b80; font-size: 12px; line-height: 1.45; }
+    .list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .list li { position: relative; padding-left: 18px; color: #516176; font-size: 12px; line-height: 1.5; }
+    .list li::before { position: absolute; left: 2px; top: .55em; width: 7px; height: 7px; border-radius: 50%; background: #1ba783; content: ""; }
+    .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .field { padding: 9px; border: 1px solid #e2e9f0; border-radius: 10px; background: #fff; color: #596a80; font-size: 10px; }
+    .field b { display: block; margin-bottom: 3px; color: #8292a7; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+    .footer { position: absolute; inset: auto 0 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 18px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid #edf1f5; background: rgba(255,255,255,.98); }
+    .nav-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 94px; min-height: 42px; padding: 8px 12px; border: 1px solid #cfdae4; border-radius: 13px; background: white; color: var(--ink); font-size: 12px; font-weight: 750; cursor: pointer; }
+    .nav-button.next { border-color: var(--blue); background: var(--blue); color: white; }
+    .nav-button:disabled { opacity: .4; cursor: default; }
+    .dots { display: flex; align-items: center; justify-content: center; gap: 5px; }
+    .dot { width: 7px; height: 7px; border: 0; border-radius: 99px; background: #cbd5e1; padding: 0; cursor: pointer; }
+    .dot[aria-current="step"] { width: 20px; background: var(--blue); }
+    .swipe-hint { margin-top: auto; padding-top: 14px; color: #91a0b2; font-size: 10px; text-align: center; }
+    .cover-mark { display: grid; width: 58px; height: 58px; margin-bottom: 20px; place-items: center; border-radius: 19px; background: linear-gradient(140deg, #0793d0, #08689f); color: white; box-shadow: 0 12px 25px rgba(8,125,185,.25); font-size: 28px; }
+    .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 7px; }
+    .flow-item { position: relative; padding: 11px 7px; border: 1px solid var(--line); border-radius: 12px; color: #4b5c71; font-size: 10px; font-weight: 750; text-align: center; }
+    .flow-item em { display: block; margin-bottom: 5px; color: var(--blue); font-size: 15px; font-style: normal; }
+    .footer-note { display: none; }
+    @media (max-width: 520px) {
+      body { display: block; padding: 0; background: var(--paper); }
+      .deck { width: 100vw; height: 100svh; min-height: 540px; border: 0; border-radius: 0; box-shadow: none; }
+      .topbar { padding-top: max(16px, env(safe-area-inset-top)); }
+      .slide { inset-block-start: calc(70px + env(safe-area-inset-top)); padding-inline: 20px; }
+      .footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+    }
+    @media (max-height: 700px) and (min-width: 521px) {
+      .deck { height: 96svh; min-height: 0; }
+      .slide { padding-top: 15px; }
+      .card, .mock { padding: 12px; }
+      .stack, .steps { gap: 8px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck" aria-label="Referral management guide slides">
+    <header class="topbar">
+      <div class="brandline">
+        <div class="brand"><span class="brandmark" aria-hidden="true">✦</span> EE Admin · Referral Guide</div>
+        <div class="counter" id="counter" aria-live="polite">01 / 07</div>
+      </div>
+      <div class="track" aria-hidden="true"><div class="track-fill" id="progress"></div></div>
+    </header>
+
+    <section class="slide" data-title="Start here" aria-label="Slide 1: Start here">
+      <p class="eyebrow">Admin quick guide · 7 slides</p>
+      <div class="cover-mark" aria-hidden="true">↗</div>
+      <h1>Referral Management</h1>
+      <p class="lead">A short guide to matching buyer invoices to referral leads, recording referrer fees, and collecting the referrer’s details.</p>
+      <div class="callout">
+        <strong>Keep the two people clear:</strong><br>
+        The <b>lead / buyer</b> is the potential customer on the invoice. The <b>referrer</b> is the person who introduced that buyer and may earn a referral fee.
+      </div>
+      <div class="card" style="margin-top:14px">
+        <p class="label">The admin flow</p>
+        <div class="flow" aria-label="Scan, verify, assign, follow up">
+          <div class="flow-item"><em>⌕</em>Scan</div>
+          <div class="flow-item"><em>◉</em>Verify</div>
+          <div class="flow-item"><em>↗</em>Link</div>
+          <div class="flow-item"><em>✓</em>Follow up</div>
+        </div>
+      </div>
+      <p class="swipe-hint">Swipe left, use the arrows, or press ← / →</p>
+    </section>
+
+    <section class="slide" data-title="Read the lead card" aria-label="Slide 2: Read the lead card" hidden>
+      <p class="eyebrow">01 · Referral leads</p>
+      <h2>Read the card</h2>
+      <p class="lead">One card represents one referred lead—the potential buyer. The referrer’s details appear in their own section.</p>
+      <div class="mock">
+        <div class="row"><p class="label">Lead (potential customer)</p><span class="pill">Pending</span></div>
+        <p class="mock-name">Jamie Example</p>
+        <p class="mock-title">Friend · Residential</p>
+        <div class="divider"></div>
+        <div class="two-col">
+          <div class="person"><p class="label">Referrer · 介绍人</p><strong>Alex Example</strong><span>Introduced this buyer</span><span class="mini-button" style="width:max-content;margin-top:5px">♙ Referrer Info</span></div>
+          <div class="person"><p class="label">Assigned agent</p><strong>Sales agent</strong><span>Owner of follow-up</span></div>
+          <div class="person"><p class="label">Contact</p><strong>Buyer’s phone</strong><span>Email, if recorded</span></div>
+          <div class="person"><p class="label">Deal</p><strong>Deal value</strong><span>Commission estimate</span></div>
+        </div>
+      </div>
+      <div class="stack" style="margin-top:12px">
+        <div class="callout"><strong>Lead = buyer.</strong> The lead name and phone are compared with invoice customer details during the scan.</div>
+        <div class="callout green"><strong>Referrer = introducer.</strong> Their profile and referral-fee records are grouped on the Referrer Fee Follow-up page.</div>
+      </div>
+      <p class="swipe-hint">The status pill shows the lead’s sales progress.</p>
+    </section>
+
+    <section class="slide" data-title="Scan for invoices" aria-label="Slide 3: Scan for invoices" hidden>
+      <p class="eyebrow">02 · Find a buyer invoice</p>
+      <h2>Scan all referral leads</h2>
+      <p class="lead">On the Referral Management page, tap <b>Scan referral invoices</b>. The scan checks every referral lead for an existing link and possible invoice matches.</p>
+      <div class="steps">
+        <div class="step"><span class="step-no">1</span><div><h3>Green: already linked</h3><p><b>Linked Invoice = INV-…</b> means this referral already has a linked invoice. Tap the invoice label to inspect it.</p></div></div>
+        <div class="step"><span class="step-no">2</span><div><h3>Amber: possible match</h3><p><b>Same contact number invoice found</b> or <b>Same name invoice found</b> is a suggestion based on the lead and invoice customer details. It has not been assigned yet.</p></div></div>
+        <div class="step"><span class="step-no">3</span><div><h3>Check before linking</h3><p>The result also shows payment context, such as the amount received or paid percentage. Tap the invoice number / eye icon to inspect the invoice and payment record.</p></div></div>
+      </div>
+      <div class="mock" style="margin-top:12px">
+        <div class="pill amber">◉ Same contact number invoice found: INV-100123</div>
+        <p class="small" style="margin:7px 0 0">A name or phone match can be another person. Treat amber results as candidates, not proof.</p>
+      </div>
+      <p class="swipe-hint">If there is no match, the card says “No matching invoice found.”</p>
+    </section>
+
+    <section class="slide" data-title="Use for referral fee" aria-label="Slide 4: Use for referral fee" hidden>
+      <p class="eyebrow">03 · Confirm the attribution</p>
+      <h2>“Use for referral fee”</h2>
+      <p class="lead">This admin button turns a verified amber candidate into the invoice attributed to this referral lead.</p>
+      <div class="mock">
+        <div class="pill amber">Same contact number invoice found: INV-100123</div>
+        <div style="margin-top:9px"><span class="mini-button amber">↗ Use for referral fee</span></div>
+      </div>
+      <div class="steps" style="margin-top:13px">
+        <div class="step"><span class="step-no">1</span><div><h3>Verify the invoice first</h3><p>Open the quick view and confirm the invoice belongs to the referred buyer.</p></div></div>
+        <div class="step"><span class="step-no">2</span><div><h3>Review the confirmation</h3><p>The app warns that this replaces another referral attribution on that invoice and may move this lead’s existing invoice link.</p></div></div>
+        <div class="step"><span class="step-no">3</span><div><h3>Confirm only when correct</h3><p>The invoice is attributed to this referral. It appears on Referrer Fee Follow-up after the buyer has made a payment.</p></div></div>
+      </div>
+      <div class="callout amber" style="margin-top:12px"><strong>The buyer on the invoice does not change.</strong> This changes referral attribution only. If the match is uncertain, cancel and verify with the sales team.</div>
+    </section>
+
+    <section class="slide" data-title="Referrer fee follow-up" aria-label="Slide 5: Referrer fee follow-up" hidden>
+      <p class="eyebrow">04 · Referrer fee follow-up</p>
+      <h2>Cards are grouped by referrer</h2>
+      <p class="lead">Open <b>Referrer fee follow-up</b> from Referral Management. Each larger card is the referrer; their referred leads and linked invoices are inside it.</p>
+      <div class="mock">
+        <p class="label">Referrer · introduced these leads</p>
+        <p class="mock-name" style="font-size:20px">Alex Example</p>
+        <div class="two-col" style="margin-top:11px">
+          <div class="tile"><p class="label">Invoices with payment</p><div class="number">2</div></div>
+          <div class="tile green"><p class="label">Referral fee paid</p><div class="number" style="font-size:18px">RM 500.00</div></div>
+        </div>
+      </div>
+      <div class="stack" style="margin-top:12px">
+        <div class="callout amber"><strong>Missing lead details</strong> means one or more buyer leads is missing a name, contact number, relationship, or project type.</div>
+        <div class="callout green"><strong>Lead details complete</strong> means those lead fields are present. This label does not confirm that the referrer’s bank or TIN details are complete.</div>
+      </div>
+      <p class="small" style="margin:11px 2px 0"><b>Invoices with payment</b> counts linked invoices with any customer payment recorded (&gt; 0%). <b>Referral fee paid</b> sums the amounts saved as paid across those invoices.</p>
+    </section>
+
+    <section class="slide" data-title="Suggested versus paid" aria-label="Slide 6: Suggested versus paid referral fee" hidden>
+      <p class="eyebrow">05 · Review and record the fee</p>
+      <h2>Suggested amount ≠ amount paid</h2>
+      <p class="lead">The lead’s project type selects the suggested rate. The app calculates the suggested RM amount from the linked invoice total.</p>
+      <div class="card stack">
+        <div class="row"><span class="pill blue">Residential · 2%</span><span class="small">of invoice total</span></div>
+        <div class="formula"><div class="equation">RM 24,000.00 × 2%<br><b>Suggested referral fee</b></div><div class="answer">RM 480.00</div></div>
+        <div class="invoice-row" style="border:1px solid var(--line)">
+          <div class="row"><span class="invoice-name">INV-100123</span><span class="pill green">Residential</span></div>
+          <div class="invoice-meta">Buyer paid · linked package type · suggested fee</div>
+          <div class="row" style="align-items:center"><span class="small">Referral fee paid (RM)</span><span class="mini-button">0.00　 Save</span></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:11px">
+        <p class="label">Rate guide</p>
+        <div class="two-col"><span class="small"><b>Residential</b><br>2%</span><span class="small"><b>Shoplot</b><br>1.5%</span><span class="small"><b>Factory</b><br>1%</span><span class="small"><b>Package type</b><br>Residential / Commercial</span></div>
+      </div>
+      <div class="callout amber" style="margin-top:11px"><b>Referral fee paid (RM)</b> is the actual cumulative amount paid so far for this invoice. Enter it and tap <b>Save</b>. The suggested amount is a guide; it is not automatically recorded as paid.</div>
+      <p class="small" style="margin:10px 2px 0">Tap the invoice number / eye icon to open its invoice and payment record.</p>
+    </section>
+
+    <section class="slide" data-title="WhatsApp and referrer form" aria-label="Slide 7: WhatsApp and referrer information form" hidden>
+      <p class="eyebrow">06 · Request and complete details</p>
+      <h2>WhatsApp + Referrer Info</h2>
+      <p class="lead">Use the buttons on a referrer card to ask for missing details and share the update form.</p>
+      <div class="steps">
+        <div class="step"><span class="step-no">1</span><div><h3>WhatsApp with form link</h3><p>Opens a WhatsApp chat with a prepared message and the referrer’s update link. Check the recipient and send the message.</p></div></div>
+        <div class="step"><span class="step-no">2</span><div><h3>Referrer Info</h3><p>On the lead card, opens the referrer detail panel and its form link. On a follow-up card, opens the update form. <b>Copy update link</b> shares it through another channel.</p></div></div>
+        <div class="step"><span class="step-no">3</span><div><h3>Referrer completes and submits</h3><p>The form updates the referrer profile and the referral lead details. The referrer can correct pre-filled information too.</p></div></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <p class="label">Referrer form asks for</p>
+        <div class="contact-grid">
+          <div class="field"><b>Identity</b>Name as on MyKad · MyKad ID</div>
+          <div class="field"><b>Contact</b>Address · phone shown read-only</div>
+          <div class="field"><b>Payment</b>Bank name · account number</div>
+          <div class="field"><b>Tax</b>Personal TIN (Tax ID)</div>
+          <div class="field" style="grid-column:1/-1"><b>Each referred lead</b>Name · contact number · relationship · project type</div>
+        </div>
+      </div>
+      <div class="callout amber" style="margin-top:11px">Send the update link to the intended referrer. Ask them to review the identity and payment details before submitting.</div>
+      <p class="swipe-hint">End · Use ‹ to revisit any step</p>
+    </section>
+
+    <footer class="footer" aria-label="Slide navigation">
+      <button class="nav-button" id="previous" type="button" aria-label="Previous slide">‹ <span>Back</span></button>
+      <div class="dots" id="dots" aria-label="Choose slide"></div>
+      <button class="nav-button next" id="next" type="button" aria-label="Next slide"><span>Next</span> ›</button>
+    </footer>
+  </main>
+  <script>
+    (() => {
+      const slides = Array.from(document.querySelectorAll(".slide"));
+      const dotsRoot = document.getElementById("dots");
+      const counter = document.getElementById("counter");
+      const progress = document.getElementById("progress");
+      const previous = document.getElementById("previous");
+      const next = document.getElementById("next");
+      const deck = document.getElementById("deck");
+      let current = Math.min(slides.length - 1, Math.max(0, Number(location.hash.slice(1)) - 1 || 0));
+      let touchStart = null;
+
+      const dots = slides.map((slide, index) => {
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.className = "dot";
+        dot.setAttribute("aria-label", `Go to slide ${index + 1}: ${slide.dataset.title}`);
+        dot.addEventListener("click", () => show(index));
+        dotsRoot.append(dot);
+        return dot;
+      });
+
+      function show(index, updateHash = true) {
+        current = Math.max(0, Math.min(slides.length - 1, index));
+        slides.forEach((slide, i) => { slide.hidden = i !== current; });
+        dots.forEach((dot, i) => {
+          if (i === current) dot.setAttribute("aria-current", "step");
+          else dot.removeAttribute("aria-current");
+        });
+        counter.textContent = `${String(current + 1).padStart(2, "0")} / ${String(slides.length).padStart(2, "0")}`;
+        progress.style.width = `${((current + 1) / slides.length) * 100}%`;
+        previous.disabled = current === 0;
+        next.disabled = current === slides.length - 1;
+        next.innerHTML = current === slides.length - 1 ? "<span>Done</span> ✓" : "<span>Next</span> ›";
+        if (updateHash) history.replaceState(null, "", `#${current + 1}`);
+        slides[current].scrollTop = 0;
+      }
+
+      previous.addEventListener("click", () => show(current - 1));
+      next.addEventListener("click", () => show(current + 1));
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowRight" || event.key === "PageDown") show(current + 1);
+        if (event.key === "ArrowLeft" || event.key === "PageUp") show(current - 1);
+      });
+      deck.addEventListener("touchstart", (event) => {
+        if (event.target.closest("button, a, input, textarea, select")) return;
+        touchStart = { x: event.changedTouches[0].clientX, y: event.changedTouches[0].clientY };
+      }, { passive: true });
+      deck.addEventListener("touchend", (event) => {
+        if (!touchStart) return;
+        const dx = event.changedTouches[0].clientX - touchStart.x;
+        const dy = event.changedTouches[0].clientY - touchStart.y;
+        if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.25) show(current + (dx < 0 ? 1 : -1));
+        touchStart = null;
+      }, { passive: true });
+      show(current, false);
+    })();
+  </script>
+</body>
+</html>
