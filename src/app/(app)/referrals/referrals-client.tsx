@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUpDown,
@@ -29,6 +29,7 @@ import {
   assignInvoiceToReferral,
   deleteReferral,
   getReferralAgents,
+  getReferralDetailsUpdateUrl,
   getReferralReferrers,
   getReferrals,
   scanReferralInvoices,
@@ -150,18 +151,14 @@ function getWhatsAppDigits(phone: string | null | undefined) {
   return `60${digits}`;
 }
 
-function getWhatsAppMessage(referral: ReferralRow) {
-  const missing = [
-    !referral.name?.trim() && "lead’s full name",
-    !referral.mobile_number?.trim() && "lead’s contact number",
-    !referral.relationship?.trim() && "relationship to the lead",
-    !referral.project_type?.trim() && "project type",
-  ].filter(Boolean);
-  const leadName = referral.name?.trim() || "the referred lead";
-  const request = missing.length
-    ? `Could you please help us complete the referral details for ${leadName} by sharing the ${missing.join(", ")}?`
-    : `Could you please confirm the referral details for ${leadName} are correct?`;
-  return `Hi ${referral.customer_name?.trim() || "there"}, ${request} Thank you!\n\n您好，想请您协助补充/确认这项推荐资料，谢谢。`;
+function hasMissingReferralDetails(referral: ReferralRow) {
+  return [referral.name, referral.mobile_number, referral.relationship, referral.project_type]
+    .some((value) => !value?.trim());
+}
+
+function getWhatsAppMessage(referral: ReferralRow, formUrl: string) {
+  const referrerName = referral.customer_name?.trim() || "there";
+  return `Hi ${referrerName}, could you please complete the missing details for your referral using this secure form? Your submission will update our referral record directly.\n\n${formUrl}\n\n您好，请通过此表格补充推荐资料。提交后，资料会直接更新到我们的记录中。谢谢！`;
 }
 
 function getStatusClasses(status: string | null | undefined) {
@@ -221,6 +218,10 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
   const [stats, setStats] = useState({ total: 0, assigned: 0, unassigned: 0, pending: 0 });
   const [editingReferral, setEditingReferral] = useState<ReferralRow | null>(null);
   const [viewingReferrer, setViewingReferrer] = useState<ReferralRow | null>(null);
+  const referrerUpdateRequestId = useRef(0);
+  const [referrerUpdateUrl, setReferrerUpdateUrl] = useState<string | null>(null);
+  const [loadingReferrerUpdateUrl, setLoadingReferrerUpdateUrl] = useState(false);
+  const [referrerUpdateUrlError, setReferrerUpdateUrlError] = useState("");
   const [agentSearch, setAgentSearch] = useState("");
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceResults, setInvoiceResults] = useState<InvoiceOption[]>([]);
@@ -442,6 +443,29 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
     setActiveTab("details");
     setIsEditModalOpen(true);
     void loadInvoiceMatches(referral.id, initialInvoiceSearch);
+  };
+
+  const handleViewReferrer = async (referral: ReferralRow) => {
+    const requestId = ++referrerUpdateRequestId.current;
+    setViewingReferrer(referral);
+    setReferrerUpdateUrl(null);
+    setReferrerUpdateUrlError("");
+    setLoadingReferrerUpdateUrl(false);
+    if (!hasMissingReferralDetails(referral)) return;
+
+    setLoadingReferrerUpdateUrl(true);
+    try {
+      const result = await getReferralDetailsUpdateUrl(referral.id);
+      if (requestId !== referrerUpdateRequestId.current) return;
+      if (result.success) setReferrerUpdateUrl(result.url);
+      else setReferrerUpdateUrlError(result.error || "Could not create the update form link.");
+    } catch (error) {
+      if (requestId !== referrerUpdateRequestId.current) return;
+      console.error("Failed to create referral update form link", error);
+      setReferrerUpdateUrlError("Could not create the update form link.");
+    } finally {
+      if (requestId === referrerUpdateRequestId.current) setLoadingReferrerUpdateUrl(false);
+    }
   };
 
   const handleSaveReferral = async (e: React.FormEvent) => {
@@ -783,7 +807,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                       </p>
                       <button
                         type="button"
-                        onClick={() => setViewingReferrer(referral)}
+                        onClick={() => handleViewReferrer(referral)}
                         className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-primary-200 px-2.5 py-1.5 text-xs font-semibold text-primary-700 transition-colors hover:bg-primary-50"
                       >
                         <User className="h-3.5 w-3.5" />
@@ -867,8 +891,9 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
         const referrerName = viewingReferrer.customer_name?.trim() || "(no name recorded)";
         const referrerPhone = viewingReferrer.customer_phone?.trim() || "";
         const waDigits = getWhatsAppDigits(referrerPhone);
-        const waHref = waDigits
-          ? `https://wa.me/${waDigits}?text=${encodeURIComponent(getWhatsAppMessage(viewingReferrer))}`
+        const hasMissingDetails = hasMissingReferralDetails(viewingReferrer);
+        const waHref = waDigits && referrerUpdateUrl && !loadingReferrerUpdateUrl && !referrerUpdateUrlError
+          ? `https://wa.me/${waDigits}?text=${encodeURIComponent(getWhatsAppMessage(viewingReferrer, referrerUpdateUrl))}`
           : null;
 
         return (
@@ -925,6 +950,21 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                     {[viewingReferrer.relationship, viewingReferrer.project_type].filter(Boolean).join(" · ") || "No additional details recorded"}
                   </p>
                 </div>
+                {loadingReferrerUpdateUrl && (
+                  <p className="text-sm text-secondary-500">Preparing secure update form…</p>
+                )}
+                {referrerUpdateUrlError && (
+                  <p role="alert" className="text-sm text-red-700">{referrerUpdateUrlError}</p>
+                )}
+                {!loadingReferrerUpdateUrl && !referrerUpdateUrlError && referrerUpdateUrl && (
+                  <a href={referrerUpdateUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-primary-700 hover:underline">
+                    <Link2 className="h-4 w-4" />
+                    Open referral update form
+                  </a>
+                )}
+                {!hasMissingDetails && (
+                  <p className="text-sm text-emerald-700">All required referral details are already recorded.</p>
+                )}
               </div>
 
               <div className="flex flex-col-reverse gap-2 border-t border-secondary-100 bg-secondary-50/50 p-5 sm:flex-row sm:justify-end sm:p-6">
@@ -932,8 +972,23 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                 {waHref ? (
                   <a href={waHref} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700">
                     <MessageCircle className="h-4 w-4" />
-                    WhatsApp referrer
+                    {hasMissingReferralDetails(viewingReferrer) ? "WhatsApp form link" : "WhatsApp referrer"}
                   </a>
+                ) : loadingReferrerUpdateUrl ? (
+                  <button type="button" disabled className="btn-secondary inline-flex cursor-wait items-center justify-center gap-2 opacity-60">
+                    <MessageCircle className="h-4 w-4" />
+                    Preparing form link…
+                  </button>
+                ) : !hasMissingDetails ? (
+                  <button type="button" disabled className="btn-secondary inline-flex cursor-not-allowed items-center justify-center gap-2 opacity-50">
+                    <MessageCircle className="h-4 w-4" />
+                    No missing details
+                  </button>
+                ) : referrerUpdateUrlError ? (
+                  <button type="button" disabled className="btn-secondary inline-flex cursor-not-allowed items-center justify-center gap-2 opacity-50">
+                    <MessageCircle className="h-4 w-4" />
+                    Form link unavailable
+                  </button>
                 ) : (
                   <button type="button" disabled className="btn-secondary inline-flex cursor-not-allowed items-center justify-center gap-2 opacity-50" title="No referrer phone number is available">
                     <MessageCircle className="h-4 w-4" />

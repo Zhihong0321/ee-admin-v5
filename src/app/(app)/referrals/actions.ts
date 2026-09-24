@@ -12,6 +12,7 @@ import { logActivity } from "@/lib/activity-log";
 import { db } from "@/lib/db";
 import { customers, invoices, referrals, users } from "@/db/schema";
 import { getUser } from "@/lib/auth";
+import { signReferralUpdateToken } from "@/lib/referral-update-token";
 import {
   resolveUserRefToBubbleId,
   resolvedIdentityBubbleIdLoose,
@@ -74,6 +75,50 @@ function coerceNumericField(value: string | number | null | undefined) {
 function coerceTextField(value: string | null | undefined) {
   const trimmed = (value || "").trim();
   return trimmed === "" ? null : trimmed;
+}
+
+/** Create a short-lived public form link for one referral's missing lead details. */
+export async function getReferralDetailsUpdateUrl(referralId: number) {
+  const user = await getUser();
+  if (!isReferralAdmin(user)) {
+    return { success: false as const, error: "Admin permission required" };
+  }
+  if (!Number.isSafeInteger(referralId) || referralId <= 0) {
+    return { success: false as const, error: "Invalid referral" };
+  }
+
+  const [referral] = await db
+    .select({
+      id: referrals.id,
+      linked_customer_profile: referrals.linked_customer_profile,
+      name: referrals.name,
+      mobile_number: referrals.mobile_number,
+      relationship: referrals.relationship,
+      project_type: referrals.project_type,
+    })
+    .from(referrals)
+    .where(eq(referrals.id, referralId))
+    .limit(1);
+
+  const referrerCustomerId = referral?.linked_customer_profile?.trim();
+  if (!referral || !referrerCustomerId) {
+    return { success: false as const, error: "This referral has no linked referrer" };
+  }
+
+  const hasMissingDetails = [
+    referral.name,
+    referral.mobile_number,
+    referral.relationship,
+    referral.project_type,
+  ].some((value) => !value?.trim());
+  if (!hasMissingDetails) return { success: true as const, url: null };
+
+  const token = await signReferralUpdateToken({
+    referrerCustomerId,
+    referralIds: [referral.id],
+  });
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://admin.atap.solar").replace(/\/$/, "");
+  return { success: true as const, url: `${appUrl}/referral-update/${token}` };
 }
 
 type ReferralInvoiceSearchContext = {
