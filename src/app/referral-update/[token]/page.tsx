@@ -10,5 +10,5 @@ export default async function ReferralUpdatePage({ params }: { params: Promise<{
   const form = await getReferralUpdateForm(token);
   if (!form.success) notFound();
 
-  return <ReferralUpdateForm token={token} referrerName={form.referrerName} leads={form.leads} />;
+  return <ReferralUpdateForm token={token} referrer={form.referrer} />;
 }

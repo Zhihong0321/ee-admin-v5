@@ -36,6 +36,7 @@ export type ReferrerFeeSummary = {
   paidInvoiceCount: number;
   referralCommissionPaidAmount: number;
   hasMissingInfo: boolean;
+  missingPayoutFields: string[];
   updateUrl: string | null;
   leads: ReferrerFeeLead[];
 };
@@ -58,6 +59,12 @@ type PaidReferralInvoiceRow = {
   lead_phone: string | null;
   relationship: string | null;
   project_type: string | null;
+  referrer_bank_name: string | null;
+  referrer_bank_account: string | null;
+  referrer_ic_number: string | null;
+  referrer_tin: string | null;
+  referrer_address: string | null;
+  referrer_notes: string | null;
   invoice_id: number;
   invoice_number: string | null;
   invoice_total_amount: string | number | null;
@@ -67,6 +74,33 @@ type PaidReferralInvoiceRow = {
 };
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://admin.atap.solar").replace(/\/$/, "");
+
+function noteValue(raw: string | null, key: string) {
+  if (!raw?.trim()) return "";
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const value = parsed?.[key];
+    return typeof value === "string" ? value.trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+function columnOrNote(column: string | null, notes: string | null, key: string) {
+  return column?.trim() || noteValue(notes, key);
+}
+
+function payoutGaps(row: PaidReferralInvoiceRow) {
+  const missing: string[] = [];
+  const name = row.referrer_name?.trim() || "";
+  if (!name || name === "Referral") missing.push("name");
+  if (!columnOrNote(row.referrer_bank_name, row.referrer_notes, "bankName")) missing.push("bank name");
+  if (!columnOrNote(row.referrer_bank_account, row.referrer_notes, "bankAccount")) missing.push("bank account");
+  if (!columnOrNote(row.referrer_ic_number, row.referrer_notes, "icNumber")) missing.push("MyKad");
+  if (!columnOrNote(row.referrer_tin, row.referrer_notes, "tin")) missing.push("TIN");
+  if (!columnOrNote(row.referrer_address, row.referrer_notes, "address")) missing.push("address");
+  return missing;
+}
 
 export async function getReferrerFeeSummary(): Promise<ReferrerFeeSummary[]> {
   const user = await getUser();
@@ -94,6 +128,12 @@ export async function getReferrerFeeSummary(): Promise<ReferrerFeeSummary[]> {
       r.mobile_number AS lead_phone,
       r.relationship,
       r.project_type,
+      c.bank_name AS referrer_bank_name,
+      c.bank_account AS referrer_bank_account,
+      c.ic_number AS referrer_ic_number,
+      c.tin AS referrer_tin,
+      c.address AS referrer_address,
+      c.notes AS referrer_notes,
       i.id AS invoice_id,
       i.invoice_number,
       CAST(COALESCE(i.total_amount, i.amount) AS TEXT) AS invoice_total_amount,
@@ -145,6 +185,7 @@ export async function getReferrerFeeSummary(): Promise<ReferrerFeeSummary[]> {
         paidInvoiceCount: 0,
         referralCommissionPaidAmount: 0,
         hasMissingInfo: false,
+        missingPayoutFields: payoutGaps(row),
         updateUrl: null,
         leads: [],
         _leads: new Map(),
@@ -154,19 +195,13 @@ export async function getReferrerFeeSummary(): Promise<ReferrerFeeSummary[]> {
     }
 
     if (!referrer._leads.has(row.referral_id)) {
-      const missingFields: string[] = [];
-      if (!row.lead_name?.trim()) missingFields.push("lead name");
-      if (!row.lead_phone?.trim()) missingFields.push("contact number");
-      if (!row.relationship?.trim()) missingFields.push("relationship");
-      if (!row.project_type?.trim()) missingFields.push("project type");
-
       referrer._leads.set(row.referral_id, {
         referralId: row.referral_id,
         name: row.lead_name,
         mobileNumber: row.lead_phone,
         relationship: row.relationship,
         projectType: row.project_type,
-        missingFields,
+        missingFields: [],
         invoices: [],
       });
     }
@@ -193,8 +228,6 @@ export async function getReferrerFeeSummary(): Promise<ReferrerFeeSummary[]> {
   const summaries = [...referrersByCustomer.values()].map((referrer) => {
     const leads = [...referrer._leads.values()].sort((a, b) => a.referralId - b.referralId);
     const invoicesForReferrer = [...referrer._invoices.values()];
-    const hasMissingInfo = leads.some((lead) => lead.missingFields.length > 0);
-
     return {
       customerId: referrer.customerId,
       name: referrer.name,
@@ -202,7 +235,8 @@ export async function getReferrerFeeSummary(): Promise<ReferrerFeeSummary[]> {
       email: referrer.email,
       paidInvoiceCount: invoicesForReferrer.length,
       referralCommissionPaidAmount: invoicesForReferrer.reduce((totalCents, amountCents) => totalCents + amountCents, 0) / 100,
-      hasMissingInfo,
+      hasMissingInfo: referrer.missingPayoutFields.length > 0,
+      missingPayoutFields: referrer.missingPayoutFields,
       updateUrl: null as string | null,
       leads,
     };

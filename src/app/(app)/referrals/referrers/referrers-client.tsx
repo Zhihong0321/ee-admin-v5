@@ -43,13 +43,10 @@ function getWhatsAppHref(referrer: ReferrerFeeSummary) {
   const digits = whatsappDigits(referrer.phone);
   if (!digits || !referrer.updateUrl) return null;
 
-  const missingLeads = referrer.leads.filter((lead) => lead.missingFields.length > 0);
-  const request = missingLeads.length > 0
-    ? `Could you please complete the missing details for these referrals?\n${missingLeads
-        .map((lead) => `• ${lead.name?.trim() || "Unnamed lead"}: ${lead.missingFields.join(", ")}`)
-        .join("\n")}`
-    : "Please review and confirm the referral details. You can correct any existing information in the form.";
-  const message = `Hi ${referrer.name || "there"}, ${request}\n\nOpen this form to review and submit the referral details. Submitting the form updates our record directly:\n${referrer.updateUrl}\n\nThank you!`;
+  const request = referrer.missingPayoutFields.length > 0
+    ? `Before we can pay your referral fee, please complete these payout details: ${referrer.missingPayoutFields.join(", ")}.`
+    : "Please review and confirm your payout details. You can correct any existing information in the form.";
+  const message = `Hi ${referrer.name && referrer.name !== "Referral" ? referrer.name : "there"}, ${request}\n\nOpen this form to submit your name, MyKad, address, bank, and tax details:\n${referrer.updateUrl}\n\nThank you!`;
 
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
@@ -184,6 +181,17 @@ function ReferrerCard({
             {referrer.phone ? <span className="inline-flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" />{referrer.phone}</span> : <span>No phone recorded</span>}
             {referrer.email && <span className="break-all">{referrer.email}</span>}
           </div>
+          <div className="mt-3">
+            {referrer.missingPayoutFields.length > 0 ? (
+              <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                Payout details missing: {referrer.missingPayoutFields.join(", ")}
+              </span>
+            ) : (
+              <span className="inline-flex w-fit items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Payout details on file
+              </span>
+            )}
+          </div>
         </div>
         <div className="grid shrink-0 grid-cols-2 gap-3 sm:min-w-[270px]">
           <div className="rounded-xl bg-secondary-50 p-3">
@@ -214,15 +222,6 @@ function ReferrerCard({
                     {suggestedFee ? `${suggestedFee.label} · ${suggestedFee.ratePercent}%` : "No rate set for this lead type"}
                   </p>
                 </div>
-                {lead.missingFields.length > 0 ? (
-                  <span className="inline-flex w-fit shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                    Missing: {lead.missingFields.join(", ")}
-                  </span>
-                ) : (
-                  <span className="inline-flex w-fit shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Complete
-                  </span>
-                )}
               </div>
               {lead.invoices.length > 0 && (
                 <div className="mt-3 space-y-2">
