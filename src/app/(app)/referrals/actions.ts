@@ -6,7 +6,7 @@
  * queried or joined here — see src/lib/agent-identity.ts.
  */
 
-import { and, desc, eq, ilike, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity-log";
 import { db } from "@/lib/db";
@@ -475,12 +475,15 @@ export async function getReferrals({
 
     const [stats] = whereClause ? await statsQuery.where(whereClause) : await statsQuery;
 
+    const referralRowsOut = data.map((row) => ({
+      ...row,
+      possible_linked_invoices: parsePossibleMatches(row.possible_linked_invoices),
+      resolved_linked_invoice: parseResolvedLinkedInvoice(row.resolved_linked_invoice),
+    }));
+    await attachInvoicePaidAmounts(referralRowsOut);
+
     return {
-      referrals: data.map((row) => ({
-        ...row,
-        possible_linked_invoices: parsePossibleMatches(row.possible_linked_invoices),
-        resolved_linked_invoice: parseResolvedLinkedInvoice(row.resolved_linked_invoice),
-      })),
+      referrals: referralRowsOut,
       pagination: {
         page: effectivePage,
         pageSize: safePageSize,
@@ -500,16 +503,21 @@ export async function getReferrals({
   }
 }
 
-export type ReferralInvoiceScanMatch = {
+export type ReferralInvoiceLink = {
   invoiceId: number;
   invoiceNumber: string | null;
   bubbleId: string | null;
+  /** Live invoice.paid_amount, the verified money received. Not stored in the scan cache. */
+  paidAmount?: string | null;
+};
+
+export type ReferralInvoiceScanMatch = ReferralInvoiceLink & {
   matchType: "phone" | "name";
 };
 
 export type ReferralInvoiceScanResult = {
   referralId: number;
-  linkedInvoice: { invoiceId: number; invoiceNumber: string | null; bubbleId: string | null } | null;
+  linkedInvoice: ReferralInvoiceLink | null;
   possibleMatches: ReferralInvoiceScanMatch[];
 };
 
@@ -540,6 +548,33 @@ function parsePossibleMatches(value: unknown): ReferralInvoiceScanMatch[] | null
   });
 }
 
+async function attachInvoicePaidAmounts(rows: Array<{
+  possible_linked_invoices: ReferralInvoiceScanMatch[] | null;
+  resolved_linked_invoice: ReferralInvoiceScanResult["linkedInvoice"];
+}>) {
+  const ids = new Set<number>();
+  for (const row of rows) {
+    if (row.resolved_linked_invoice) ids.add(row.resolved_linked_invoice.invoiceId);
+    for (const match of row.possible_linked_invoices ?? []) ids.add(match.invoiceId);
+  }
+  if (ids.size === 0) return;
+
+  const paidRows = await db
+    .select({ id: invoices.id, paid_amount: invoices.paid_amount })
+    .from(invoices)
+    .where(inArray(invoices.id, [...ids]));
+  const paidById = new Map(paidRows.map((row) => [row.id, row.paid_amount]));
+
+  for (const row of rows) {
+    if (row.resolved_linked_invoice) {
+      row.resolved_linked_invoice.paidAmount = paidById.get(row.resolved_linked_invoice.invoiceId) ?? null;
+    }
+    for (const match of row.possible_linked_invoices ?? []) {
+      match.paidAmount = paidById.get(match.invoiceId) ?? null;
+    }
+  }
+}
+
 function parseResolvedLinkedInvoice(value: unknown): ReferralInvoiceScanResult["linkedInvoice"] {
   if (value == null) return null;
   let parsed: unknown = value;
@@ -568,7 +603,12 @@ async function saveReferralPossibleInvoices(results: ReferralInvoiceScanResult[]
   const payload = JSON.stringify(
     results.map((result) => ({
       id: result.referralId,
-      matches: result.possibleMatches,
+      matches: result.possibleMatches.map(({ invoiceId, invoiceNumber, bubbleId, matchType }) => ({
+        invoiceId,
+        invoiceNumber,
+        bubbleId,
+        matchType,
+      })),
     })),
   );
 
@@ -599,6 +639,7 @@ export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[
         linked_customer: invoices.linked_customer,
         customer_name: customers.name,
         customer_phone: customers.phone,
+        paid_amount: invoices.paid_amount,
       }).from(invoices)
         .leftJoin(customers, eq(customers.customer_id, invoices.linked_customer))
         .where(and(eq(invoices.is_latest, true), sql`COALESCE(${invoices.is_deleted}, false) = false`)),
@@ -639,6 +680,7 @@ export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[
           invoiceNumber: invoice.invoice_number,
           bubbleId: invoice.bubble_id,
           matchType: phoneMatches ? "phone" : "name",
+          paidAmount: invoice.paid_amount,
         });
       }
 
@@ -654,6 +696,7 @@ export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[
               invoiceId: directInvoice.id,
               invoiceNumber: directInvoice.invoice_number,
               bubbleId: directInvoice.bubble_id,
+              paidAmount: directInvoice.paid_amount,
             }
           : null,
         possibleMatches: possibleMatches.slice(0, 5),
