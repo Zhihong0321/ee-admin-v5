@@ -209,14 +209,14 @@ export async function getReferrerFeeSummary(): Promise<ReferrerFeeSummary[]> {
   });
 
   for (const summary of summaries) {
-    const incompleteReferralIds = summary.leads
-      .filter((lead) => lead.missingFields.length > 0)
-      .map((lead) => lead.referralId);
-    if (incompleteReferralIds.length === 0) continue;
+    // Always provide a form link so WhatsApp can carry a real page even when the
+    // current record appears complete and the referrer needs to correct it.
+    const referralIds = summary.leads.map((lead) => lead.referralId);
+    if (referralIds.length === 0) continue;
 
     const token = await signReferralUpdateToken({
       referrerCustomerId: summary.customerId,
-      referralIds: incompleteReferralIds,
+      referralIds,
     });
     summary.updateUrl = `${APP_URL}/referral-update/${token}`;
   }

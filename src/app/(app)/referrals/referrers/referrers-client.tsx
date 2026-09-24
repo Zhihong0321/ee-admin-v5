@@ -41,14 +41,15 @@ function whatsappDigits(phone: string | null) {
 
 function getWhatsAppHref(referrer: ReferrerFeeSummary) {
   const digits = whatsappDigits(referrer.phone);
-  if (!digits) return null;
+  if (!digits || !referrer.updateUrl) return null;
 
   const missingLeads = referrer.leads.filter((lead) => lead.missingFields.length > 0);
-  const message = missingLeads.length > 0
-    ? `Hi ${referrer.name || "there"}, could you please help us complete these referral details?\n${missingLeads
+  const request = missingLeads.length > 0
+    ? `Could you please complete the missing details for these referrals?\n${missingLeads
         .map((lead) => `• ${lead.name?.trim() || "Unnamed lead"}: ${lead.missingFields.join(", ")}`)
-        .join("\n")}\n\nYou can securely fill in the details here: ${referrer.updateUrl}`
-    : `Hi ${referrer.name || "there"}, could you please confirm that the referral details we have recorded are correct? Thank you.`;
+        .join("\n")}`
+    : "Please review and confirm the referral details. You can correct any existing information in the form.";
+  const message = `Hi ${referrer.name || "there"}, ${request}\n\nOpen this form to review and submit the referral details. Submitting the form updates our record directly:\n${referrer.updateUrl}\n\nThank you!`;
 
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
@@ -244,11 +245,11 @@ function ReferrerCard({
           {whatsappHref ? (
             <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
               <MessageCircle className="h-4 w-4" />
-              WhatsApp {referrer.hasMissingInfo ? "to request details" : "to confirm details"}
+              WhatsApp with form link
             </a>
           ) : (
-            <button type="button" disabled className="btn-secondary inline-flex cursor-not-allowed items-center gap-2 opacity-50" title="No referrer phone number is available">
-              <MessageCircle className="h-4 w-4" />No WhatsApp number
+            <button type="button" disabled className="btn-secondary inline-flex cursor-not-allowed items-center gap-2 opacity-50" title={!referrer.phone ? "No referrer phone number is available" : "No referral form link is available"}>
+              <MessageCircle className="h-4 w-4" />{!referrer.phone ? "No WhatsApp number" : "No form link available"}
             </button>
           )}
           {referrer.updateUrl && (
