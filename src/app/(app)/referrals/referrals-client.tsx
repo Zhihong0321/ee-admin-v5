@@ -810,7 +810,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                         className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-primary-200 px-2.5 py-1.5 text-xs font-semibold text-primary-700 transition-colors hover:bg-primary-50"
                       >
                         <User className="h-3.5 w-3.5" />
-                        Referrer details
+                        Referrer Info
                       </button>
                     </div>
 
@@ -956,9 +956,9 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                   <p role="alert" className="text-sm text-red-700">{referrerUpdateUrlError}</p>
                 )}
                 {!loadingReferrerUpdateUrl && !referrerUpdateUrlError && referrerUpdateUrl && (
-                  <a href={referrerUpdateUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-primary-700 hover:underline">
+                  <a href={referrerUpdateUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary inline-flex items-center gap-2">
                     <Link2 className="h-4 w-4" />
-                    Open referral update form
+                    Referrer Info
                   </a>
                 )}
                 {!hasMissingDetails && (

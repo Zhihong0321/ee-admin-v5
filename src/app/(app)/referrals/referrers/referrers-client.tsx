@@ -255,7 +255,7 @@ function ReferrerCard({
           {referrer.updateUrl && (
             <>
               <a href={referrer.updateUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary inline-flex items-center gap-2">
-                <Users className="h-4 w-4" />Open update form
+                <Users className="h-4 w-4" />Referrer Info
               </a>
               <button type="button" onClick={copyUpdateLink} className="btn-secondary inline-flex items-center gap-2">
                 <Copy className="h-4 w-4" />{copied ? "Copied" : "Copy update link"}
