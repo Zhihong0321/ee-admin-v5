@@ -24,6 +24,7 @@ export type ReferrerFeeInvoice = {
   invoiceNumber: string | null;
   customerPaidPercent: number;
   referralCommissionPaidAmount: number;
+  packageTypes: string[];
 };
 
 export type ReferrerFeeSummary = {
@@ -60,6 +61,7 @@ type PaidReferralInvoiceRow = {
   invoice_number: string | null;
   percent_of_total_amount: string | number | null;
   referral_commission_paid_amount: string | number | null;
+  linked_package_types: string[] | null;
 };
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://admin.atap.solar").replace(/\/$/, "");
@@ -93,7 +95,19 @@ export async function getReferrerFeeSummary(): Promise<ReferrerFeeSummary[]> {
       i.id AS invoice_id,
       i.invoice_number,
       CAST(i.percent_of_total_amount AS TEXT) AS percent_of_total_amount,
-      CAST(i.referral_commission_paid_amount AS TEXT) AS referral_commission_paid_amount
+      CAST(i.referral_commission_paid_amount AS TEXT) AS referral_commission_paid_amount,
+      ARRAY(
+        SELECT DISTINCT CASE
+          WHEN LOWER(BTRIM(p.type)) = 'residential' THEN 'Residential'
+          WHEN LOWER(BTRIM(p.type)) = 'commercial' OR LOWER(BTRIM(p.type)) LIKE 'tariff_%' THEN 'Commercial'
+          ELSE INITCAP(REPLACE(BTRIM(p.type), '_', ' '))
+        END
+        FROM invoice_item ii
+        INNER JOIN package p ON p.bubble_id = ii.linked_package
+        WHERE ii.bubble_id = ANY(i.linked_invoice_item)
+          AND NULLIF(BTRIM(p.type), '') IS NOT NULL
+        ORDER BY 1
+      ) AS linked_package_types
     FROM invoice i
     INNER JOIN referral r ON ${invoiceReferralMatch}
     INNER JOIN customer c ON c.customer_id = r.linked_customer_profile
@@ -162,6 +176,7 @@ export async function getReferrerFeeSummary(): Promise<ReferrerFeeSummary[]> {
       invoiceNumber: row.invoice_number,
       customerPaidPercent: Number.isFinite(paidPercent) ? paidPercent : 0,
       referralCommissionPaidAmount: Number.isFinite(paidAmount) ? Math.round(paidAmount * 100) / 100 : 0,
+      packageTypes: Array.isArray(row.linked_package_types) ? row.linked_package_types : [],
     };
     if (!lead.invoices.some((item) => item.id === invoice.id)) lead.invoices.push(invoice);
 

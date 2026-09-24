@@ -21,6 +21,14 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
+function getSuggestedReferralFee(projectType: string | null) {
+  const normalized = (projectType || "").normalize("NFKC").toLowerCase().replace(/[^a-z]+/g, " ").trim();
+  if (normalized.includes("residential")) return { label: "Residential", rate: "2%" };
+  if (normalized.includes("shoplot") || normalized.includes("shop lot")) return { label: "Shoplot", rate: "1.5%" };
+  if (normalized.includes("factory")) return { label: "Factory", rate: "1%" };
+  return null;
+}
+
 function whatsappDigits(phone: string | null) {
   const digits = (phone || "").replace(/\D/g, "");
   if (!digits) return "";
@@ -100,7 +108,10 @@ function InvoiceFeeEditor({
           {invoice.invoiceNumber || `Invoice #${invoice.id}`}
           <span className="font-normal">· View invoice & payments</span>
         </button>
-        <span className="ml-2">Buyer paid {invoice.customerPaidPercent.toLocaleString("en-MY", { maximumFractionDigits: 2 })}%</span>
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+          <span>Buyer paid {invoice.customerPaidPercent.toLocaleString("en-MY", { maximumFractionDigits: 2 })}%</span>
+          <span>Linked package type: {invoice.packageTypes.length > 0 ? invoice.packageTypes.join(" + ") : "Not available"}</span>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-2 text-xs font-medium text-secondary-600">
@@ -172,40 +183,47 @@ function ReferrerCard({
       </div>
 
       <div className="space-y-3 p-5 sm:p-6">
-        {referrer.leads.map((lead) => (
-          <div key={lead.referralId} className="rounded-xl border border-secondary-100 bg-secondary-50/50 p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-secondary-400">Referred lead · potential buyer</p>
-                <p className="break-words font-semibold text-secondary-900">{lead.name?.trim() || "Unnamed lead"}</p>
-                <p className="mt-1 text-xs text-secondary-600">
-                  {[lead.mobileNumber, lead.relationship, lead.projectType].filter(Boolean).join(" · ") || "No lead details recorded"}
-                </p>
+        {referrer.leads.map((lead) => {
+          const suggestedFee = getSuggestedReferralFee(lead.projectType);
+          return (
+            <div key={lead.referralId} className="rounded-xl border border-secondary-100 bg-secondary-50/50 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-secondary-400">Referred lead · potential buyer</p>
+                  <p className="break-words font-semibold text-secondary-900">{lead.name?.trim() || "Unnamed lead"}</p>
+                  <p className="mt-1 text-xs text-secondary-600">
+                    {[lead.mobileNumber, lead.relationship, lead.projectType].filter(Boolean).join(" · ") || "No lead details recorded"}
+                  </p>
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs text-primary-800">
+                    <span className="font-semibold">Suggested referrer fee:</span>
+                    {suggestedFee ? `${suggestedFee.label} · ${suggestedFee.rate}` : "No rate set for this lead type"}
+                  </p>
+                </div>
+                {lead.missingFields.length > 0 ? (
+                  <span className="inline-flex w-fit shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                    Missing: {lead.missingFields.join(", ")}
+                  </span>
+                ) : (
+                  <span className="inline-flex w-fit shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Complete
+                  </span>
+                )}
               </div>
-              {lead.missingFields.length > 0 ? (
-                <span className="inline-flex w-fit shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                  Missing: {lead.missingFields.join(", ")}
-                </span>
-              ) : (
-                <span className="inline-flex w-fit shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Complete
-                </span>
+              {lead.invoices.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {lead.invoices.map((invoice) => (
+                    <InvoiceFeeEditor
+                      key={invoice.id}
+                      invoice={invoice}
+                      onQuickView={() => onQuickViewInvoice(invoice.id)}
+                      quickViewLoading={loadingQuickViewId === invoice.id}
+                    />
+                  ))}
+                </div>
               )}
             </div>
-            {lead.invoices.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {lead.invoices.map((invoice) => (
-                  <InvoiceFeeEditor
-                    key={invoice.id}
-                    invoice={invoice}
-                    onQuickView={() => onQuickViewInvoice(invoice.id)}
-                    quickViewLoading={loadingQuickViewId === invoice.id}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
 
         <div className="flex flex-wrap gap-2 pt-1">
           {whatsappHref ? (
