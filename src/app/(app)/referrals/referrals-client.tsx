@@ -34,6 +34,7 @@ import {
   scanReferralInvoices,
   searchReferralInvoices,
   updateReferral,
+  type ReferralInvoiceScanMatch,
   type ReferralInvoiceScanResult,
 } from "./actions";
 
@@ -52,6 +53,7 @@ type ReferralRow = {
   deal_value: string | number | null;
   commission_earned: string | number | null;
   linked_invoice: string | null;
+  possible_linked_invoices: ReferralInvoiceScanMatch[] | null;
   resolved_linked_invoice: ReferralInvoiceScanResult["linkedInvoice"];
   project_type: string | null;
   customer_name: string | null;
@@ -63,11 +65,11 @@ type ReferralRow = {
 };
 
 function scanResultFromReferral(referral: ReferralRow): ReferralInvoiceScanResult | null {
-  if (!referral.resolved_linked_invoice) return null;
+  if (referral.possible_linked_invoices == null && !referral.resolved_linked_invoice) return null;
   return {
     referralId: referral.id,
     linkedInvoice: referral.resolved_linked_invoice,
-    possibleMatches: [],
+    possibleMatches: referral.possible_linked_invoices ?? [],
   };
 }
 

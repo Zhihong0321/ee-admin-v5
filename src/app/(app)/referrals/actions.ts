@@ -110,6 +110,7 @@ type ReferralInvoiceSearchRow = {
 };
 
 let referralPreferredAgentLogColumnPromise: Promise<boolean> | null = null;
+let referralPossibleLinkedInvoicesColumnPromise: Promise<boolean> | null = null;
 let invoiceLinkedReferralColumnPromise: Promise<boolean> | null = null;
 
 async function hasReferralPreferredAgentLogColumn() {
@@ -135,6 +136,31 @@ async function hasReferralPreferredAgentLogColumn() {
   }
 
   return referralPreferredAgentLogColumnPromise;
+}
+
+async function hasReferralPossibleLinkedInvoicesColumn() {
+  if (!referralPossibleLinkedInvoicesColumnPromise) {
+    referralPossibleLinkedInvoicesColumnPromise = db
+      .execute(sql`
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'referral'
+            AND column_name = 'possible_linked_invoices'
+        ) AS exists
+      `)
+      .then((result) => {
+        const exists = (result.rows[0] as { exists?: boolean } | undefined)?.exists;
+        return exists === true;
+      })
+      .catch((error) => {
+        referralPossibleLinkedInvoicesColumnPromise = null;
+        throw error;
+      });
+  }
+
+  return referralPossibleLinkedInvoicesColumnPromise;
 }
 
 export async function hasInvoiceLinkedReferralColumn() {
@@ -316,6 +342,7 @@ export async function getReferrals({
     const currentPage = Math.max(1, page);
     const safePageSize = Math.max(1, Math.min(pageSize, 100));
     const hasPreferredAgentLog = await hasReferralPreferredAgentLogColumn();
+    const hasPossibleLinkedInvoices = await hasReferralPossibleLinkedInvoicesColumn();
     const resolvedLinkedInvoiceExpr = sql<ReferralInvoiceScanResult["linkedInvoice"]>`(
       SELECT jsonb_build_object(
         'invoiceId', i.id,
@@ -418,6 +445,9 @@ export async function getReferrals({
         deal_value: referrals.deal_value,
         commission_earned: referrals.commission_earned,
         linked_invoice: referrals.linked_invoice,
+        possible_linked_invoices: hasPossibleLinkedInvoices
+          ? sql<ReferralInvoiceScanMatch[] | null>`${referrals.possible_linked_invoices}`
+          : sql<ReferralInvoiceScanMatch[] | null>`NULL`,
         resolved_linked_invoice: resolvedLinkedInvoiceExpr,
         project_type: referrals.project_type,
         customer_name: customers.name,
@@ -448,6 +478,7 @@ export async function getReferrals({
     return {
       referrals: data.map((row) => ({
         ...row,
+        possible_linked_invoices: parsePossibleMatches(row.possible_linked_invoices),
         resolved_linked_invoice: parseResolvedLinkedInvoice(row.resolved_linked_invoice),
       })),
       pagination: {
@@ -482,6 +513,33 @@ export type ReferralInvoiceScanResult = {
   possibleMatches: ReferralInvoiceScanMatch[];
 };
 
+function parsePossibleMatches(value: unknown): ReferralInvoiceScanMatch[] | null {
+  if (value == null) return null;
+  let parsed: unknown = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(parsed)) return null;
+
+  return parsed.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const invoiceId = Number(row.invoiceId);
+    const matchType = row.matchType === "phone" ? "phone" : row.matchType === "name" ? "name" : null;
+    if (!Number.isFinite(invoiceId) || !matchType) return [];
+    return [{
+      invoiceId,
+      invoiceNumber: row.invoiceNumber == null ? null : String(row.invoiceNumber),
+      bubbleId: row.bubbleId == null ? null : String(row.bubbleId),
+      matchType,
+    }];
+  });
+}
+
 function parseResolvedLinkedInvoice(value: unknown): ReferralInvoiceScanResult["linkedInvoice"] {
   if (value == null) return null;
   let parsed: unknown = value;
@@ -503,7 +561,28 @@ function parseResolvedLinkedInvoice(value: unknown): ReferralInvoiceScanResult["
   };
 }
 
-/** Read-only match of each lead to invoices for the same person. */
+async function saveReferralPossibleInvoices(results: ReferralInvoiceScanResult[]) {
+  if (results.length === 0) return;
+  if (!(await hasReferralPossibleLinkedInvoicesColumn())) return;
+
+  const payload = JSON.stringify(
+    results.map((result) => ({
+      id: result.referralId,
+      matches: result.possibleMatches,
+    })),
+  );
+
+  // Only this column changes, so referral_audit_log_trigger writes no audit row.
+  await db.execute(sql`
+    UPDATE referral AS r
+    SET possible_linked_invoices = src.matches
+    FROM jsonb_to_recordset(${payload}::jsonb) AS src(id int, matches jsonb)
+    WHERE r.id = src.id
+  `);
+}
+
+/** Match each lead to invoices for the same person, then store the candidates.
+ *  Does not change referral.linked_invoice or the invoice's billed customer. */
 export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[]> {
   try {
     const [referralRows, invoiceRows] = await Promise.all([
@@ -581,6 +660,7 @@ export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[
       };
     });
 
+    await saveReferralPossibleInvoices(results);
     return results;
   } catch (error) {
     console.error("Database error in scanReferralInvoices:", error);

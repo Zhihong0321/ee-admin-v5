@@ -187,6 +187,8 @@ export const referrals = pgTable('referral', {
   deal_value: numeric('deal_value', { precision: 10, scale: 2 }).default('0'),
   commission_earned: numeric('commission_earned', { precision: 10, scale: 2 }).default('0'),
   linked_invoice: text('linked_invoice'),
+  // Scan cache. NULL = never scanned. Up to 5 candidates; confirmed link stays in linked_invoice.
+  possible_linked_invoices: jsonb('possible_linked_invoices'),
   project_type: text('project_type'),
 });
 
