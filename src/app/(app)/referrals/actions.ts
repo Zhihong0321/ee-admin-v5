@@ -507,8 +507,8 @@ export type ReferralInvoiceLink = {
   invoiceId: number;
   invoiceNumber: string | null;
   bubbleId: string | null;
-  /** Live invoice.paid_amount, the verified money received. Not stored in the scan cache. */
-  paidAmount?: string | null;
+  /** Same figure the invoice screen labels "% Paid": invoice.percent_of_total_amount. */
+  paidPercent?: string | null;
 };
 
 export type ReferralInvoiceScanMatch = ReferralInvoiceLink & {
@@ -560,17 +560,17 @@ async function attachInvoicePaidAmounts(rows: Array<{
   if (ids.size === 0) return;
 
   const paidRows = await db
-    .select({ id: invoices.id, paid_amount: invoices.paid_amount })
+    .select({ id: invoices.id, percent_of_total_amount: invoices.percent_of_total_amount })
     .from(invoices)
     .where(inArray(invoices.id, [...ids]));
-  const paidById = new Map(paidRows.map((row) => [row.id, row.paid_amount]));
+  const paidById = new Map(paidRows.map((row) => [row.id, row.percent_of_total_amount]));
 
   for (const row of rows) {
     if (row.resolved_linked_invoice) {
-      row.resolved_linked_invoice.paidAmount = paidById.get(row.resolved_linked_invoice.invoiceId) ?? null;
+      row.resolved_linked_invoice.paidPercent = paidById.get(row.resolved_linked_invoice.invoiceId) ?? null;
     }
     for (const match of row.possible_linked_invoices ?? []) {
-      match.paidAmount = paidById.get(match.invoiceId) ?? null;
+      match.paidPercent = paidById.get(match.invoiceId) ?? null;
     }
   }
 }
@@ -639,7 +639,7 @@ export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[
         linked_customer: invoices.linked_customer,
         customer_name: customers.name,
         customer_phone: customers.phone,
-        paid_amount: invoices.paid_amount,
+        percent_of_total_amount: invoices.percent_of_total_amount,
       }).from(invoices)
         .leftJoin(customers, eq(customers.customer_id, invoices.linked_customer))
         .where(and(eq(invoices.is_latest, true), sql`COALESCE(${invoices.is_deleted}, false) = false`)),
@@ -680,7 +680,7 @@ export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[
           invoiceNumber: invoice.invoice_number,
           bubbleId: invoice.bubble_id,
           matchType: phoneMatches ? "phone" : "name",
-          paidAmount: invoice.paid_amount,
+          paidPercent: invoice.percent_of_total_amount,
         });
       }
 
@@ -696,7 +696,7 @@ export async function scanReferralInvoices(): Promise<ReferralInvoiceScanResult[
               invoiceId: directInvoice.id,
               invoiceNumber: directInvoice.invoice_number,
               bubbleId: directInvoice.bubble_id,
-              paidAmount: directInvoice.paid_amount,
+              paidPercent: directInvoice.percent_of_total_amount,
             }
           : null,
         possibleMatches: possibleMatches.slice(0, 5),

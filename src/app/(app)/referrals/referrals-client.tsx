@@ -111,8 +111,10 @@ function formatMoney(value: string | number | null | undefined) {
   }).format(Number.isFinite(numericValue) ? numericValue : 0);
 }
 
-function formatAmountReceived(value: string | number | null | undefined) {
-  return `(${formatMoney(value)} received)`;
+function formatPaidPercent(value: string | number | null | undefined) {
+  const numericValue = Number(value);
+  if (!value || !Number.isFinite(numericValue)) return "(0% paid)";
+  return `(${numericValue.toFixed(1)}% paid)`;
 }
 
 /** Display name, or phone + "(no name recorded)" when the name is blank. */
@@ -720,7 +722,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                                 className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
                               >
                                 <Eye className="h-3.5 w-3.5" />
-                                Linked Invoice = {scan.linkedInvoice.invoiceNumber || scan.linkedInvoice.bubbleId || "Invoice"} {formatAmountReceived(scan.linkedInvoice.paidAmount)}
+                                Linked Invoice = {scan.linkedInvoice.invoiceNumber || scan.linkedInvoice.bubbleId || "Invoice"} {formatPaidPercent(scan.linkedInvoice.paidPercent)}
                               </button>
                             )}
                             {scan.possibleMatches.map((match) => (
@@ -735,7 +737,7 @@ export default function ReferralsClient({ isAdmin }: { isAdmin: boolean }) {
                                   className="inline-flex items-center gap-1.5 hover:underline disabled:opacity-60"
                                 >
                                   <Eye className="h-3.5 w-3.5" />
-                                  Same {match.matchType === "phone" ? "contact number" : "name"} invoice found: {match.invoiceNumber || match.bubbleId || `#${match.invoiceId}`} {formatAmountReceived(match.paidAmount)}
+                                  Same {match.matchType === "phone" ? "contact number" : "name"} invoice found: {match.invoiceNumber || match.bubbleId || `#${match.invoiceId}`} {formatPaidPercent(match.paidPercent)}
                                 </button>
                                 {isAdmin && (
                                   <button
