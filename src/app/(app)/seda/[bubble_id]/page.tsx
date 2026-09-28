@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/seda/status-badge";
 import { StatusDropdown } from "@/components/seda/status-dropdown";
 import { ProgressBar } from "@/components/seda/progress-bar";
 import { DownloadButton } from "@/components/seda/download-button";
+import { MultiFileField } from "@/components/seda/multi-file-field";
 
 // Define all editable fields from seda_registration schema
 const SEDA_FIELD_CONFIG: Record<string, { label: string; type: 'text' | 'textarea' | 'number' | 'date' | 'url'; section: string }> = {
@@ -70,7 +71,6 @@ const SEDA_FIELD_CONFIG: Record<string, { label: string; type: 'text' | 'textare
   ic_copy_front: { label: "IC Copy Front URL", type: "url", section: "documents" },
   ic_copy_back: { label: "IC Copy Back URL", type: "url", section: "documents" },
   customer_signature: { label: "Customer Signature URL", type: "url", section: "documents" },
-  property_ownership_prove: { label: "Property Ownership Proof URL", type: "url", section: "documents" },
   e_contact_mykad: { label: "Emergency Contact MyKad URL", type: "url", section: "documents" },
 
   // Other
@@ -1307,6 +1307,17 @@ export default function SedaDetailPage() {
       {/* Documents & Files */}
       <Section title="Documents & Files">
         {renderFieldsForSection("documents")}
+
+        <div className="border-t border-gray-100 pt-4 mt-6">
+          <MultiFileField
+            label="Property Ownership Proof"
+            value={seda.property_ownership_prove}
+            onSave={(value) => handleFieldSave("property_ownership_prove", value)}
+            saving={saving}
+            hint="All images and PDFs uploaded as property ownership proof."
+            emptyLabel="No property ownership proof uploaded"
+          />
+        </div>
       </Section>
 
       {shouldShowCommercialDocs && (

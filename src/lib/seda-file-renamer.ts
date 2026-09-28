@@ -1,4 +1,5 @@
 import { sedaRegistration } from "@/db/schema";
+import { parseFileUrls } from "@/lib/file-urls";
 import fs from "fs";
 import path from "path";
 
@@ -198,17 +199,21 @@ export function extractAllFiles(sedaData: any, customerName: string) {
         }
       });
     } else {
-      // Handle single fields
-      if (fieldValue && fieldValue.trim() !== "") {
+      // Single-file columns can still hold several URLs: Bubble writes
+      // multi-upload fields as a JSON-encoded array string.
+      const urls = parseFileUrls(fieldValue);
+      if (urls.length > 0) {
+        console.log(`[Download] Found ${urls.length} file(s) in ${mapping.field}`);
+      }
+      urls.forEach((url, index) => {
         const newName = generateFileName(
           customerName,
           mapping.displayName,
-          0,
-          fieldValue
+          urls.length > 1 ? index + 1 : 0,
+          url
         );
-        files.push({ url: fieldValue, newName });
-        console.log(`[Download] Found file in ${mapping.field}: ${fieldValue.substring(0, 50)}...`);
-      }
+        files.push({ url, newName });
+      });
     }
   }
 
