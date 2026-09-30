@@ -8,6 +8,7 @@ import { verifyReferralUpdateToken } from "@/lib/referral-update-token";
 
 export type PublicReferralReferrer = {
   name: string;
+  email: string;
   ic_number: string;
   address: string;
   bank_name: string;
@@ -65,6 +66,7 @@ function isRegistered(name: string, bankAccount: string) {
 
 function readReferrer(row: {
   name: string | null;
+  email: string | null;
   ic_number: string | null;
   address: string | null;
   bank_name: string | null;
@@ -78,6 +80,7 @@ function readReferrer(row: {
   const bankAccount = firstFilled(row.bank_account, noteText(notes, "bankAccount"));
   return {
     name: name === PLACEHOLDER_NAME ? "" : name,
+    email: row.email?.trim() || "",
     ic_number: firstFilled(row.ic_number, noteText(notes, "icNumber")),
     address: firstFilled(row.address, noteText(notes, "address")),
     bank_name: firstFilled(row.bank_name, noteText(notes, "bankName")),
@@ -139,6 +142,7 @@ export async function getReferralUpdateForm(token: string) {
     const [customer] = await db
       .select({
         name: customers.name,
+        email: customers.email,
         ic_number: customers.ic_number,
         address: customers.address,
         bank_name: customers.bank_name,
@@ -167,6 +171,7 @@ export async function updateReferralDetailsFromLink(
   try {
     const payload = await verifyReferralUpdateToken(token);
     const name = trimmed(referrerDetails?.name);
+    const email = trimmed(referrerDetails?.email);
     const bankName = trimmed(referrerDetails?.bank_name);
     const bankAccount = trimmed(referrerDetails?.bank_account);
     const icNumber = trimmed(referrerDetails?.ic_number);
@@ -175,18 +180,20 @@ export async function updateReferralDetailsFromLink(
 
     if (
       !isRealName(name) || name.length > 200 ||
+      !email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
       !bankName || bankName.length > 120 ||
       !bankAccount || bankAccount.length > 50 ||
       !icNumber || icNumber.length > 30 ||
       !tin || tin.length > 50 ||
       !address || address.length > 500
     ) {
-      return { success: false as const, error: "Please complete your name, MyKad, address, bank, and tax details." };
+      return { success: false as const, error: "Please complete your name, email, MyKad, address, bank, and tax details." };
     }
 
     const updatedAt = new Date();
     const details = {
       name,
+      email,
       bank_name: emptyToNull(bankName),
       bank_account: emptyToNull(bankAccount),
       ic_number: emptyToNull(icNumber),

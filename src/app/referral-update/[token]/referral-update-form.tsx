@@ -77,6 +77,10 @@ export default function ReferralUpdateForm({
                   <input required maxLength={200} autoComplete="name" className="input" value={referrer.name} onChange={(event) => updateReferrer("name", event.target.value)} />
                 </label>
                 <label className="space-y-1.5 text-sm font-medium text-secondary-700">
+                  Email address <span className="text-red-500">*</span>
+                  <input required type="email" maxLength={254} autoComplete="email" className="input" value={referrer.email} onChange={(event) => updateReferrer("email", event.target.value)} />
+                </label>
+                <label className="space-y-1.5 text-sm font-medium text-secondary-700">
                   MyKad ID number <span className="text-red-500">*</span>
                   <input required maxLength={30} autoComplete="off" className="input" value={referrer.ic_number} onChange={(event) => updateReferrer("ic_number", event.target.value)} />
                 </label>

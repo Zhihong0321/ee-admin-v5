@@ -94,6 +94,7 @@ function payoutGaps(row: PaidReferralInvoiceRow) {
   const missing: string[] = [];
   const name = row.referrer_name?.trim() || "";
   if (!name || name === "Referral") missing.push("name");
+  if (!row.referrer_email?.trim()) missing.push("email");
   if (!columnOrNote(row.referrer_bank_name, row.referrer_notes, "bankName")) missing.push("bank name");
   if (!columnOrNote(row.referrer_bank_account, row.referrer_notes, "bankAccount")) missing.push("bank account");
   if (!columnOrNote(row.referrer_ic_number, row.referrer_notes, "icNumber")) missing.push("MyKad");

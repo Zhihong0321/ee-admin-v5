@@ -46,7 +46,7 @@ function getWhatsAppHref(referrer: ReferrerFeeSummary) {
   const request = referrer.missingPayoutFields.length > 0
     ? `Before we can pay your referral fee, please complete these payout details: ${referrer.missingPayoutFields.join(", ")}.`
     : "Please review and confirm your payout details. You can correct any existing information in the form.";
-  const message = `Hi ${referrer.name && referrer.name !== "Referral" ? referrer.name : "there"}, ${request}\n\nOpen this form to submit your name, MyKad, address, bank, and tax details:\n${referrer.updateUrl}\n\nThank you!`;
+  const message = `Hi ${referrer.name && referrer.name !== "Referral" ? referrer.name : "there"}, ${request}\n\nOpen this form to submit your name, email, MyKad, address, bank, and tax details:\n${referrer.updateUrl}\n\nThank you!`;
 
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
