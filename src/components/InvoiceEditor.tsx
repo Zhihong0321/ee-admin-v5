@@ -6,6 +6,7 @@ import { X, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phon
 import { generateInvoicePdf, updateInvoiceItem, createInvoiceItem, deleteInvoiceItem, updateInvoiceAgent, getAgentsForSelection, getInvoiceDetails, getInvoiceEditHistory, updateInvoiceWithEppFees, searchPackagesForSwitch, switchInvoiceItemPackage } from "@/app/(app)/invoices/actions";
 import { EPP_RATES, EPP_BANKS, getEppRate, FOREIGN_CARD_RATES, AMEX_RATE } from "@/lib/epp-rates";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
+import IntroducerBadge from "@/components/IntroducerBadge";
 
 interface InvoiceEditorProps {
   invoiceData: any;
@@ -538,6 +539,10 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
               <X className="w-5 h-5" />
             </button>
           </div>
+        </div>
+
+        <div className="border-b border-amber-200 bg-amber-50/40 px-6 py-3">
+          <IntroducerBadge introducer={invoiceData.introducer_data} />
         </div>
 
         {/* Tabs Bar */}

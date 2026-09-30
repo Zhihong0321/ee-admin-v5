@@ -263,6 +263,41 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
         });
       }
 
+      // Resolve the introducer through the referral attributed to this invoice.
+      // `invoice.linked_referral` is present in production but intentionally not
+      // part of the generated schema because older databases may lack it.
+      const hasLinkedReferralColumn = await db.execute(sql`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'invoice'
+            AND column_name = 'linked_referral'
+        ) AS present
+      `);
+      const linkedReferralPresent = Boolean((hasLinkedReferralColumn.rows?.[0] as { present?: boolean } | undefined)?.present);
+      const referralResult = await db.execute(sql`
+        SELECT c.name, c.phone, c.email
+        FROM invoice i
+        INNER JOIN referral r ON (
+          ${linkedReferralPresent
+            ? sql`NULLIF(BTRIM(i.linked_referral), '') = COALESCE(NULLIF(BTRIM(r.bubble_id), ''), r.id::text) OR `
+            : sql``}
+          r.linked_invoice = i.bubble_id
+        )
+        INNER JOIN customer c ON c.customer_id = r.linked_customer_profile
+        WHERE i.id = ${invoice.id}
+          AND r.linked_customer_profile IS NOT NULL
+          AND BTRIM(r.linked_customer_profile) <> ''
+        ORDER BY CASE
+          ${linkedReferralPresent
+            ? sql`WHEN NULLIF(BTRIM(i.linked_referral), '') = COALESCE(NULLIF(BTRIM(r.bubble_id), ''), r.id::text) THEN 0`
+            : sql`WHEN FALSE THEN 0`}
+          ELSE 1
+        END, r.id DESC
+        LIMIT 1
+      `);
+      const introducer = (referralResult.rows?.[0] as { name?: string | null; phone?: string | null; email?: string | null } | undefined) ?? null;
+
       // Fetch all linked payments
       let paymentsData: any[] = [];
       if (invoice.linked_payment && invoice.linked_payment.length > 0) {
@@ -277,6 +312,7 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
         template,
         created_by_user_name,
         customer_data: customerData,
+        introducer_data: introducer,
         customer_name_snapshot: customerData?.name || null,
         customer_address_snapshot: customerData?.address || null,
         customer_phone_snapshot: customerData?.phone || null,
@@ -305,6 +341,7 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
         template: await db.query.invoice_templates.findFirst({ where: eq(invoice_templates.is_default, true) }),
         created_by_user_name: "Legacy System",
         customer_data: null,
+        introducer_data: null,
         linked_payments: [],
         total_payments: 0,
       };

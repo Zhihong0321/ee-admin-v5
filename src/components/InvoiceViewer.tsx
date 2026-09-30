@@ -5,6 +5,7 @@ import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
 import { X, Printer, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info } from "lucide-react";
 import { generateInvoicePdf } from "@/app/(app)/invoices/actions";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
+import IntroducerBadge from "@/components/IntroducerBadge";
 
 type Tab = "preview" | "details";
 
@@ -101,6 +102,10 @@ export default function InvoiceViewer({
               <X className="w-6 h-6" />
             </button>
           </div>
+        </div>
+
+        <div className="border-b border-amber-200 bg-amber-50/40 px-6 py-3">
+          <IntroducerBadge introducer={invoiceData.introducer_data} />
         </div>
 
         {/* Tabs */}
