@@ -298,12 +298,31 @@ export async function getInvoiceDetails(id: number, version: "v1" | "v2") {
       `);
       const introducer = (referralResult.rows?.[0] as { name?: string | null; phone?: string | null; email?: string | null } | undefined) ?? null;
 
-      // Fetch all linked payments
+      // Fetch linked payments strictly from invoice.linked_payment (single source of truth)
       let paymentsData: any[] = [];
-      if (invoice.linked_payment && invoice.linked_payment.length > 0) {
-        paymentsData = await db.query.payments.findMany({
-          where: inArray(payments.bubble_id, invoice.linked_payment),
-        });
+      const rawLinkedPayment = (invoice.linked_payment || []).filter(
+        (id): id is string => Boolean(id && typeof id === "string" && id.trim())
+      );
+      if (rawLinkedPayment.length > 0) {
+        const numericIds = rawLinkedPayment
+          .map((item) => ({ num: parseInt(item.trim(), 10), raw: item.trim() }))
+          .filter(({ num, raw }) => !isNaN(num) && num > 0 && String(num) === raw)
+          .map(({ num }) => num);
+
+        const conditions = [inArray(payments.bubble_id, rawLinkedPayment)];
+        if (numericIds.length > 0) {
+          conditions.push(inArray(payments.id, numericIds));
+        }
+
+        const rawPayments = await db.select().from(payments).where(or(...conditions));
+        const paymentMap = new Map<string | number, typeof payments.$inferSelect>();
+        for (const p of rawPayments) {
+          const key = p.bubble_id || p.id;
+          if (!paymentMap.has(key)) {
+            paymentMap.set(key, p);
+          }
+        }
+        paymentsData = Array.from(paymentMap.values());
       }
 
       return {
@@ -616,6 +635,7 @@ export async function recalculateInvoiceTotal(invoiceId: number) {
         .update(invoices)
         .set({ total_amount: "0", updated_at: new Date() })
         .where(eq(invoices.id, invoiceId));
+      await recalculateInvoicePaymentPercent(invoiceId);
       return { success: true, total: 0 };
     }
 
@@ -637,10 +657,159 @@ export async function recalculateInvoiceTotal(invoiceId: number) {
       .set({ total_amount: total.toString(), updated_at: new Date() })
       .where(eq(invoices.id, invoiceId));
 
+    // Also recalculate payment percentage with new total
+    await recalculateInvoicePaymentPercent(invoiceId);
+
     revalidatePath("/invoices");
     return { success: true, total };
   } catch (error) {
     console.error("Error recalculating invoice total:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function recalculateInvoicePaymentPercent(invoiceId: number) {
+  try {
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+    });
+
+    if (!invoice) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    // 1. Determine total invoice amount
+    let totalAmount = parseFloat(String(invoice.total_amount || invoice.amount || "0").replace(/,/g, "")) || 0;
+    if (totalAmount <= 0) {
+      if (invoice.linked_invoice_item && invoice.linked_invoice_item.length > 0) {
+        const items = await db.query.invoice_items.findMany({
+          where: inArray(invoice_items.bubble_id, invoice.linked_invoice_item),
+        });
+        const itemsSum = items.reduce((sum, item) => sum + (parseFloat(String(item.amount || "0").replace(/,/g, "")) || 0), 0);
+        if (itemsSum > 0) {
+          totalAmount = itemsSum;
+        }
+      } else if (invoice.bubble_id) {
+        const items = await db.query.invoice_items.findMany({
+          where: eq(invoice_items.linked_invoice, invoice.bubble_id),
+        });
+        const itemsSum = items.reduce((sum, item) => sum + (parseFloat(String(item.amount || "0").replace(/,/g, "")) || 0), 0);
+        if (itemsSum > 0) {
+          totalAmount = itemsSum;
+        }
+      }
+    }
+
+    // 2. Single source of truth: invoice.linked_payment
+    // Only payments whose ID is listed in invoice.linked_payment are fetched and aggregated.
+    const rawLinkedPayment = (invoice.linked_payment || []).filter(
+      (id): id is string => Boolean(id && typeof id === "string" && id.trim())
+    );
+
+    let matchedPayments: (typeof payments.$inferSelect)[] = [];
+    if (rawLinkedPayment.length > 0) {
+      const numericIds = rawLinkedPayment
+        .map((item) => ({ num: parseInt(item.trim(), 10), raw: item.trim() }))
+        .filter(({ num, raw }) => !isNaN(num) && num > 0 && String(num) === raw)
+        .map(({ num }) => num);
+
+      const conditions = [inArray(payments.bubble_id, rawLinkedPayment)];
+      if (numericIds.length > 0) {
+        conditions.push(inArray(payments.id, numericIds));
+      }
+
+      matchedPayments = await db
+        .select()
+        .from(payments)
+        .where(or(...conditions));
+    }
+
+    // Deduplicate payments by bubble_id or id
+    const paymentMap = new Map<string | number, typeof payments.$inferSelect>();
+    for (const p of matchedPayments) {
+      const key = p.bubble_id || p.id;
+      if (!paymentMap.has(key)) {
+        paymentMap.set(key, p);
+      }
+    }
+    const uniquePayments = Array.from(paymentMap.values());
+
+    // 3. Aggregate payments strictly from invoice.linked_payment
+    let totalPaid = 0;
+    let firstPaymentDate: Date | null = null;
+    let lastPaymentDate: Date | null = null;
+
+    for (const p of uniquePayments) {
+      const amt = parseFloat(String(p.amount || "0").replace(/,/g, ""));
+      if (!isNaN(amt)) {
+        totalPaid += amt;
+      }
+      if (p.payment_date) {
+        const d = new Date(p.payment_date);
+        if (!isNaN(d.getTime())) {
+          if (!firstPaymentDate || d < firstPaymentDate) {
+            firstPaymentDate = d;
+          }
+          if (!lastPaymentDate || d > lastPaymentDate) {
+            lastPaymentDate = d;
+          }
+        }
+      }
+    }
+
+    // 4. Calculate percentage & payment status
+    let percent = 0;
+    if (totalAmount > 0) {
+      const rawPercent = (totalPaid / totalAmount) * 100;
+      percent = Math.max(0, Math.round(rawPercent * 100) / 100);
+    }
+
+    const isPaid = (totalAmount > 0 && totalPaid >= totalAmount) || percent >= 99.9;
+    const fullPaymentDate = isPaid ? (lastPaymentDate || invoice.full_payment_date || new Date()) : null;
+
+    const updatePayload: Record<string, any> = {
+      percent_of_total_amount: percent.toFixed(2),
+      paid_amount: totalPaid.toFixed(2),
+      paid: isPaid,
+      full_payment_date: fullPaymentDate,
+      last_payment_date: lastPaymentDate,
+      first_payment_date: firstPaymentDate,
+      updated_at: new Date(),
+    };
+
+    await db
+      .update(invoices)
+      .set(updatePayload)
+      .where(eq(invoices.id, invoiceId));
+
+    revalidatePath("/invoices");
+    revalidatePath(`/invoices/${invoiceId}`);
+
+    await logActivity({
+      action: "update",
+      entityType: "invoice",
+      entityId: invoiceId,
+      entityLabel: invoice.invoice_number ?? `INV-${invoice.invoice_id}`,
+      fields: ["percent_of_total_amount", "paid_amount", "paid", "full_payment_date"],
+      metadata: {
+        total_amount: totalAmount,
+        paid_amount: totalPaid,
+        percent_of_total_amount: percent.toFixed(2),
+        paid: isPaid,
+        payments_count: uniquePayments.length,
+      },
+    });
+
+    return {
+      success: true,
+      totalAmount,
+      totalPaid,
+      percent: percent.toFixed(2),
+      isPaid,
+      paymentsCount: uniquePayments.length,
+    };
+  } catch (error) {
+    console.error("Error recalculating invoice payment percent:", error);
     return { success: false, error: String(error) };
   }
 }

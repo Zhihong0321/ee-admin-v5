@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
 import { X, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info, Save, Edit2, Plus, Trash2, Check, X as XIcon, Clock, ArrowRight, Calculator, AlertCircle, RefreshCw, Search } from "lucide-react";
-import { generateInvoicePdf, updateInvoiceItem, createInvoiceItem, deleteInvoiceItem, updateInvoiceAgent, getAgentsForSelection, getInvoiceDetails, getInvoiceEditHistory, updateInvoiceWithEppFees, searchPackagesForSwitch, switchInvoiceItemPackage } from "@/app/(app)/invoices/actions";
+import { generateInvoicePdf, updateInvoiceItem, createInvoiceItem, deleteInvoiceItem, updateInvoiceAgent, getAgentsForSelection, getInvoiceDetails, getInvoiceEditHistory, updateInvoiceWithEppFees, searchPackagesForSwitch, switchInvoiceItemPackage, recalculateInvoicePaymentPercent } from "@/app/(app)/invoices/actions";
 import { EPP_RATES, EPP_BANKS, getEppRate, FOREIGN_CARD_RATES, AMEX_RATE } from "@/lib/epp-rates";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 import IntroducerBadge from "@/components/IntroducerBadge";
@@ -65,6 +65,12 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
   const [pkgSearching, setPkgSearching] = useState(false);
   const [switchingPkgId, setSwitchingPkgId] = useState<string | null>(null);
   const [pkgSearched, setPkgSearched] = useState(false);
+  const [calculatingPercent, setCalculatingPercent] = useState(false);
+  const [recalculateSuccess, setRecalculateSuccess] = useState(false);
+
+  useEffect(() => {
+    setInvoiceData(initialInvoiceData);
+  }, [initialInvoiceData]);
 
   const refreshHistory = () => setHistoryRefreshKey((k) => k + 1);
 
@@ -436,6 +442,29 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
       setApplyingEpp(false);
     }
   };
+  const handleRecalculatePercent = async () => {
+    if (!invoiceData?.id) return;
+    setCalculatingPercent(true);
+    try {
+      const result = await recalculateInvoicePaymentPercent(invoiceData.id);
+      if (result.success) {
+        const refreshed = await getInvoiceDetails(invoiceData.id, version);
+        if (refreshed) {
+          setInvoiceData(refreshed);
+        }
+        refreshHistory();
+        setRecalculateSuccess(true);
+        setTimeout(() => setRecalculateSuccess(false), 2500);
+      } else {
+        alert(result.error || "Failed to recalculate payment percentage");
+      }
+    } catch (error) {
+      console.error("Error recalculating payment percentage:", error);
+      alert("An error occurred while recalculating payment percentage");
+    } finally {
+      setCalculatingPercent(false);
+    }
+  };
 
   const totalSplitAmount = eppSplits.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
   const totalFees = eppSplits.reduce((sum, s) => sum + (s.feeAmount || 0), 0);
@@ -524,6 +553,25 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleRecalculatePercent}
+              disabled={calculatingPercent}
+              className={`text-[12px] font-medium flex items-center gap-2 px-3 py-1.5 rounded border transition-colors ${
+                recalculateSuccess
+                  ? "border-green-300 bg-green-50 text-green-700"
+                  : "border-secondary-200 text-secondary-700 hover:text-secondary-900 hover:bg-secondary-50"
+              }`}
+              title="Recalculate % paid based on linked payments"
+            >
+              {calculatingPercent ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-600" />
+              ) : recalculateSuccess ? (
+                <Check className="w-3.5 h-3.5 text-green-600" />
+              ) : (
+                <Calculator className="w-3.5 h-3.5 text-primary-600" />
+              )}
+              <span>{recalculateSuccess ? "Updated!" : "Recalculate % Paid"}</span>
+            </button>
             <button
               onClick={handleDownloadPdf}
               disabled={downloading}
@@ -917,6 +965,19 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                         <span className="text-[11px] font-bold text-secondary-500 font-mono">
                           {invoiceData?.percent_of_total_amount ? `${parseFloat(invoiceData.percent_of_total_amount).toFixed(1)}%` : '0%'}
                         </span>
+                        <button
+                          type="button"
+                          onClick={handleRecalculatePercent}
+                          disabled={calculatingPercent}
+                          title="Recalculate % paid from linked payments"
+                          className="p-1 hover:bg-secondary-200/60 rounded text-secondary-400 hover:text-primary-600 transition-colors"
+                        >
+                          {recalculateSuccess ? (
+                            <Check className="w-3.5 h-3.5 text-green-600" />
+                          ) : (
+                            <RefreshCw className={`w-3.5 h-3.5 ${calculatingPercent ? 'animate-spin text-primary-600' : ''}`} />
+                          )}
+                        </button>
                       </div>
                     </div>
                     <div>
@@ -1256,11 +1317,33 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                   <CreditCard className="w-4 h-4 text-secondary-400" />
                   Payments Registry
                 </h3>
-                <div className="text-right">
+                <div className="flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={handleRecalculatePercent}
+                    disabled={calculatingPercent}
+                    className={`h-8 px-3 rounded text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50 border ${
+                      recalculateSuccess
+                        ? "border-green-300 bg-green-50 text-green-700"
+                        : "border-secondary-200 bg-white hover:bg-secondary-50 text-secondary-700 hover:text-secondary-900 hover:border-secondary-300"
+                    }`}
+                    title="Calculate % of amount paid from linked payments"
+                  >
+                    {calculatingPercent ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-600" />
+                    ) : recalculateSuccess ? (
+                      <Check className="w-3.5 h-3.5 text-green-600" />
+                    ) : (
+                      <Calculator className="w-3.5 h-3.5 text-primary-600" />
+                    )}
+                    <span>{recalculateSuccess ? "Updated!" : "Recalculate % Paid"}</span>
+                  </button>
+                  <div className="text-right">
                   <span className="text-[10px] font-bold text-secondary-400 uppercase block">Total Remitted</span>
                   <span className="text-xl font-bold text-green-600 font-mono tracking-tighter">
                     RM {parseFloat(invoiceData?.total_payments || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </span>
+                  </div>
                 </div>
               </div>
 

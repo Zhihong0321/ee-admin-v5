@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
-import { X, Printer, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info } from "lucide-react";
-import { generateInvoicePdf } from "@/app/(app)/invoices/actions";
+import { X, Printer, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info, Calculator, RefreshCw, Check } from "lucide-react";
+import { generateInvoicePdf, recalculateInvoicePaymentPercent, getInvoiceDetails } from "@/app/(app)/invoices/actions";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 import IntroducerBadge from "@/components/IntroducerBadge";
 
@@ -17,12 +17,42 @@ interface InvoiceViewerProps {
 }
 
 export default function InvoiceViewer({
-  invoiceData,
+  invoiceData: initialInvoiceData,
   onClose,
   version = "v2",
   initialTab = "preview",
 }: InvoiceViewerProps) {
+  const [invoiceData, setInvoiceData] = useState(initialInvoiceData);
+  const [calculatingPercent, setCalculatingPercent] = useState(false);
+  const [recalculateSuccess, setRecalculateSuccess] = useState(false);
+
+  useEffect(() => {
+    setInvoiceData(initialInvoiceData);
+  }, [initialInvoiceData]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const handleRecalculatePercent = async () => {
+    if (!invoiceData?.id) return;
+    setCalculatingPercent(true);
+    try {
+      const result = await recalculateInvoicePaymentPercent(invoiceData.id);
+      if (result.success) {
+        const refreshed = await getInvoiceDetails(invoiceData.id, version);
+        if (refreshed) {
+          setInvoiceData(refreshed);
+        }
+        setRecalculateSuccess(true);
+        setTimeout(() => setRecalculateSuccess(false), 2500);
+      } else {
+        alert(result.error || "Failed to recalculate payment percentage");
+      }
+    } catch (error) {
+      console.error("Error recalculating payment percentage:", error);
+      alert("An error occurred while recalculating payment percentage");
+    } finally {
+      setCalculatingPercent(false);
+    }
+  };
   const [downloading, setDownloading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const invoiceIdDisplay = getInvoiceIdDisplay(invoiceData);
@@ -83,6 +113,25 @@ export default function InvoiceViewer({
           </div>
           
           <div className="flex items-center gap-2">
+            <button 
+              onClick={handleRecalculatePercent}
+              disabled={calculatingPercent}
+              className={`py-2 flex items-center gap-2 rounded-lg px-3 transition-colors ${
+                recalculateSuccess
+                  ? "border border-green-300 bg-green-50 text-green-700"
+                  : "btn-secondary"
+              }`}
+              title="Recalculate % paid based on linked payments"
+            >
+              {calculatingPercent ? (
+                <Loader2 className="w-4 h-4 animate-spin text-primary-600" />
+              ) : recalculateSuccess ? (
+                <Check className="w-4 h-4 text-green-600" />
+              ) : (
+                <Calculator className="w-4 h-4 text-primary-600" />
+              )}
+              <span>{recalculateSuccess ? "Updated!" : "Recalculate % Paid"}</span>
+            </button>
             <button 
               onClick={handleDownloadPdf}
               disabled={downloading}
@@ -190,6 +239,19 @@ export default function InvoiceViewer({
                       <span className="text-sm text-secondary-600">
                         {invoiceData?.percent_of_total_amount ? `${parseFloat(invoiceData.percent_of_total_amount).toFixed(1)}%` : '0%'} Paid
                       </span>
+                      <button
+                        type="button"
+                        onClick={handleRecalculatePercent}
+                        disabled={calculatingPercent}
+                        title="Recalculate % paid from linked payments"
+                        className="p-1 hover:bg-secondary-200/60 rounded text-secondary-400 hover:text-primary-600 transition-colors"
+                      >
+                          {recalculateSuccess ? (
+                            <Check className="w-3.5 h-3.5 text-green-600" />
+                          ) : (
+                            <RefreshCw className={`w-3.5 h-3.5 ${calculatingPercent ? 'animate-spin text-primary-600' : ''}`} />
+                          )}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -326,9 +388,31 @@ export default function InvoiceViewer({
                   <span className="px-2 py-0.5 bg-secondary-100 text-secondary-600 text-xs rounded-full">
                     {invoiceData?.linked_payments?.length || 0} payments
                   </span>
-                  <span className="ml-auto text-sm font-semibold text-green-600">
+                  <div className="ml-auto flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleRecalculatePercent}
+                      disabled={calculatingPercent}
+                      className={`py-1 px-2.5 text-xs flex items-center gap-1.5 rounded transition-all font-medium border ${
+                        recalculateSuccess
+                          ? "border-green-300 bg-green-50 text-green-700"
+                          : "btn-secondary border border-secondary-200 hover:border-primary-500 hover:text-primary-600"
+                      }`}
+                      title="Calculate % of amount paid from linked payments"
+                    >
+                      {calculatingPercent ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-600" />
+                      ) : recalculateSuccess ? (
+                        <Check className="w-3.5 h-3.5 text-green-600" />
+                      ) : (
+                        <Calculator className="w-3.5 h-3.5 text-primary-600" />
+                      )}
+                      <span>{recalculateSuccess ? "Updated!" : "Recalculate % Paid"}</span>
+                    </button>
+                    <span className="text-sm font-semibold text-green-600">
                     Total: MYR {parseFloat(invoiceData?.total_payments || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </span>
+                  </div>
                 </div>
                 {invoiceData?.linked_payments && invoiceData.linked_payments.length > 0 ? (
                   <table className="table w-full">

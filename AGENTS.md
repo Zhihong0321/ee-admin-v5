@@ -55,4 +55,6 @@ The `agent` table is retired as an identity source. Resolve people via `user`.
 - `recycle_bin/` is dead code kept for reference. Do not use it as a pattern and
   do not "fix" it.
 - Do not commit `.Codex/settings.local.json`.
-- Commit only when asked. If on `main`, branch first.
+- Never create a new branch for this repository. Work on the currently checked-out
+  branch, including `main`.
+- Commit only when asked.

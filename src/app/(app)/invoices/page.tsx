@@ -2,8 +2,8 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, Database, Trash2, RotateCcw, AlertTriangle, X, Printer } from "lucide-react";
-import { getInvoices, getInvoiceDetails, generateInvoicePdf, deleteInvoice, recoverInvoice, getUsersForFilter } from "./actions";
+import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, Database, Trash2, RotateCcw, AlertTriangle, X, Printer, Calculator, Check } from "lucide-react";
+import { getInvoices, getInvoiceDetails, generateInvoicePdf, deleteInvoice, recoverInvoice, getUsersForFilter, recalculateInvoicePaymentPercent } from "./actions";
 import InvoiceEditor from "@/components/InvoiceEditor";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 
@@ -38,6 +38,8 @@ function InvoicesContent() {
   });
 
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [recalculatingId, setRecalculatingId] = useState<number | null>(null);
+  const [successId, setSuccessId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -136,6 +138,36 @@ function InvoicesContent() {
     }
   };
 
+  const handleRecalculatePercent = async (id: number) => {
+    setRecalculatingId(id);
+    try {
+      const res = await recalculateInvoicePaymentPercent(id);
+      if (res.success) {
+        setInvoices((prev) =>
+          prev.map((inv) =>
+            inv.id === id
+              ? {
+                  ...inv,
+                  percent_of_total_amount: res.percent,
+                  paid: res.isPaid,
+                  paid_amount: (res.totalPaid ?? 0).toFixed(2),
+                }
+              : inv
+          )
+        );
+        setSuccessId(id);
+        setTimeout(() => setSuccessId(null), 2500);
+      } else {
+        alert(res.error || "Failed to recalculate payment percentage");
+      }
+    } catch (err) {
+      console.error("Error recalculating payment percentage:", err);
+      alert("An error occurred while recalculating payment percentage");
+    } finally {
+      setRecalculatingId(null);
+    }
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetchData(1);
@@ -173,7 +205,10 @@ function InvoicesContent() {
       {selectedInvoice && (
         <InvoiceEditor
           invoiceData={selectedInvoice}
-          onClose={() => setSelectedInvoice(null)}
+          onClose={() => {
+            setSelectedInvoice(null);
+            fetchData();
+          }}
           version={version}
         />
       )}
@@ -497,13 +532,47 @@ function InvoicesContent() {
                       </td>
                       {version === "v2" ? (
                         <td className="text-right">
-                          <div className={`font-semibold ${inv.percent_of_total_amount ? (parseFloat(inv.percent_of_total_amount) >= 100 ? 'text-green-600' : parseFloat(inv.percent_of_total_amount) > 0 ? 'text-amber-600' : 'text-secondary-400') : 'text-secondary-400'}`}>
+                          <div className="flex items-center justify-end gap-1.5">
+                          <div className={`font-semibold ${inv.percent_of_total_amount ? ((parseFloat(inv.percent_of_total_amount) >= 99.9 || inv.paid) ? 'text-green-600' : parseFloat(inv.percent_of_total_amount) > 0 ? 'text-amber-600' : 'text-secondary-400') : 'text-secondary-400'}`}>
                             {inv.percent_of_total_amount ? `${parseFloat(inv.percent_of_total_amount).toFixed(1)}%` : '0%'}
+                          </div>
+                            <button
+                              onClick={() => handleRecalculatePercent(inv.id)}
+                              disabled={recalculatingId === inv.id}
+                              title="Recalculate % paid from linked payments"
+                              className="p-1 hover:bg-secondary-100 rounded text-secondary-400 hover:text-primary-600 transition-colors"
+                            >
+                              {recalculatingId === inv.id ? (
+                                <Calculator className="h-3.5 w-3.5 animate-spin text-primary-600" />
+                              ) : successId === inv.id ? (
+                                <Check className="h-3.5 w-3.5 text-green-600" />
+                              ) : (
+                                <Calculator className="h-3.5 w-3.5" />
+                              )}
+                            </button>
                           </div>
                         </td>
                       ) : null}
                       <td className="text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleRecalculatePercent(inv.id)}
+                            disabled={recalculatingId === inv.id}
+                            className={`p-2 transition-colors ${
+                              successId === inv.id
+                                ? "text-green-600"
+                                : "btn-ghost text-secondary-600 hover:text-secondary-900"
+                            }`}
+                            title="Recalculate % Paid from Payments"
+                          >
+                            {recalculatingId === inv.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-primary-600" />
+                            ) : successId === inv.id ? (
+                              <Check className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <Calculator className="h-4 w-4" />
+                            )}
+                          </button>
                           <button
                             onClick={() => window.open(`/invoices/${inv.id}/print?v=${version}`, "_blank")}
                             className="btn-ghost text-secondary-600 hover:text-secondary-900 p-2"
