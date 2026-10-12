@@ -25,6 +25,8 @@ function InvoicesContent() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [createdBy, setCreatedBy] = useState("");
+  const [agentSearch, setAgentSearch] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
   const [userList, setUserList] = useState<{ bubble_id: string | null; name: string | null; email: string | null }[]>([]);
 
   // Warning Popup State based on expiry date (Apr 20, 2026)
@@ -57,16 +59,18 @@ function InvoicesContent() {
     }
   }, [searchParams]);
 
-  async function fetchData(p?: number) {
+  async function fetchData(p?: number, f?: Parameters<typeof getInvoices>[5]) {
     const currentPage = p ?? page;
     setLoading(true);
     try {
-      const filters = {
+      const filters = f ?? {
         paidPercentMin: paidPercentMin ? parseFloat(paidPercentMin) : undefined,
         paidPercentMax: paidPercentMax ? parseFloat(paidPercentMax) : undefined,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
         createdBy: createdBy || undefined,
+        agent: agentSearch.trim() || undefined,
+        customer: customerSearch.trim() || undefined,
       };
       const result = await getInvoices(version, search, tab, currentPage, pageSize, filters);
       setInvoices(result.data);
@@ -405,6 +409,28 @@ function InvoicesContent() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-secondary-500 mb-2 uppercase tracking-wide">Agent (User)</label>
+                <input
+                  type="text"
+                  value={agentSearch}
+                  onChange={(e) => setAgentSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setPage(1); fetchData(1); } }}
+                  className="input text-sm"
+                  placeholder="Search agent by name or email"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-secondary-500 mb-2 uppercase tracking-wide">Customer Name</label>
+                <input
+                  type="text"
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setPage(1); fetchData(1); } }}
+                  className="input text-sm"
+                  placeholder="Search customer by name"
+                />
+              </div>
             </div>
             <div className="flex items-center gap-3 mt-5">
               <button
@@ -420,7 +446,11 @@ function InvoicesContent() {
                   setPaidPercentMin("");
                   setPaidPercentMax("");
                   setCreatedBy("");
-                  setTimeout(() => fetchData(1), 0);
+                  setAgentSearch("");
+                  setCustomerSearch("");
+                  setPage(1);
+                  // Pass empty filters explicitly: state set in this handler is not visible to this render's closure yet.
+                  fetchData(1, {});
                 }}
                 className="btn-secondary text-sm"
               >

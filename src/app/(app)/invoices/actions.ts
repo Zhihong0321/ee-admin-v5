@@ -31,6 +31,8 @@ export async function getInvoices(
     dateFrom?: string;
     dateTo?: string;
     createdBy?: string;
+    agent?: string;
+    customer?: string;
   }
 ) {
   try {
@@ -59,6 +61,12 @@ export async function getInvoices(
       }
       if (filters?.createdBy) {
         conditions.push(eq(invoices.created_by, filters.createdBy));
+      }
+      if (filters?.agent) {
+        conditions.push(sql`(${agentUser.name} ILIKE ${`%${filters.agent}%`} OR ${agentUser.email} ILIKE ${`%${filters.agent}%`})`);
+      }
+      if (filters?.customer) {
+        conditions.push(sql`${invoices.linked_customer} ILIKE ${`%${filters.customer}%`}`);
       }
 
       const whereClause = and(...conditions);
@@ -119,6 +127,12 @@ export async function getInvoices(
       }
       if (filters?.createdBy) {
         filterConditions.push(sql`AND i.created_by = ${filters.createdBy}`);
+      }
+      if (filters?.agent) {
+        filterConditions.push(sql`AND (a.name ILIKE ${`%${filters.agent}%`} OR a.email ILIKE ${`%${filters.agent}%`})`);
+      }
+      if (filters?.customer) {
+        filterConditions.push(sql`AND c.name ILIKE ${`%${filters.customer}%`}`);
       }
 
       const countResult = await db.execute(sql`
