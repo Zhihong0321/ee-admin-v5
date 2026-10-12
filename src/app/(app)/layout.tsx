@@ -19,7 +19,7 @@ export default async function AppLayout({
   return (
     <div className={`${inter.variable} flex min-h-screen bg-secondary-50`}>
       <Sidebar user={user} />
-      <main className="flex-1 ml-64 p-8">
+      <main className="flex-1 min-w-0 ml-0 lg:ml-64 p-4 pt-20 sm:p-6 lg:p-8 lg:pt-8">
         {children}
       </main>
     </div>

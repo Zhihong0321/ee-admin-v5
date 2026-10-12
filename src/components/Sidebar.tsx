@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, Layers, UserPlus, Headset, ScanSearch, Hammer, GitBranch, FileClock, ExternalLink, Activity, type LucideIcon } from "lucide-react";
+import { FileText, LayoutDashboard, Users, Settings, Sparkles, UserCircle, Building2, LogOut, CreditCard, RefreshCw, Database, FileCheck, Globe, Layers, UserPlus, Headset, ScanSearch, Hammer, GitBranch, FileClock, ExternalLink, Activity, Menu, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { User } from "@/lib/auth";
 import { logoutAction } from "@/app/auth-actions";
@@ -49,6 +50,11 @@ interface SidebarProps {
 
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
+  // Below lg the sidebar is a drawer; close it whenever the route changes.
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   const userTags = (user?.tags || []).map(t => t.toLowerCase());
   const isOwner = user?.role === 'owner' || user?.isAdmin === true;
@@ -84,7 +90,30 @@ export function Sidebar({ user }: SidebarProps) {
   });
 
   return (
-    <aside className="fixed inset-y-0 left-0 w-64 bg-white border-r border-secondary-200 flex flex-col shadow-elevation-md z-50">
+    <>
+    {/* Mobile top bar: opens the drawer */}
+    <header className="lg:hidden fixed inset-x-0 top-0 h-14 z-40 bg-white border-b border-secondary-200 flex items-center gap-3 px-4">
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Open navigation"
+        className="p-2 -ml-2 rounded-lg text-secondary-700 hover:bg-secondary-100"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+      <span className="text-base font-bold text-secondary-900 tracking-tight">EE Admin</span>
+    </header>
+
+    {/* Mobile backdrop */}
+    {mobileOpen && (
+      <div
+        className="lg:hidden fixed inset-0 z-40 bg-black/40"
+        onClick={() => setMobileOpen(false)}
+        aria-hidden="true"
+      />
+    )}
+
+    <aside className={`fixed inset-y-0 left-0 w-64 max-w-[85vw] bg-white border-r border-secondary-200 flex flex-col shadow-elevation-md z-50 transition-transform duration-200 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
       {/* Logo Section */}
       <div className="h-20 flex items-center px-6 border-b border-secondary-200 bg-gradient-to-r from-primary-600 to-primary-700">
         <div className="flex items-center gap-2.5">
@@ -93,6 +122,14 @@ export function Sidebar({ user }: SidebarProps) {
           </div>
           <span className="text-xl font-bold text-white tracking-tight">EE Admin</span>
         </div>
+        <button
+          type="button"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Close navigation"
+          className="lg:hidden ml-auto p-1.5 rounded-lg text-white/80 hover:bg-white/20"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Navigation */}
@@ -194,5 +231,6 @@ export function Sidebar({ user }: SidebarProps) {
         </form>
       </div>
     </aside>
+    </>
   );
 }

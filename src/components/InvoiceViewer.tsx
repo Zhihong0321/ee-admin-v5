@@ -315,6 +315,7 @@ export default function InvoiceViewer({
                   </span>
                 </div>
                 {invoiceData?.items && invoiceData.items.length > 0 ? (
+                <div className="overflow-x-auto">
                   <table className="table w-full">
                     <thead>
                       <tr>
@@ -375,6 +376,7 @@ export default function InvoiceViewer({
                       </tr>
                     </tfoot>
                   </table>
+                </div>
                 ) : (
                   <p className="text-secondary-500">No invoice items found</p>
                 )}
@@ -415,6 +417,7 @@ export default function InvoiceViewer({
                   </div>
                 </div>
                 {invoiceData?.linked_payments && invoiceData.linked_payments.length > 0 ? (
+                <div className="overflow-x-auto">
                   <table className="table w-full">
                     <thead>
                       <tr>
@@ -463,6 +466,7 @@ export default function InvoiceViewer({
                       ))}
                     </tbody>
                   </table>
+                </div>
                 ) : (
                   <p className="text-secondary-500">No payments found</p>
                 )}

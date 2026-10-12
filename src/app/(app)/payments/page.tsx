@@ -1125,6 +1125,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   )}
                 </div>
               </div>
+              <div className="overflow-x-auto">
               <table className="table table-fixed w-full">
                 <thead>
                   <tr>
@@ -1255,6 +1256,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           ) : activeTab === "update-method" ? (
             <div>
@@ -1332,6 +1334,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 </div>
               )}
 
+              <div className="overflow-x-auto">
               <table className="table">
                 <thead>
                   <tr>
@@ -1467,9 +1470,11 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           ) : activeTab === "fully-paid" && viewMode === "list" ? (
             // Dedicated Table for Fully Paid Invoices
+            <div className="overflow-x-auto">
             <table className="table table-fixed w-full">
               <thead>
                 <tr>
@@ -1580,8 +1585,10 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 )}
               </tbody>
             </table>
+            </div>
           ) : (
             // Regular Table View (Pending / Verified)
+            <div className="overflow-x-auto">
             <table className="table table-fixed w-full">
               {/* Only show headers relevant to payments, no invoice stuff mixed in */}
               <thead>
@@ -1749,6 +1756,7 @@ ${result.missingInvoices.length > 0 ? '\nRECOMMENDATION: Run a full invoice sync
                 )}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
