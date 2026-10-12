@@ -25,14 +25,14 @@ export const FILE_MAPPINGS: FileFieldMapping[] = [
   { field: "customer_signature", displayName: "CustomerSignature", isArray: false },
   { field: "property_ownership_prove", displayName: "PropertyOwnership", isArray: false },
   { field: "nem_cert", displayName: "NEMCert", isArray: false },
-  { field: "e_contact_mykad", displayName: "EmergencyMyKad", isArray: false },
+  { field: "tax_document", displayName: "TaxDocument", isArray: false },
   { field: "ssm_form_9", displayName: "SSM_Form9", isArray: false },
   { field: "ssm_form_49", displayName: "SSM_Form49", isArray: false },
+  { field: "ssm_registration", displayName: "SSM_Registration", isArray: false },
+  { field: "company_stamp", displayName: "CompanyStamp", isArray: false },
   { field: "director_ic_front", displayName: "DirectorICFront", isArray: false },
   { field: "director_ic_back", displayName: "DirectorICBack", isArray: false },
   { field: "drawing_system_submitted", displayName: "DrawingSystemSubmitted", isArray: false },
-  { field: "g_electric_folder_link", displayName: "GElectricFolder", isArray: false },
-  { field: "g_roof_folder_link", displayName: "GRoofFolder", isArray: false },
 
   // Array files (multiple images/PDFs)
   { field: "roof_images", displayName: "RoofImage", isArray: true },
@@ -41,6 +41,18 @@ export const FILE_MAPPINGS: FileFieldMapping[] = [
   { field: "drawing_system_actual", displayName: "DrawingSystemActual", isArray: true },
   { field: "drawing_engineering_seda_pdf", displayName: "DrawingEngineeringSEDA", isArray: true },
 ];
+
+/**
+ * Name used to prefix every downloaded file: the SEDA applicant when one is
+ * filled in, otherwise the invoice customer. Bracketed tags such as "(ATAP)" are
+ * dropped. Returns the raw name; generateFileName sanitizes it once.
+ */
+export function filePrefixName(applicantName: string | null, customerName: string | null): string {
+  const applicant = (applicantName || "").replace(/\([^)]*\)/g, " ").trim();
+  // Names with no Latin letters or digits would sanitize to nothing, so fall back.
+  if (/[a-zA-Z0-9]/.test(applicant)) return applicant;
+  return customerName || "";
+}
 
 /**
  * Sanitize customer name for filename
@@ -86,11 +98,11 @@ export function getFileExtension(url: string): string {
 
 /**
  * Generate renamed filename for SEDA document
- * Format: {CustomerName}_{DocumentType}{Index}.{extension}
+ * Format: {NamePrefix}_{DocumentType}{Index}.{extension}, where NamePrefix is the applicant (see filePrefixName)
  * Example: Gan_Zhi_Hong_RoofImage01.jpg
  */
 export function generateFileName(
-  customerName: string,
+  namePrefix: string,
   documentType: string,
   index: number,
   originalUrl: string
@@ -98,8 +110,8 @@ export function generateFileName(
   // Extract extension from URL
   const extension = getFileExtension(originalUrl);
 
-  // Sanitize customer name
-  const sanitizedName = sanitizeCustomerName(customerName);
+  // Sanitize the name prefix
+  const sanitizedName = sanitizeCustomerName(namePrefix);
 
   // Build filename
   // Array files: Gan_Zhi_Hong_RoofImage01.jpg
@@ -135,14 +147,17 @@ export async function downloadFile(url: string): Promise<Buffer> {
 
     console.log(`[downloadFile] Local file: ${fullPath}`);
 
-    // Check if file exists
-    if (!fs.existsSync(fullPath)) {
-      throw new Error(`File not found: ${fullPath}`);
+    if (fs.existsSync(fullPath)) {
+      const buffer = fs.readFileSync(fullPath);
+      console.log(`[downloadFile] Success: ${buffer.length} bytes`);
+      return buffer;
     }
 
-    const buffer = fs.readFileSync(fullPath);
-    console.log(`[downloadFile] Success: ${buffer.length} bytes`);
-    return buffer;
+    // Not on this server's disk: an absolute URL can still be fetched publicly
+    // (e.g. admin.atap.solar/api/files/* serves these files), so fall through.
+    if (!/^https?:\/\//i.test(url)) {
+      throw new Error(`File not found: ${fullPath}`);
+    }
   }
 
   // Handle external URLs (Bubble.io, etc.)
@@ -168,7 +183,7 @@ export async function downloadFile(url: string): Promise<Buffer> {
  * Extract ALL file URLs from SEDA registration data
  * Returns array of { url, newName } objects
  */
-export function extractAllFiles(sedaData: any, customerName: string) {
+export function extractAllFiles(sedaData: any, namePrefix: string) {
   const files: { url: string; newName: string }[] = [];
 
   console.log(`[Download] Checking ${FILE_MAPPINGS.length} document fields...`);
@@ -190,7 +205,7 @@ export function extractAllFiles(sedaData: any, customerName: string) {
       urls.forEach((url: string, index: number) => {
         if (url && url.trim() !== "") {
           const newName = generateFileName(
-            customerName,
+            namePrefix,
             mapping.displayName,
             index + 1,
             url
@@ -207,7 +222,7 @@ export function extractAllFiles(sedaData: any, customerName: string) {
       }
       urls.forEach((url, index) => {
         const newName = generateFileName(
-          customerName,
+          namePrefix,
           mapping.displayName,
           urls.length > 1 ? index + 1 : 0,
           url

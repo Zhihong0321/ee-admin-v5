@@ -9,6 +9,7 @@ import {
   extractAllFiles,
   downloadFile,
   generateFileName,
+  filePrefixName,
   sanitizeCustomerName,
 } from "@/lib/seda-file-renamer";
 import { migrateSedaFilesToLocalByBubbleId } from "@/app/sync/actions/bubble-file-migration";
@@ -182,6 +183,10 @@ export async function GET(
           ssm_form_49: sedaRegistration.ssm_form_49,
           director_ic_front: sedaRegistration.director_ic_front,
           director_ic_back: sedaRegistration.director_ic_back,
+          applicant_name: sedaRegistration.applicant_name,
+          company_stamp: sedaRegistration.company_stamp,
+          ssm_registration: sedaRegistration.ssm_registration,
+          tax_document: sedaRegistration.tax_document,
           customer_name: customers.name,
         })
         .from(sedaRegistration)
@@ -203,7 +208,6 @@ export async function GET(
 
     const seda = sedaData[0];
     const customerName = seda.customer_name || "UnknownCustomer";
-    const sanitizedName = sanitizeCustomerName(customerName);
 
     // Migrate this SEDA's files to local storage before zipping
     const migrationResult = await migrateSedaFilesToLocalByBubbleId(bubble_id);
@@ -212,8 +216,12 @@ export async function GET(
     const refreshedData = await fetchSedaData();
     const refreshedSeda = refreshedData.length > 0 ? refreshedData[0] : seda;
 
+    // File names lead with the applicant, falling back to the invoice customer
+    const namePrefix = filePrefixName(refreshedSeda.applicant_name, customerName);
+    const sanitizedName = sanitizeCustomerName(namePrefix);
+
     // Extract all file URLs with new names
-    const sedaFiles = extractAllFiles(refreshedSeda, customerName);
+    const sedaFiles = extractAllFiles(refreshedSeda, namePrefix);
 
     // Fold in the invoice-owned photos (ee_attachment + legacy invoice arrays)
     // and drop anything soft-deleted, including SEDA array entries that were
@@ -243,10 +251,10 @@ export async function GET(
 
         // Names come from the SEDA arrays first, so skip past any index they
         // already used rather than silently overwriting an entry in the ZIP.
-        let newName = generateFileName(customerName, displayName, nextIndex[displayName], url);
+        let newName = generateFileName(namePrefix, displayName, nextIndex[displayName], url);
         while (usedNames.has(newName)) {
           nextIndex[displayName]++;
-          newName = generateFileName(customerName, displayName, nextIndex[displayName], url);
+          newName = generateFileName(namePrefix, displayName, nextIndex[displayName], url);
         }
         // `RoofImage` etc. are the same display names extractAllFiles uses, so
         // a drawing added here sorts alongside the SEDA-column ones in the ZIP.
@@ -265,13 +273,18 @@ export async function GET(
     // Add all files to ZIP
     for (const file of files) {
       try {
+        // Local copies (migrated Bubble files) and absolute http(s) URLs (the
+        // current form's R2 / calculator uploads, which never pass through the
+        // Bubble migration) are both downloadable. Anything else, such as an
+        // unmigrated protocol-relative Bubble URL, is still reported as a failure.
         const isLocal = file.url.includes("/api/files/") || file.url.includes("/storage/");
-        if (!isLocal) {
+        const isHttp = /^https?:\/\//i.test(file.url);
+        if (!isLocal && !isHttp) {
           failCount++;
           downloadFailures.push({
             name: file.newName,
             url: file.url,
-            error: "Not migrated to local storage",
+            error: "Not migrated to local storage or an absolute URL",
           });
           continue;
         }
