@@ -160,10 +160,11 @@ export async function downloadFile(url: string): Promise<Buffer> {
     }
   }
 
-  // Handle external URLs (Bubble.io, etc.)
+  // Handle external URLs (Bubble.io, etc.). Bubble stores protocol-relative
+  // "//cdn..." URLs, which fetch() cannot use, so give them a scheme first.
   console.log(`[downloadFile] External URL: ${url.substring(0, 50)}...`);
   try {
-    const response = await fetch(url);
+    const response = await fetch(url.startsWith("//") ? `https:${url}` : url);
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);

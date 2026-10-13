@@ -273,12 +273,11 @@ export async function GET(
     // Add all files to ZIP
     for (const file of files) {
       try {
-        // Local copies (migrated Bubble files) and absolute http(s) URLs (the
+        // Local copies (migrated Bubble files) and http(s) or Bubble protocol-relative URLs (the
         // current form's R2 / calculator uploads, which never pass through the
-        // Bubble migration) are both downloadable. Anything else, such as an
-        // unmigrated protocol-relative Bubble URL, is still reported as a failure.
+        // Bubble migration) are both downloadable. Anything else is still reported as a failure.
         const isLocal = file.url.includes("/api/files/") || file.url.includes("/storage/");
-        const isHttp = /^https?:\/\//i.test(file.url);
+        const isHttp = /^(https?:)?\/\//i.test(file.url);
         if (!isLocal && !isHttp) {
           failCount++;
           downloadFailures.push({
