@@ -188,3 +188,101 @@ export async function uploadAttachment(
         return { success: false, error: err?.message ?? String(err) };
     }
 }
+
+/**
+ * Soft-delete one PV system drawing. Mirrors deleteEngineeringFile in
+ * engineering/actions.ts: the row stays with deleted_at set, which every read
+ * subtracts. A PV drawing that only exists in the legacy invoice array (pre-
+ * cutover, or the 593 not yet backfilled) gets a tombstone row instead, because
+ * the Bubble sync rewrites that array and would undo an array edit.
+ */
+export async function deletePvDrawing(invoiceBubbleId: string, fileUrl: string) {
+    const user = await getUser();
+    const isAdmin = user?.isAdmin === true || (user?.tags || []).map((t) => t.toLowerCase()).includes("admin");
+    if (!isAdmin) return { success: false, error: "Only admins can delete drawings" };
+    if (!invoiceBubbleId || !fileUrl) return { success: false, error: "No invoice or file provided" };
+
+    const { category, docType } = ATTACHMENT_TARGET.pv;
+
+    try {
+        const actor = await resolveUploader();
+
+        const softDeleted = await db.execute(sql`
+            UPDATE ee_attachment
+            SET deleted_at      = now(),
+                deleted_by      = ${actor.bubbleId},
+                deleted_by_name = ${actor.name},
+                updated_at      = now()
+            WHERE owner_type = 'invoice'
+              AND owner_id   = ${invoiceBubbleId}
+              AND category   = ${category}
+              AND doc_type   = ${docType}
+              AND file_url   = ${fileUrl}
+              AND deleted_at IS NULL
+              AND purged_at  IS NULL
+            RETURNING id
+        `);
+
+        const invoice = await db.query.invoices.findFirst({
+            where: eq(invoices.bubble_id, invoiceBubbleId),
+            columns: { id: true, invoice_number: true, linked_customer: true },
+        });
+
+        if ((softDeleted.rows?.length ?? 0) === 0) {
+            await db.execute(sql`
+                INSERT INTO ee_attachment (
+                    owner_type, owner_id, linked_customer, module, category, doc_type,
+                    file_url, deleted_at, deleted_by, deleted_by_name, metadata_json
+                ) VALUES (
+                    'invoice', ${invoiceBubbleId}, ${invoice?.linked_customer ?? null},
+                    ${ATTACHMENT_MODULE}, ${category}, ${docType},
+                    ${fileUrl}, now(), ${actor.bubbleId}, ${actor.name},
+                    ${JSON.stringify({ tombstone_for: 'legacy_array', deleted_from: 'engineering-v2' })}::jsonb
+                )
+            `);
+        }
+
+        try {
+            if (invoice) {
+                await db.insert(invoice_audit_log).values({
+                    invoice_id: invoice.id,
+                    invoice_number: invoice.invoice_number,
+                    entity_type: 'drawing',
+                    entity_id: invoiceBubbleId,
+                    action_type: 'delete',
+                    changes: [{ field: 'pv', before: fileUrl, after: null }],
+                    actor_name: user?.name || null,
+                    actor_phone: user?.phone || null,
+                    actor_user_id: user?.userId || null,
+                    actor_role: user?.role || null,
+                    source_app: 'ee-admin',
+                    edited_at: new Date(),
+                });
+            }
+        } catch (e) {
+            console.error('[engineering-v2/delete] audit log failed:', e);
+        }
+
+        revalidatePath("/engineering-v2");
+        await logActivity({
+            action: "delete",
+            entityType: "attachment",
+            entityId: invoiceBubbleId,
+            entityLabel: fileUrl.split("/").pop() ?? fileUrl,
+            description: `pv attachment removed from invoice ${invoiceBubbleId}`,
+            metadata: { upload_type: "pv", file_url: fileUrl, surface: "engineering-v2" },
+        });
+        return { success: true };
+    } catch (err: any) {
+        console.error("[engineering-v2/delete]", err);
+        await logActivity({
+            action: "delete",
+            entityType: "attachment",
+            entityId: invoiceBubbleId,
+            status: "failed",
+            errorMessage: err?.message ?? String(err),
+            metadata: { upload_type: "pv", file_url: fileUrl, surface: "engineering-v2" },
+        });
+        return { success: false, error: err?.message ?? String(err) };
+    }
+}

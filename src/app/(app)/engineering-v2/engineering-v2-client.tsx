@@ -6,9 +6,9 @@ import {
     Search, SlidersHorizontal, ChevronDown, ChevronRight, X, ExternalLink,
     Image as ImageIcon, FileText, Layers, Wrench, CheckCircle2, AlertCircle,
     RefreshCw, ZoomIn, Download, MapPin, User as UserIcon, Phone, BarChart3,
-    UploadCloud, Loader2,
+    UploadCloud, Loader2, Trash2,
 } from "lucide-react";
-import { uploadAttachment, type UploadType } from "./actions";
+import { uploadAttachment, deletePvDrawing, type UploadType } from "./actions";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -190,7 +190,18 @@ function Lightbox({ urls, index, onClose, onPrev, onNext }: {
 
 // ─── File Grid ────────────────────────────────────────────────────────────────
 
-function FileGrid({ urls, type }: { urls: string[]; type: AttachmentKey }) {
+function FileGrid({
+    urls,
+    type,
+    onDelete,
+    deletingUrl,
+}: {
+    urls: string[];
+    type: AttachmentKey;
+    /** When set, each tile shows a delete control. Omit to keep the tile read-only. */
+    onDelete?: (url: string) => void;
+    deletingUrl?: string | null;
+}) {
     const [lightbox, setLightbox] = useState<{ index: number } | null>(null);
     const { Icon, color, bg } = ATTACHMENT_META[type];
 
@@ -220,6 +231,19 @@ function FileGrid({ urls, type }: { urls: string[]; type: AttachmentKey }) {
                             </div>
                         )}
                         <div className="px-2 py-1.5 text-xs text-gray-500 border-t border-gray-100 truncate">{filename(url)}</div>
+                        {onDelete && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onDelete(url); }}
+                                disabled={deletingUrl === url}
+                                className="absolute top-1.5 right-1.5 p-1.5 rounded-lg bg-white/90 text-red-600 shadow hover:bg-red-50 disabled:opacity-50 transition"
+                                title="Delete"
+                            >
+                                {deletingUrl === url
+                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    : <Trash2 className="h-3.5 w-3.5" />
+                                }
+                            </button>
+                        )}
                     </div>
                 ))}
             </div>
@@ -326,6 +350,8 @@ function InvoiceDetail({
 }) {
     const [activeTab, setActiveTab] = useState<AttachmentKey>("roof");
     const [localInvoice, setLocalInvoice] = useState<InvoiceRow>(invoice);
+    const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     // Re-fetch this single invoice after an upload so counts update immediately
     async function refreshSingle() {
@@ -336,6 +362,24 @@ function InvoiceDetail({
             if (found) setLocalInvoice(found);
         } catch { }
         onRefresh();
+    }
+
+    async function handleDeletePv(url: string) {
+        if (!confirm("Delete this PV system drawing?")) return;
+        setDeletingUrl(url);
+        setDeleteError(null);
+        try {
+            const result = await deletePvDrawing(localInvoice.bubble_id, url);
+            if (result.success) {
+                await refreshSingle();
+            } else {
+                setDeleteError(result.error ?? "Delete failed");
+            }
+        } catch {
+            setDeleteError("Delete failed");
+        } finally {
+            setDeletingUrl(null);
+        }
     }
 
     const tabs: { key: AttachmentKey; urls: string[] }[] = [
@@ -445,7 +489,15 @@ function InvoiceDetail({
                                         <UploadButton invoice={localInvoice} type={key} onSuccess={refreshSingle} />
                                     </div>
                                 )}
-                                <FileGrid urls={urls} type={key} />
+                                {deleteError && key === "pv" && (
+                                    <p className="text-xs text-red-600 mb-3">{deleteError}</p>
+                                )}
+                                <FileGrid
+                                    urls={urls}
+                                    type={key}
+                                    onDelete={isAdmin && key === "pv" ? handleDeletePv : undefined}
+                                    deletingUrl={deletingUrl}
+                                />
                             </div>
                         ) : null
                     )}
