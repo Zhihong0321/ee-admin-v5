@@ -34,6 +34,39 @@ interface EppSplit {
   feeAmount?: number;
 }
 
+// Audit-log `changes` is free-form JSON from several writers (array, keyed object,
+// JSON string, nested values). Normalize it so one odd row can't crash the tab.
+function historyValue(v: unknown): string | null {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  try { return JSON.stringify(v); } catch { return String(v); }
+}
+
+function normalizeHistoryChanges(raw: unknown): Array<{ field: string; before: string | null; after: string | null }> {
+  let data: unknown = raw;
+  if (typeof data === "string") {
+    try { data = JSON.parse(data); } catch { return [{ field: "change", before: null, after: data as string }]; }
+  }
+  if (!data) return [];
+  const list: unknown[] = Array.isArray(data)
+    ? data
+    : typeof data === "object"
+      ? Object.entries(data as Record<string, unknown>).map(([field, v]) =>
+          v && typeof v === "object" && !Array.isArray(v) && ("before" in (v as object) || "after" in (v as object))
+            ? { field, ...(v as object) }
+            : { field, before: null, after: v })
+      : [];
+  return list.map((c, i) => {
+    const o = (c && typeof c === "object" ? c : { after: c }) as Record<string, unknown>;
+    return {
+      field: historyValue(o.field ?? o.name ?? o.key) ?? `change ${i + 1}`,
+      before: historyValue(o.before ?? o.old ?? o.from),
+      after: historyValue(o.after ?? o.new ?? o.to),
+    };
+  });
+}
+
 export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose, version = "v2" }: InvoiceEditorProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [downloading, setDownloading] = useState(false);
@@ -668,7 +701,7 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
               ) : (
                 <div className="space-y-0">
                   {editHistory.map((entry, index) => {
-                    const changes = (entry.changes || []) as Array<{ field: string; before: string | null; after: string | null }>;
+                    const changes = normalizeHistoryChanges(entry.changes);
                     const actionLabel = entry.action_type === 'create' ? 'Added' : entry.action_type === 'delete' ? 'Deleted' : 'Updated';
                     const entityLabel = entry.entity_type === 'invoice_item' ? 'Line Item' : 'Invoice';
                     const actionColor = entry.action_type === 'create' ? 'text-green-600 bg-green-50 border-green-200' : entry.action_type === 'delete' ? 'text-red-600 bg-red-50 border-red-200' : 'text-blue-600 bg-blue-50 border-blue-200';
