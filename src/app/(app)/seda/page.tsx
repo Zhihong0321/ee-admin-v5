@@ -708,28 +708,28 @@ export default function SedaListPage() {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50">
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-40">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             Submission Ready
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             Customer
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-56">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             Agent User
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             Form Progress
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             Payment
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             SEDA Profile
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             Last Modified
                           </th>
-                          <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
@@ -759,7 +759,7 @@ export default function SedaListPage() {
                               className="cursor-pointer hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors"
                             >
                               {/* Submission Ready */}
-                              <td className="px-6 py-4">
+                              <td className="px-4 py-4">
                                 {isReady ? (
                                   <span className="inline-flex items-center px-3 py-1 text-xs font-bold rounded-full bg-emerald-500 text-white border border-emerald-600 shadow-sm animate-pulse">
                                     READY
@@ -772,8 +772,8 @@ export default function SedaListPage() {
                               </td>
 
                               {/* Customer */}
-                              <td className="px-6 py-4">
-                                <div className="text-sm text-slate-900 font-medium max-w-xs truncate">
+                              <td className="px-4 py-4">
+                                <div className="text-sm text-slate-900 font-medium max-w-[12rem] truncate">
                                   {seda.customer_name || "N/A"}
                                 </div>
                                 <div className="text-xs text-slate-400 mt-1">
@@ -785,17 +785,17 @@ export default function SedaListPage() {
                               </td>
 
                               {/* Agent User */}
-                              <td className="px-6 py-4">
-                                <div className="text-sm text-slate-900 font-mono max-w-[14rem] truncate">
+                              <td className="px-4 py-4">
+                                <div className="text-sm text-slate-900 font-mono max-w-[11rem] truncate">
                                   {seda.agent_user_id || "No user ID"}
                                 </div>
-                                <div className="text-xs text-slate-400 mt-1 max-w-[14rem] truncate">
+                                <div className="text-xs text-slate-400 mt-1 max-w-[11rem] truncate">
                                   {seda.agent_user_email || seda.agent_code || "No user email"}
                                 </div>
                               </td>
 
                               {/* Form Progress */}
-                              <td className="px-6 py-4">
+                              <td className="px-4 py-4">
                                 <div className="flex flex-col gap-1">
                                   <div className="text-xs font-semibold text-slate-700">
                                     {seda.completed_count}/{totalCheckpoints} Complete
@@ -811,7 +811,7 @@ export default function SedaListPage() {
                               </td>
 
                               {/* Payment */}
-                              <td className="px-6 py-4">
+                              <td className="px-4 py-4">
                                 <div className="flex flex-col gap-1">
                                   <div className="flex items-center justify-between text-[10px] font-bold">
                                     <span className={percent >= 4 ? "text-emerald-600" : "text-red-600"}>
@@ -829,7 +829,7 @@ export default function SedaListPage() {
                               </td>
 
                               {/* SEDA Profile Status */}
-                              <td className="px-6 py-4">
+                              <td className="px-4 py-4">
                                 {seda.seda_profile_status === "profile_created" ? (
                                   seda.seda_profile_id ? (
                                     <a
@@ -867,14 +867,14 @@ export default function SedaListPage() {
                               </td>
 
                               {/* Last Modified */}
-                              <td className="px-6 py-4">
+                              <td className="px-4 py-4">
                                 <div className="text-sm text-slate-500">
                                   {formatDate(seda.modified_date || seda.updated_at || seda.created_date)}
                                 </div>
                               </td>
 
                               {/* Actions */}
-                              <td className="px-6 py-4">
+                              <td className="px-4 py-4">
                                 <div className="flex items-center justify-end gap-1">
                                   {seda.linked_invoice?.[0] && (
                                     <a
