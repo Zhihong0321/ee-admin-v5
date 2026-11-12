@@ -2,9 +2,10 @@
 "use server";
 import { db } from "@/lib/db";
 import { invoices, payments } from "@/db/schema";
-import { eq, isNotNull } from "drizzle-orm";
+import { isNotNull } from "drizzle-orm";
 import { logSyncActivity } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
+import { appendPaymentLink } from "@/lib/invoice-payment-links";
 
 /**
  * ============================================================================
@@ -68,13 +69,12 @@ export async function syncMissingPaymentLinks() {
                     // It's missing! Add it.
                     const newLinks = [...invData.linked_payment, p.bubble_id];
 
-                    // Update DB
-                    await db.update(invoices)
-                        .set({
-                            linked_payment: newLinks,
-                            updated_at: new Date()
-                        })
-                        .where(eq(invoices.id, invData.id));
+                    // Update DB: one atomic append, safe against concurrent verifications
+                    const appended = await appendPaymentLink(p.linked_invoice, p.bubble_id);
+                    if (!appended) {
+                        logSyncActivity(`Could not add payment ${p.bubble_id} to invoice ${p.linked_invoice}; will retry on next run`, 'WARN');
+                        continue;
+                    }
 
                     // Update Map in case there are multiple payments for same invoice
                     invoiceMap.set(p.linked_invoice, {

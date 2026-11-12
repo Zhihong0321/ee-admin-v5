@@ -16,6 +16,7 @@ import { syncPaymentsFromBubble } from "@/lib/bubble";
 import { calculateEppCost, getEppRate } from "@/lib/epp-rates";
 import { getUser } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { appendPaymentLink, LINK_MAX_ATTEMPTS } from "@/lib/invoice-payment-links";
 
 /**
  * Log a payment event into invoice_audit_log, linked to the invoice.
@@ -776,13 +777,21 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
       .set({ status: 'deleted', updated_at: new Date(), verified_by: adminId })
       .where(eq(submitted_payments.id, submittedPaymentId));
 
-    // 4. If this payment is linked to an invoice, link it and recalculate
+    // 4. If this payment is linked to an invoice, link it and recalculate.
+    //    A link failure is recorded (label + activity log); the payment row is kept.
+    let linked = false;
     if (p.linked_invoice && p.bubble_id) {
-      // 4a. Add to invoice's linked_payment array
-      await linkPaymentToInvoice(p.linked_invoice, p.bubble_id);
+      // 4a. Add to invoice's linked_payment array (atomic, retried)
+      linked = await linkPaymentToInvoice(p.linked_invoice, p.bubble_id);
 
-      // 4b. Recalculate status
+      // 4b. Recalculate status (serialized per invoice)
       await recalculateInvoicePaymentStatus(p.linked_invoice, adminId);
+    } else if (p.linked_invoice) {
+      await recordLinkFailure(
+        p.linked_invoice,
+        null,
+        new Error("Submitted payment has no bubble_id, so it cannot be linked to the invoice"),
+      );
     }
 
     // Log payment verification into invoice_audit_log
@@ -916,7 +925,7 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
         payment_method: p.payment_method,
       },
     });
-    return { success: true };
+    return { success: true, linked };
   } catch (error) {
     console.error("Database error in verifyPayment:", error);
     await logActivity({
@@ -936,110 +945,158 @@ export async function verifyPayment(submittedPaymentId: number, adminId: string)
  * @param triggeredBy - Who triggered this recalculation (for logging)
  */
 async function recalculateInvoicePaymentStatus(invoiceBubbleId: string, triggeredBy: string) {
-  try {
-    // 1. Get the invoice
-    const invoice = await db.query.invoices.findFirst({
-      where: eq(invoices.bubble_id, invoiceBubbleId)
-    });
+  for (let attempt = 1; attempt <= LINK_MAX_ATTEMPTS; attempt++) {
+    try {
+      await db.transaction(async (tx) => {
+        // Stop a hung lock from blocking the verify action forever.
+        await tx.execute(sql`SET LOCAL lock_timeout = '10s'`);
 
-    if (!invoice) {
-      console.warn(`Invoice ${invoiceBubbleId} not found for payment recalculation`);
-      return;
-    }
+        // 1. Lock the invoice row BEFORE reading the payments. Recalculations for the
+        //    same invoice are serialized, and each one sees every committed link.
+        const [invoice] = await tx
+          .select()
+          .from(invoices)
+          .where(eq(invoices.bubble_id, invoiceBubbleId))
+          .limit(1)
+          .for("update");
 
-    const totalAmount = parseFloat(invoice.total_amount || '0');
-
-    // Skip if total_amount is 0 or null
-    if (totalAmount <= 0) {
-      console.warn(`Invoice ${invoiceBubbleId}: total_amount is ${totalAmount}, skipping recalculation`);
-      return;
-    }
-
-    // 2. Get all verified payments linked to this invoice
-    const linkedPayments = await db
-      .select({ amount: payments.amount, payment_date: payments.payment_date })
-      .from(payments)
-      .where(eq(payments.linked_invoice, invoiceBubbleId));
-
-    // 3. Sum up all payments and track dates
-    let totalPaid = 0;
-    let latestPaymentDate: Date | null = null;
-    let firstPaymentDate: Date | null = null;
-
-    for (const payment of linkedPayments) {
-      const amount = parseFloat(payment.amount || '0');
-      totalPaid += amount;
-
-      if (payment.payment_date) {
-        const paymentDate = new Date(payment.payment_date);
-
-        // Track latest date
-        if (!latestPaymentDate || paymentDate > latestPaymentDate) {
-          latestPaymentDate = paymentDate;
+        if (!invoice) {
+          console.warn(`Invoice ${invoiceBubbleId} not found for payment recalculation`);
+          return;
         }
 
-        // Track earliest date
-        if (!firstPaymentDate || paymentDate < firstPaymentDate) {
-          firstPaymentDate = paymentDate;
+        const totalAmount = parseFloat(invoice.total_amount || '0');
+
+        // Skip if total_amount is 0 or null
+        if (totalAmount <= 0) {
+          console.warn(`Invoice ${invoiceBubbleId}: total_amount is ${totalAmount}, skipping recalculation`);
+          return;
         }
+
+        // 2. Get all verified payments linked to this invoice
+        const linkedPayments = await tx
+          .select({ amount: payments.amount, payment_date: payments.payment_date })
+          .from(payments)
+          .where(eq(payments.linked_invoice, invoiceBubbleId));
+
+        // 3. Sum up all payments and track dates
+        let totalPaid = 0;
+        let latestPaymentDate: Date | null = null;
+        let firstPaymentDate: Date | null = null;
+
+        for (const payment of linkedPayments) {
+          const amount = parseFloat(payment.amount || '0');
+          totalPaid += amount;
+
+          if (payment.payment_date) {
+            const paymentDate = new Date(payment.payment_date);
+
+            // Track latest date
+            if (!latestPaymentDate || paymentDate > latestPaymentDate) {
+              latestPaymentDate = paymentDate;
+            }
+
+            // Track earliest date
+            if (!firstPaymentDate || paymentDate < firstPaymentDate) {
+              firstPaymentDate = paymentDate;
+            }
+          }
+        }
+
+        // 4. Calculate percentage
+        const percentage = (totalPaid / totalAmount) * 100;
+        const isFullyPaid = totalPaid >= totalAmount; // Full payment when sum >= total_amount
+
+        // 5. Determine full payment date
+        // Use the latest payment date if fully paid, otherwise null
+        const fullPaymentDate = isFullyPaid && latestPaymentDate ? latestPaymentDate : null;
+
+        // 6. Update invoice with new values
+        await tx.update(invoices)
+          .set({
+            percent_of_total_amount: percentage.toString(),
+            paid_amount: totalPaid.toFixed(2),
+            paid: isFullyPaid,
+            first_payment_date: firstPaymentDate,
+            full_payment_date: fullPaymentDate,
+            last_payment_date: latestPaymentDate,
+            updated_at: new Date()
+          })
+          .where(eq(invoices.bubble_id, invoiceBubbleId));
+
+        console.log(`Invoice ${invoiceBubbleId}: ${percentage.toFixed(2)}% paid (${isFullyPaid ? 'FULLY PAID' : 'PARTIAL'}), triggered by ${triggeredBy}`);
+      });
+      return;
+    } catch (error) {
+      console.error(`Recalculation attempt ${attempt}/${LINK_MAX_ATTEMPTS} failed for invoice ${invoiceBubbleId}:`, error);
+      if (attempt === LINK_MAX_ATTEMPTS) {
+        // Recorded, not thrown: the payment is already saved and the link is handled separately.
+        await logActivity({
+          action: "update",
+          entityType: "invoice",
+          entityId: invoiceBubbleId,
+          status: "failed",
+          errorMessage: error instanceof Error ? error.message : String(error),
+          description: `Payment total recalculation failed for invoice ${invoiceBubbleId} (triggered by ${triggeredBy}); use Recalculate % Paid`,
+        });
       }
     }
-
-    // 4. Calculate percentage
-    const percentage = (totalPaid / totalAmount) * 100;
-    const isFullyPaid = totalPaid >= totalAmount; // Full payment when sum >= total_amount
-
-    // 5. Determine full payment date
-    // Use the latest payment date if fully paid, otherwise null
-    const fullPaymentDate = isFullyPaid && latestPaymentDate ? latestPaymentDate : null;
-
-    // 6. Update invoice with new values
-    await db.update(invoices)
-      .set({
-        percent_of_total_amount: percentage.toString(),
-        paid_amount: totalPaid.toFixed(2),
-        paid: isFullyPaid,
-        first_payment_date: firstPaymentDate,
-        full_payment_date: fullPaymentDate,
-        last_payment_date: latestPaymentDate,
-        updated_at: new Date()
-      })
-      .where(eq(invoices.bubble_id, invoiceBubbleId));
-
-    console.log(`Invoice ${invoiceBubbleId}: ${percentage.toFixed(2)}% paid (${isFullyPaid ? 'FULLY PAID' : 'PARTIAL'}), triggered by ${triggeredBy}`);
-
-  } catch (error) {
-    console.error(`Error recalculating payment status for invoice ${invoiceBubbleId}:`, error);
-    throw error;
   }
 }
 
 /**
- * Link a payment to an invoice's linked_payment array
+ * Link a payment to an invoice's linked_payment array.
+ *
+ * Each attempt is one atomic statement (see appendPaymentLink), so concurrent
+ * verifications on the same invoice cannot overwrite each other's link. A failed
+ * attempt is retried. If every attempt fails, the failure is recorded on the payment
+ * and in the activity log. It is never silently dropped, and the payment row is kept.
  */
-async function linkPaymentToInvoice(invoiceBubbleId: string, paymentBubbleId: string) {
-  try {
-    const invoice = await db.query.invoices.findFirst({
-      where: eq(invoices.bubble_id, invoiceBubbleId)
-    });
-
-    if (!invoice) return;
-
-    const currentLinks = invoice.linked_payment || [];
-
-    // Check if already linked
-    if (!currentLinks.includes(paymentBubbleId)) {
-      const newLinks = [...currentLinks, paymentBubbleId];
-
-      await db.update(invoices)
-        .set({ linked_payment: newLinks, updated_at: new Date() })
-        .where(eq(invoices.bubble_id, invoiceBubbleId));
-
-      console.log(`Linked payment ${paymentBubbleId} to invoice ${invoiceBubbleId}`);
+async function linkPaymentToInvoice(invoiceBubbleId: string, paymentBubbleId: string): Promise<boolean> {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= LINK_MAX_ATTEMPTS; attempt++) {
+    try {
+      if (await appendPaymentLink(invoiceBubbleId, paymentBubbleId)) {
+        console.log(`Linked payment ${paymentBubbleId} to invoice ${invoiceBubbleId}`);
+        return true;
+      }
+      lastError = new Error(`Invoice ${invoiceBubbleId} not found, or the payment UID is not on its array after the update`);
+    } catch (error) {
+      lastError = error;
     }
-  } catch (error) {
-    console.error(`Error linking payment ${paymentBubbleId} to invoice ${invoiceBubbleId}:`, error);
+    console.error(`Link attempt ${attempt}/${LINK_MAX_ATTEMPTS} failed for payment ${paymentBubbleId} -> invoice ${invoiceBubbleId}:`, lastError);
   }
+
+  await recordLinkFailure(invoiceBubbleId, paymentBubbleId, lastError);
+  return false;
+}
+
+/**
+ * Record a payment that could not be linked to its invoice: a label on the payment's
+ * log and a failed activity-log entry. Never throws, so the verify action still completes.
+ */
+async function recordLinkFailure(invoiceBubbleId: string, paymentBubbleId: string | null, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const label = `[${new Date().toISOString()}] LINK FAILED to invoice ${invoiceBubbleId}: ${message}`;
+
+  try {
+    if (paymentBubbleId) {
+      await db.update(payments)
+        .set({ log: sql`COALESCE(${payments.log}, '') || ${"\n" + label}` })
+        .where(eq(payments.bubble_id, paymentBubbleId));
+    }
+  } catch (labelError) {
+    console.error(`Could not write link-failure label on payment ${paymentBubbleId}:`, labelError);
+  }
+
+  await logActivity({
+    action: "update",
+    entityType: "payment",
+    entityId: paymentBubbleId,
+    status: "failed",
+    errorMessage: message,
+    description: `Payment ${paymentBubbleId ?? "(no UID)"} was verified but is NOT linked to invoice ${invoiceBubbleId}; run Sync Missing Payment Links to repair`,
+  });
 }
 
 // ============================================================================

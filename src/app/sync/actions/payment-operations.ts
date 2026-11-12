@@ -28,6 +28,7 @@ import { eq, sql, and, isNotNull } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
 import { resolveAgentBubbleId } from "@/lib/bubble/agent-profile";
+import { appendPaymentLink } from "@/lib/invoice-payment-links";
 
 const STORAGE_ROOT = '/storage';
 const PAYMENT_SYNC_LIST_PATH = path.join(STORAGE_ROOT, 'payment-sync-list.txt');
@@ -572,12 +573,12 @@ export async function linkPaymentsToInvoices() {
           continue;
         }
 
-        // Add payment to invoice.linked_payment array
-        const updatedLinkedPayments = [...currentLinkedPayments, paymentBubbleId];
-
-        await db.update(invoices)
-          .set({ linked_payment: updatedLinkedPayments })
-          .where(eq(invoices.id, invoice.id));
+        // Add payment to invoice.linked_payment array (one atomic statement, safe against concurrent links)
+        const appended = await appendPaymentLink(payment.linked_invoice, paymentBubbleId);
+        if (!appended) {
+          logSyncActivity(`Could not link payment ${paymentBubbleId} to invoice ${payment.linked_invoice}; left in problem list`, 'WARN');
+          continue;
+        }
 
         logSyncActivity(`✓ Linked payment ${paymentBubbleId} to invoice ${payment.linked_invoice}`, 'INFO');
         linkedCount++;
