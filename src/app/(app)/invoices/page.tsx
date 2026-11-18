@@ -609,7 +609,7 @@ function InvoicesContent() {
                               value={inv.package_type ?? ""}
                               disabled={savingPackageId === inv.id}
                               onChange={(e) => handlePackageTypeChange(inv.id, e.target.value)}
-                              className="input text-xs py-1 min-w-[9rem]"
+                              className="input text-xs py-1 px-2 w-48"
                             >
                               <option value="">— Not set</option>
                               {INVOICE_PACKAGE_TYPE_OPTIONS.map((opt) => (
@@ -627,7 +627,7 @@ function InvoicesContent() {
                               value={inv.customer_segment ?? ""}
                               disabled={savingSegmentId === inv.id}
                               onChange={(e) => handleSegmentChange(inv.id, e.target.value)}
-                              className="input text-xs py-1 mt-1 min-w-[9rem]"
+                              className="input text-xs py-1 px-2 mt-1 w-48"
                               title="Segment: Residential / Commercial / Factory"
                             >
                               <option value="">Segment: not set</option>
