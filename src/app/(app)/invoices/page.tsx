@@ -488,7 +488,7 @@ function InvoicesContent() {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="table">
+          <table className="table [&_th]:px-3 [&_td]:px-3">
             <thead>
               <tr>
                 <th>Invoice ID</th>
@@ -559,12 +559,12 @@ function InvoicesContent() {
                         </div>
                       </td>
                       <td>
-                        <div className="font-medium text-secondary-700">
+                        <div className="font-medium text-secondary-700 whitespace-normal break-words max-w-[14rem]">
                           {version === "v1" ? inv.linked_customer : inv.customer_name_snapshot || "N/A"}
                         </div>
                       </td>
                       <td>
-                        <div className="text-secondary-600">
+                        <div className="text-secondary-600 whitespace-normal break-words max-w-[12rem]">
                           {inv.invoice_by_user_name || inv.agent_name || (version === "v1" ? inv.dealercode : "N/A")}
                         </div>
                       </td>
@@ -586,7 +586,7 @@ function InvoicesContent() {
                               value={inv.package_type ?? ""}
                               disabled={savingPackageId === inv.id}
                               onChange={(e) => handlePackageTypeChange(inv.id, e.target.value)}
-                              className="input text-xs py-1 min-w-[12rem]"
+                              className="input text-xs py-1 min-w-[9rem]"
                             >
                               <option value="">— Not set</option>
                               {INVOICE_PACKAGE_TYPE_OPTIONS.map((opt) => (
