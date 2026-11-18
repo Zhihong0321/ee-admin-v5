@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { INVOICE_TEMPLATE_HTML } from "@/lib/invoice-template";
 import { X, Download, Loader2, FileText, User, CreditCard, Package, MapPin, Phone, Mail, Calendar, DollarSign, Info, Save, Edit2, Plus, Trash2, Check, X as XIcon, Clock, ArrowRight, Calculator, AlertCircle, RefreshCw, Search } from "lucide-react";
-import { generateInvoicePdf, updateInvoiceItem, createInvoiceItem, deleteInvoiceItem, updateInvoiceAgent, getAgentsForSelection, getInvoiceDetails, getInvoiceEditHistory, updateInvoiceWithEppFees, searchPackagesForSwitch, switchInvoiceItemPackage, recalculateInvoicePaymentPercent } from "@/app/(app)/invoices/actions";
+import { generateInvoicePdf, updateInvoiceItem, createInvoiceItem, deleteInvoiceItem, updateInvoiceAgent, getAgentsForSelection, getInvoiceDetails, getInvoiceEditHistory, updateInvoiceWithEppFees, searchPackagesForSwitch, switchInvoiceItemPackage, recalculateInvoicePaymentPercent, getCurrentUserIsAdmin, updateInvoiceCustomerSegment } from "@/app/(app)/invoices/actions";
+import { INVOICE_SEGMENT_OPTIONS, INVOICE_SEGMENT_LABELS, type InvoiceSegment } from "@/lib/invoice-segments";
 import { EPP_RATES, EPP_BANKS, getEppRate, FOREIGN_CARD_RATES, AMEX_RATE } from "@/lib/epp-rates";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 import IntroducerBadge from "@/components/IntroducerBadge";
@@ -380,6 +381,34 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
       alert("Failed to delete item. Please try again.");
     } finally {
       setDeletingItemId(null);
+    }
+  };
+
+  // Segment (Residential / Commercial / Factory): admin can set it, others see it.
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [savingSegment, setSavingSegment] = useState(false);
+  useEffect(() => {
+    getCurrentUserIsAdmin().then(setIsAdmin).catch((err) => console.error("Admin check failed:", err));
+  }, []);
+
+  const handleSegmentChange = async (value: string) => {
+    if (!invoiceData?.id) return;
+    const nextValue = value || null;
+    setSavingSegment(true);
+    try {
+      const result = await updateInvoiceCustomerSegment(invoiceData.id, nextValue);
+      if (result.success) {
+        const refreshed = await getInvoiceDetails(invoiceData.id, version);
+        if (refreshed) setInvoiceData(refreshed);
+        refreshHistory();
+      } else {
+        alert(result.error || "Failed to update segment");
+      }
+    } catch (error) {
+      console.error("Error saving segment:", error);
+      alert("Failed to save segment. Please try again.");
+    } finally {
+      setSavingSegment(false);
     }
   };
 
@@ -1012,6 +1041,28 @@ export default function InvoiceEditor({ invoiceData: initialInvoiceData, onClose
                           )}
                         </button>
                       </div>
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-medium text-secondary-500 block mb-1">Segment</span>
+                      {isAdmin ? (
+                        <select
+                          value={invoiceData?.customer_segment ?? ""}
+                          disabled={savingSegment}
+                          onChange={(e) => handleSegmentChange(e.target.value)}
+                          className="input text-sm py-1.5 px-3 w-48"
+                        >
+                          <option value="">Not set</option>
+                          {INVOICE_SEGMENT_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{INVOICE_SEGMENT_LABELS[opt as InvoiceSegment]}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-sm font-semibold text-secondary-900">
+                          {invoiceData?.customer_segment
+                            ? (INVOICE_SEGMENT_LABELS[invoiceData.customer_segment as InvoiceSegment] ?? invoiceData.customer_segment)
+                            : "Not set"}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <span className="text-[11px] font-medium text-secondary-500 block mb-1">Source</span>
