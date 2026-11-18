@@ -16,6 +16,8 @@ import { revalidatePath } from "next/cache";
 import { syncCompleteInvoicePackage } from "@/lib/bubble";
 import { logInvoiceEdit } from "@/lib/invoice-edit-logger";
 import { logActivity } from "@/lib/activity-log";
+import { getUser } from "@/lib/auth";
+import { INVOICE_PACKAGE_TYPE_OPTIONS } from "@/lib/invoice-package-types";
 
 const PDF_API_URL = "https://pdf-gen-production-6c81.up.railway.app";
 
@@ -157,6 +159,7 @@ export async function getInvoices(
           i.total_amount,
           i.invoice_date,
           i.percent_of_total_amount,
+          i.package_type,
           i.is_deleted,
           c.name as customer_name,
           COALESCE(u.name, u.email, a.name, a.email, i.created_by, i.linked_agent) as invoice_by_user_name,
@@ -181,6 +184,7 @@ export async function getInvoices(
         total_amount: row.total_amount,
         invoice_date: row.invoice_date,
         percent_of_total_amount: row.percent_of_total_amount,
+        package_type: row.package_type ?? null,
         is_deleted: row.is_deleted,
         customer_name_snapshot: row.customer_name || "N/A",
         invoice_by_user_name: row.invoice_by_user_name || "N/A",
@@ -503,6 +507,64 @@ export async function recoverInvoice(id: number) {
       status: "failed",
       errorMessage: String(error),
     });
+    return { success: false, error: String(error) };
+  }
+}
+
+/** Whether the signed-in user may change invoice package types (admin only). */
+export async function getCurrentUserIsAdmin(): Promise<boolean> {
+  try {
+    const user = await getUser();
+    return user?.isAdmin === true || (user?.tags || []).map((t) => t.toLowerCase()).includes("admin");
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Sets invoice.package_type to one of the preset options, or clears it (null).
+ * Admin only. Logged to the invoice audit trail.
+ */
+export async function updateInvoicePackageType(id: number, packageType: string | null) {
+  const isAdmin = await getCurrentUserIsAdmin();
+  if (!isAdmin) return { success: false, error: "Only admins can change the package type" };
+
+  const value = packageType && packageType.trim() !== "" ? packageType.trim() : null;
+  if (value !== null && !(INVOICE_PACKAGE_TYPE_OPTIONS as readonly string[]).includes(value)) {
+    return { success: false, error: "Unknown package type" };
+  }
+
+  try {
+    const [before] = await db
+      .select({ invoice_number: invoices.invoice_number, package_type: invoices.package_type })
+      .from(invoices)
+      .where(eq(invoices.id, id))
+      .limit(1);
+    if (!before) return { success: false, error: "Invoice not found" };
+
+    await db.update(invoices).set({ package_type: value }).where(eq(invoices.id, id));
+
+    await logInvoiceEdit({
+      invoiceId: id,
+      invoiceNumber: before.invoice_number,
+      entityType: "invoice",
+      entityId: null,
+      actionType: "update",
+      before: { package_type: before.package_type },
+      after: { package_type: value },
+      fields: ["package_type"],
+    });
+    revalidatePath("/invoices");
+    await logActivity({
+      action: "update",
+      entityType: "invoice",
+      entityId: id,
+      entityLabel: before.invoice_number ?? null,
+      description: `Package type set to ${value ?? "(blank)"}`,
+    });
+    return { success: true, packageType: value };
+  } catch (error) {
+    console.error("Failed to update invoice package type:", error);
     return { success: false, error: String(error) };
   }
 }

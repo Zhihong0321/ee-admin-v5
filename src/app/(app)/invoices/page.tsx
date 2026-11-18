@@ -3,9 +3,10 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, Database, Trash2, RotateCcw, AlertTriangle, X, Printer, Calculator, Check } from "lucide-react";
-import { getInvoices, getInvoiceDetails, generateInvoicePdf, deleteInvoice, recoverInvoice, getUsersForFilter, recalculateInvoicePaymentPercent } from "./actions";
+import { getInvoices, getInvoiceDetails, generateInvoicePdf, deleteInvoice, recoverInvoice, getUsersForFilter, recalculateInvoicePaymentPercent, getCurrentUserIsAdmin, updateInvoicePackageType } from "./actions";
 import InvoiceEditor from "@/components/InvoiceEditor";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
+import { INVOICE_PACKAGE_TYPE_OPTIONS } from "@/lib/invoice-package-types";
 
 function InvoicesContent() {
   const searchParams = useSearchParams();
@@ -42,6 +43,8 @@ function InvoicesContent() {
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [recalculatingId, setRecalculatingId] = useState<number | null>(null);
   const [successId, setSuccessId] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [savingPackageId, setSavingPackageId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -49,6 +52,7 @@ function InvoicesContent() {
 
   useEffect(() => {
     getUsersForFilter().then(setUserList).catch(console.error);
+    getCurrentUserIsAdmin().then(setIsAdmin).catch(console.error);
   }, []);
 
   // Handle auto-opening invoice from query param
@@ -169,6 +173,28 @@ function InvoicesContent() {
       alert("An error occurred while recalculating payment percentage");
     } finally {
       setRecalculatingId(null);
+    }
+  };
+
+  // Admin picks a preset package type for an invoice. Updates the row at once and
+  // puts the old value back if the save fails.
+  const handlePackageTypeChange = async (id: number, value: string) => {
+    const nextValue = value || null;
+    const previous = invoices.find((inv) => inv.id === id)?.package_type ?? null;
+    setSavingPackageId(id);
+    setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, package_type: nextValue } : inv)));
+    try {
+      const res = await updateInvoicePackageType(id, nextValue);
+      if (!res.success) {
+        setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, package_type: previous } : inv)));
+        alert(res.error || "Failed to update package type");
+      }
+    } catch (err) {
+      console.error("Error updating package type:", err);
+      setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, package_type: previous } : inv)));
+      alert("An error occurred while updating package type");
+    } finally {
+      setSavingPackageId(null);
     }
   };
 
@@ -469,6 +495,7 @@ function InvoicesContent() {
                 <th>Customer</th>
                 <th>Invoice By</th>
                 <th>Date</th>
+                {version === "v2" ? <th>Package Type</th> : null}
                 <th className="text-right">Amount</th>
                 {version === "v2" ? <th className="text-right">% Paid</th> : null}
                 <th className="text-right">Actions</th>
@@ -485,7 +512,7 @@ function InvoicesContent() {
                 ))
               ) : invoices.length === 0 ? (
                 <tr>
-                  <td colSpan={version === "v1" ? 6 : 7} className="px-6 py-16 text-center">
+                  <td colSpan={version === "v1" ? 6 : 8} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="p-4 bg-secondary-100 rounded-full">
                         <FileText className="h-8 w-8 text-secondary-400" />
@@ -552,6 +579,28 @@ function InvoicesContent() {
                             : "N/A"}
                         </div>
                       </td>
+                      {version === "v2" ? (
+                        <td>
+                          {isAdmin ? (
+                            <select
+                              value={inv.package_type ?? ""}
+                              disabled={savingPackageId === inv.id}
+                              onChange={(e) => handlePackageTypeChange(inv.id, e.target.value)}
+                              className="input text-xs py-1 min-w-[12rem]"
+                            >
+                              <option value="">— Not set</option>
+                              {INVOICE_PACKAGE_TYPE_OPTIONS.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                              {inv.package_type && !(INVOICE_PACKAGE_TYPE_OPTIONS as readonly string[]).includes(inv.package_type) ? (
+                                <option value={inv.package_type}>{inv.package_type} (not in list)</option>
+                              ) : null}
+                            </select>
+                          ) : (
+                            <div className="text-xs text-secondary-600">{inv.package_type || "—"}</div>
+                          )}
+                        </td>
+                      ) : null}
                       <td className="text-right">
                         <div className="font-bold text-secondary-900">
                           MYR {parseFloat(version === "v1" ? inv.amount : inv.total_amount || 0).toLocaleString("en-US", {

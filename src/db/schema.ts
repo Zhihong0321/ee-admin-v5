@@ -108,6 +108,10 @@ export const invoices = pgTable('invoice', {
   pv_system_drawing: text('pv_system_drawing').array(), // Invoice Office PV system drawings
   site_assessment_image: text('site_assessment_image').array(), // Site assessment images (live DB col 144)
 
+  // Customer segment for this invoice: 'residential' | 'commercial' | 'factory'. NULL = not yet classified.
+  customer_segment: text('customer_segment'),
+  package_type: text('package_type'), // Preset package type chosen by admin (see src/lib/invoice-package-types.ts)
+
   // Commission Eligibility Fields
   amount_eligible_for_comm: numeric('amount_eligible_for_comm'),
   eligible_amount_description: text('eligible_amount_description'),
