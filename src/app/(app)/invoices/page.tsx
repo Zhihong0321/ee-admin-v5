@@ -3,10 +3,11 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight, Download, Plus, Eye, Edit2, FileText, Loader2, Database, Trash2, RotateCcw, AlertTriangle, X, Printer, Calculator, Check } from "lucide-react";
-import { getInvoices, getInvoiceDetails, generateInvoicePdf, deleteInvoice, recoverInvoice, getUsersForFilter, recalculateInvoicePaymentPercent, getCurrentUserIsAdmin, updateInvoicePackageType } from "./actions";
+import { getInvoices, getInvoiceDetails, generateInvoicePdf, deleteInvoice, recoverInvoice, getUsersForFilter, recalculateInvoicePaymentPercent, getCurrentUserIsAdmin, updateInvoicePackageType, updateInvoiceCustomerSegment } from "./actions";
 import InvoiceEditor from "@/components/InvoiceEditor";
 import { getInvoiceIdDisplay, getInvoiceNumberDisplay } from "@/lib/invoice-display";
 import { INVOICE_PACKAGE_TYPE_OPTIONS } from "@/lib/invoice-package-types";
+import { INVOICE_SEGMENT_OPTIONS, INVOICE_SEGMENT_LABELS, type InvoiceSegment } from "@/lib/invoice-segments";
 
 function InvoicesContent() {
   const searchParams = useSearchParams();
@@ -45,6 +46,7 @@ function InvoicesContent() {
   const [successId, setSuccessId] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [savingPackageId, setSavingPackageId] = useState<number | null>(null);
+  const [savingSegmentId, setSavingSegmentId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -195,6 +197,27 @@ function InvoicesContent() {
       alert("An error occurred while updating package type");
     } finally {
       setSavingPackageId(null);
+    }
+  };
+
+  // Admin picks a preset segment (Residential / Commercial / Factory) for an invoice.
+  const handleSegmentChange = async (id: number, value: string) => {
+    const nextValue = value || null;
+    const previous = invoices.find((inv) => inv.id === id)?.customer_segment ?? null;
+    setSavingSegmentId(id);
+    setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, customer_segment: nextValue } : inv)));
+    try {
+      const res = await updateInvoiceCustomerSegment(id, nextValue);
+      if (!res.success) {
+        setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, customer_segment: previous } : inv)));
+        alert(res.error || "Failed to update segment");
+      }
+    } catch (err) {
+      console.error("Error updating segment:", err);
+      setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, customer_segment: previous } : inv)));
+      alert("An error occurred while updating segment");
+    } finally {
+      setSavingSegmentId(null);
     }
   };
 
@@ -598,6 +621,24 @@ function InvoicesContent() {
                             </select>
                           ) : (
                             <div className="text-xs text-secondary-600">{inv.package_type || "—"}</div>
+                          )}
+                          {isAdmin ? (
+                            <select
+                              value={inv.customer_segment ?? ""}
+                              disabled={savingSegmentId === inv.id}
+                              onChange={(e) => handleSegmentChange(inv.id, e.target.value)}
+                              className="input text-xs py-1 mt-1 min-w-[9rem]"
+                              title="Segment: Residential / Commercial / Factory"
+                            >
+                              <option value="">Segment: not set</option>
+                              {INVOICE_SEGMENT_OPTIONS.map((opt) => (
+                                <option key={opt} value={opt}>{INVOICE_SEGMENT_LABELS[opt as InvoiceSegment]}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div className="text-xs text-secondary-600 mt-1">
+                              {inv.customer_segment ? (INVOICE_SEGMENT_LABELS[inv.customer_segment as InvoiceSegment] ?? inv.customer_segment) : "—"}
+                            </div>
                           )}
                         </td>
                       ) : null}

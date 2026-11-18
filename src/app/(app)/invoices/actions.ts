@@ -18,6 +18,7 @@ import { logInvoiceEdit } from "@/lib/invoice-edit-logger";
 import { logActivity } from "@/lib/activity-log";
 import { getUser } from "@/lib/auth";
 import { INVOICE_PACKAGE_TYPE_OPTIONS } from "@/lib/invoice-package-types";
+import { INVOICE_SEGMENT_OPTIONS } from "@/lib/invoice-segments";
 
 const PDF_API_URL = "https://pdf-gen-production-6c81.up.railway.app";
 
@@ -160,6 +161,7 @@ export async function getInvoices(
           i.invoice_date,
           i.percent_of_total_amount,
           i.package_type,
+          i.customer_segment,
           i.is_deleted,
           c.name as customer_name,
           COALESCE(u.name, u.email, a.name, a.email, i.created_by, i.linked_agent) as invoice_by_user_name,
@@ -185,6 +187,7 @@ export async function getInvoices(
         invoice_date: row.invoice_date,
         percent_of_total_amount: row.percent_of_total_amount,
         package_type: row.package_type ?? null,
+        customer_segment: row.customer_segment ?? null,
         is_deleted: row.is_deleted,
         customer_name_snapshot: row.customer_name || "N/A",
         invoice_by_user_name: row.invoice_by_user_name || "N/A",
@@ -565,6 +568,54 @@ export async function updateInvoicePackageType(id: number, packageType: string |
     return { success: true, packageType: value };
   } catch (error) {
     console.error("Failed to update invoice package type:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Sets invoice.customer_segment to one of the preset options, or clears it (null).
+ * Admin only. Logged to the invoice audit trail.
+ */
+export async function updateInvoiceCustomerSegment(id: number, segment: string | null) {
+  const isAdmin = await getCurrentUserIsAdmin();
+  if (!isAdmin) return { success: false, error: "Only admins can change the segment" };
+
+  const value = segment && segment.trim() !== "" ? segment.trim() : null;
+  if (value !== null && !(INVOICE_SEGMENT_OPTIONS as readonly string[]).includes(value)) {
+    return { success: false, error: "Unknown segment" };
+  }
+
+  try {
+    const [before] = await db
+      .select({ invoice_number: invoices.invoice_number, customer_segment: invoices.customer_segment })
+      .from(invoices)
+      .where(eq(invoices.id, id))
+      .limit(1);
+    if (!before) return { success: false, error: "Invoice not found" };
+
+    await db.update(invoices).set({ customer_segment: value }).where(eq(invoices.id, id));
+
+    await logInvoiceEdit({
+      invoiceId: id,
+      invoiceNumber: before.invoice_number,
+      entityType: "invoice",
+      entityId: null,
+      actionType: "update",
+      before: { customer_segment: before.customer_segment },
+      after: { customer_segment: value },
+      fields: ["customer_segment"],
+    });
+    revalidatePath("/invoices");
+    await logActivity({
+      action: "update",
+      entityType: "invoice",
+      entityId: id,
+      entityLabel: before.invoice_number ?? null,
+      description: `Segment set to ${value ?? "(blank)"}`,
+    });
+    return { success: true, customerSegment: value };
+  } catch (error) {
+    console.error("Failed to update invoice segment:", error);
     return { success: false, error: String(error) };
   }
 }
